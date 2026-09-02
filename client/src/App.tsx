@@ -2,139 +2,363 @@ import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { Monitor, Cast, Power, Hash } from "lucide-react"; 
+import {
+  Monitor,
+  Cast,
+  Power,
+  Hash,
+  Shield,
+  Key,
+  Copy,
+  Check,
+  Settings as SettingsIcon,
+  BookOpen,
+  Laptop,
+  Maximize2,
+  Minimize2,
+  Trash2,
+  Plus,
+  Activity,
+  Wifi,
+  Lock,
+  Clipboard,
+  Zap,
+  Play,
+  Square,
+} from "lucide-react";
 import "./App.css";
 
-const SIGNALING_SERVER_URL = "http://127.0.0.1:3001"; 
+const DEFAULT_SERVER_URL = "http://127.0.0.1:3001";
 const ICE_SERVERS = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
-function App() {
-  const [roomId, setRoomId] = useState("");
-  const [status, setStatus] = useState("Ready");
-  const [isHostMode, setIsHostMode] = useState(false); 
-  const [isConnected, setIsConnected] = useState(false); 
-  const [ghostCursor, setGhostCursor] = useState({ x: 0.5, y: 0.5 });
-  const [monitorIndex, setMonitorIndex] = useState(0);
-  const [permissionGranted, setPermissionGranted] = useState(true);
-  // [핵심] 리스너 내부에서 최신 값을 읽기 위한 Ref 추가
-  const activeMonitorRef = useRef(0);
+interface SavedDevice {
+  id: string;
+  name: string;
+  pin?: string;
+  memo?: string;
+  createdAt: number;
+}
 
+interface RecentDevice {
+  id: string;
+  name?: string;
+  pin?: string;
+  lastConnected: number;
+}
+
+// 9자리 무작위 기기 ID 생성기
+function generateRandomDeviceId(): string {
+  const num = Math.floor(100000000 + Math.random() * 900000000);
+  return num.toString();
+}
+
+// 9자리 포맷팅 (123 456 789)
+function formatDeviceId(id: string): string {
+  const cleaned = id.replace(/\D/g, "");
+  if (cleaned.length <= 3) return cleaned;
+  if (cleaned.length <= 6) return `${cleaned.slice(0, 3)} ${cleaned.slice(3)}`;
+  return `${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)} ${cleaned.slice(6, 9)}`;
+}
+
+function App() {
+  // Navigation
+  const [activeTab, setActiveTab] = useState<"connect" | "host" | "devices" | "settings">("connect");
+
+  // Server & Connectivity
+  const [serverUrl, setServerUrl] = useState(() => localStorage.getItem("synclink_server_url") || DEFAULT_SERVER_URL);
+  const [isServerConnected, setIsServerConnected] = useState(false);
+  const [ping, setPing] = useState<number | null>(null);
+
+  // Host Configuration (LocalStorage)
+  const [myDeviceId] = useState(() => {
+    const saved = localStorage.getItem("synclink_device_id");
+    if (saved) return saved;
+    const generated = generateRandomDeviceId();
+    localStorage.setItem("synclink_device_id", generated);
+    return generated;
+  });
+  const [myPin, setMyPin] = useState(() => localStorage.getItem("synclink_pin") || "1234");
+  const [myDeviceName, setMyDeviceName] = useState(() => localStorage.getItem("synclink_devicename") || "My Workstation");
+  const [isHostingActive, setIsHostingActive] = useState(false);
+  const [hostMonitorIndex, setHostMonitorIndex] = useState(0);
+  const [hostFps, setHostFps] = useState<number>(30);
+  const [hostQuality, setHostQuality] = useState<number>(65);
+
+  // Guest Connection Inputs
+  const [targetId, setTargetId] = useState("");
+  const [targetPin, setTargetPin] = useState("");
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [saveToBookAfterConnect, setSaveToBookAfterConnect] = useState(true);
+
+  // Address Book & Recent Connections
+  const [savedDevices, setSavedDevices] = useState<SavedDevice[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("synclink_saved_devices") || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [recentDevices, setRecentDevices] = useState<RecentDevice[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("synclink_recent_devices") || "[]");
+    } catch {
+      return [];
+    }
+  });
+
+  // Active Session State
+  const [isConnected, setIsConnected] = useState(false);
+  const [isHostMode, setIsHostMode] = useState(false);
+  const [sessionRoomId, setSessionRoomId] = useState("");
+  const [sessionDeviceName, setSessionDeviceName] = useState("");
+  const [status, setStatus] = useState("Ready");
+  const [sessionFps, setSessionFps] = useState<number>(30);
+  const [sessionQuality, setSessionQuality] = useState<number>(65);
+  const [sessionMonitor, setSessionMonitor] = useState<number>(0);
+  const [autoClipboardSync, setAutoClipboardSync] = useState(true);
+  const [copiedNotification, setCopiedNotification] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [permissionGranted, setPermissionGranted] = useState(true);
+
+  // New Device Modal State
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newDeviceName, setNewDeviceName] = useState("");
+  const [newDeviceId, setNewDeviceId] = useState("");
+  const [newDevicePin, setNewDevicePin] = useState("");
+  const [newDeviceMemo, setNewDeviceMemo] = useState("");
+
+  // Refs
   const socketRef = useRef<Socket | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
-  //const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const captureCanvasRef = useRef<HTMLCanvasElement>(null);
   const isHostRef = useRef(false);
   const candidateQueue = useRef<RTCIceCandidate[]>([]);
+  const activeMonitorRef = useRef(0);
+  const lastClipboardTextRef = useRef("");
+  const videoContainerRef = useRef<HTMLDivElement>(null);
 
-  // 모니터 변경 함수 (State와 Ref 동시 업데이트)
-  const updateMonitorIndex = (index: number) => {
-      setMonitorIndex(index);
-      activeMonitorRef.current = index;
-  };
+  // Sync state to LocalStorage
+  useEffect(() => {
+    localStorage.setItem("synclink_server_url", serverUrl);
+  }, [serverUrl]);
 
   useEffect(() => {
-    // 앱 시작 시 권한 체크
+    localStorage.setItem("synclink_pin", myPin);
+  }, [myPin]);
+
+  useEffect(() => {
+    localStorage.setItem("synclink_devicename", myDeviceName);
+  }, [myDeviceName]);
+
+  useEffect(() => {
+    localStorage.setItem("synclink_saved_devices", JSON.stringify(savedDevices));
+  }, [savedDevices]);
+
+  useEffect(() => {
+    localStorage.setItem("synclink_recent_devices", JSON.stringify(recentDevices));
+  }, [recentDevices]);
+
+  // Check OS permissions on launch
+  useEffect(() => {
     const check = async () => {
+      try {
         const granted = await invoke<boolean>("check_permissions");
         setPermissionGranted(granted);
-        
-        if (!granted) {
-            console.warn("⚠️ Mac permissions missing!");
-        }
+      } catch (err) {
+        console.error("Permission check error:", err);
+      }
     };
     check();
-    
-    // (선택사항) 사용자가 설정을 켜고 돌아왔을 때를 대비해 2초마다 체크할 수도 있음
-    const interval = setInterval(check, 2000);
+    const interval = setInterval(check, 3000);
     return () => clearInterval(interval);
   }, []);
 
+  // Initialize Socket.io Connection
   useEffect(() => {
-    socketRef.current = io(SIGNALING_SERVER_URL);
-    const socket = socketRef.current;
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+    }
 
-    socket.on("connect", () => { console.log("✅ Connected"); });
-
-    // ... (WebRTC 로직 생략 - 기존과 동일) ...
-    socket.on("user-connected", async (userId) => {
-        if (!isHostRef.current || !peerRef.current) return;
-        setStatus("Connecting...");
-        try {
-            const offer = await peerRef.current.createOffer();
-            await peerRef.current.setLocalDescription(offer);
-            socket.emit("offer", { target: userId, caller: socket.id, sdp: offer });
-        } catch (e) { console.error(e); }
+    const socket = io(serverUrl, {
+      reconnectionAttempts: 10,
+      reconnectionDelay: 2000,
     });
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      console.log("✅ Connected to signaling server:", socket.id);
+      setIsServerConnected(true);
+      // Auto-register host if hosting was active
+      if (isHostRef.current) {
+        socket.emit("register-host", {
+          roomId: myDeviceId,
+          password: myPin,
+          deviceName: myDeviceName,
+        });
+      }
+    });
+
+    socket.on("disconnect", () => {
+      console.log("❌ Disconnected from signaling server");
+      setIsServerConnected(false);
+    });
+
+    socket.on("host-registered", (res) => {
+      console.log("🖥️ Host registered response:", res);
+    });
+
+    // 🔑 Guest Auth Response
+    socket.on("auth-response", async (res: { success: boolean; error?: string; roomId?: string; deviceName?: string; hostSocketId?: string }) => {
+      setIsConnecting(false);
+      if (res.success && res.roomId) {
+        setAuthError(null);
+        setSessionRoomId(res.roomId);
+        setSessionDeviceName(res.deviceName || "Remote PC");
+        setIsConnected(true);
+        setIsHostMode(false);
+        isHostRef.current = false;
+        setStatus("Connecting WebRTC...");
+
+        // Save to recent devices
+        addRecentDevice(res.roomId, res.deviceName, targetPin);
+
+        if (saveToBookAfterConnect && !savedDevices.some((d) => d.id === res.roomId)) {
+          addSavedDevice(res.roomId, res.deviceName || `PC ${res.roomId}`, targetPin, "");
+        }
+      } else {
+        setAuthError(res.error || "인증에 실패했습니다.");
+        setIsConnected(false);
+      }
+    });
+
+    // WebRTC Signaling
+    socket.on("user-connected", async (userId: string) => {
+      if (!isHostRef.current || !peerRef.current) return;
+      setStatus("Guest connected. Negotiating...");
+      try {
+        const offer = await peerRef.current.createOffer();
+        await peerRef.current.setLocalDescription(offer);
+        socket.emit("offer", { target: userId, caller: socket.id, sdp: offer });
+      } catch (e) {
+        console.error("Offer error:", e);
+      }
+    });
+
     socket.on("offer", async (payload) => {
-        const peer = createPeerConnection(payload.caller);
-        try {
-            await peer.setRemoteDescription(payload.sdp);
-            processCandidateQueue(peer);
-            const answer = await peer.createAnswer();
-            await peer.setLocalDescription(answer);
-            socket.emit("answer", { target: payload.caller, sdp: answer });
-            setIsConnected(true);
-        } catch (e) { console.error(e); }
+      const peer = createPeerConnection(payload.caller);
+      try {
+        await peer.setRemoteDescription(payload.sdp);
+        processCandidateQueue(peer);
+        const answer = await peer.createAnswer();
+        await peer.setLocalDescription(answer);
+        socket.emit("answer", { target: payload.caller, sdp: answer });
+        setIsConnected(true);
+      } catch (e) {
+        console.error("Answer error:", e);
+      }
     });
+
     socket.on("answer", async (payload) => {
-        if (peerRef.current) {
-            await peerRef.current.setRemoteDescription(payload.sdp);
-            processCandidateQueue(peerRef.current);
-            setStatus("Session Active");
-            setIsConnected(true);
-        }
+      if (peerRef.current) {
+        await peerRef.current.setRemoteDescription(payload.sdp);
+        processCandidateQueue(peerRef.current);
+        setStatus("Session Active");
+        setIsConnected(true);
+      }
     });
+
     socket.on("ice-candidate", async (payload) => {
-        const peer = peerRef.current;
-        if (peer) {
-            if (!peer.remoteDescription) candidateQueue.current.push(payload.candidate);
-            else await peer.addIceCandidate(payload.candidate).catch(e => console.error(e));
-        }
+      const peer = peerRef.current;
+      if (peer) {
+        if (!peer.remoteDescription) candidateQueue.current.push(payload.candidate);
+        else await peer.addIceCandidate(payload.candidate).catch((e) => console.error(e));
+      }
     });
 
-    // 🎮 [제어 신호 수신]
+    // 🎮 Control Events
     socket.on("control-event", async (payload) => {
-        if (isHostRef.current) {
-            try {
-                if (payload.type === "mousemove") {
-                    // [Fail-safe] Guest가 보는 화면과 내 화면이 다르면 강제 동기화
-                    // Ref를 사용하므로 항상 최신 값을 비교할 수 있음
-                    if (payload.monitorIndex !== undefined && payload.monitorIndex !== activeMonitorRef.current) {
-                         console.log(`⚠️ Auto-Switching to Monitor ${payload.monitorIndex}`);
-                         updateMonitorIndex(payload.monitorIndex);
-                         await invoke("start_screen_capture", { monitorIndex: payload.monitorIndex });
-                    }
-
-                    setGhostCursor({ x: payload.x, y: payload.y });
-                    // 현재 활성화된 모니터 기준(activeMonitorRef)으로 마우스 이동
-                    await invoke("remote_mouse_move", { 
-                        x: payload.x, 
-                        y: payload.y, 
-                        monitorIndex: activeMonitorRef.current 
-                    });
-                } 
-                else if (payload.type === "click") {
-                    await invoke("remote_mouse_click", { button: payload.button });
-                } 
-                else if (payload.type === "keydown" || payload.type === "keyup") {
-                    const state = payload.type === "keydown" ? "down" : "up";
-                    await invoke("remote_keyboard_event", { state, key: payload.key });
-                }
-                // 명시적 전환 요청
-                else if (payload.type === "switch-monitor") {
-                    console.log(`🔄 Switch Request: Monitor ${payload.monitorIndex}`);
-                    updateMonitorIndex(payload.monitorIndex);
-                    await invoke("start_screen_capture", { monitorIndex: payload.monitorIndex });
-                }
-
-            } catch (err) { console.error(err); }
+      if (isHostRef.current) {
+        try {
+          if (payload.type === "mousemove") {
+            if (payload.monitorIndex !== undefined && payload.monitorIndex !== activeMonitorRef.current) {
+              activeMonitorRef.current = payload.monitorIndex;
+              setHostMonitorIndex(payload.monitorIndex);
+              await invoke("start_screen_capture", {
+                monitorIndex: payload.monitorIndex,
+                fps: hostFps,
+                quality: hostQuality,
+              });
+            }
+            await invoke("remote_mouse_move", {
+              x: payload.x,
+              y: payload.y,
+              monitorIndex: activeMonitorRef.current,
+            });
+          } else if (payload.type === "click") {
+            await invoke("remote_mouse_click", { button: payload.button || "left" });
+          } else if (payload.type === "keydown" || payload.type === "keyup") {
+            const state = payload.type === "keydown" ? "down" : "up";
+            await invoke("remote_keyboard_event", { state, key: payload.key });
+          } else if (payload.type === "switch-monitor") {
+            activeMonitorRef.current = payload.monitorIndex;
+            setHostMonitorIndex(payload.monitorIndex);
+            await invoke("start_screen_capture", {
+              monitorIndex: payload.monitorIndex,
+              fps: hostFps,
+              quality: hostQuality,
+            });
+          }
+        } catch (err) {
+          console.error("Control handler error:", err);
         }
+      }
     });
-    return () => { socket.disconnect(); };
-  }, []);
 
-  // ... (Video Frame 수신 로직 동일) ...
+    // 📋 Clipboard Sync Event
+    socket.on("clipboard-sync", async (payload: { text: string }) => {
+      if (payload.text && payload.text !== lastClipboardTextRef.current) {
+        lastClipboardTextRef.current = payload.text;
+        try {
+          await invoke("set_clipboard_text", { text: payload.text });
+          console.log("📋 Clipboard synced successfully from remote");
+        } catch (err) {
+          console.error("Failed to set clipboard:", err);
+        }
+      }
+    });
+
+    // ⚡ Quality & FPS Change Event
+    socket.on("quality-change", async (payload: { fps?: number; quality?: number }) => {
+      if (isHostRef.current) {
+        try {
+          await invoke("update_capture_settings", {
+            fps: payload.fps,
+            quality: payload.quality,
+          });
+          if (payload.fps) setHostFps(payload.fps);
+          if (payload.quality) setHostQuality(payload.quality);
+        } catch (err) {
+          console.error("Failed to update capture settings:", err);
+        }
+      }
+    });
+
+    // Host Offline Notification
+    socket.on("host-offline", () => {
+      if (!isHostRef.current) {
+        alert("호스트와의 연결이 종료되었습니다.");
+        endSession();
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [serverUrl, myDeviceId, myPin, myDeviceName]);
+
+  // Video Frame Listener from Rust
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     const startListening = async () => {
@@ -145,234 +369,889 @@ function App() {
         if (!ctx) return;
         const img = new Image();
         img.onload = () => {
-            if (canvas.width !== img.width) canvas.width = img.width;
-            if (canvas.height !== img.height) canvas.height = img.height;
-            ctx.drawImage(img, 0, 0);
+          if (canvas.width !== img.width) canvas.width = img.width;
+          if (canvas.height !== img.height) canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
         };
         img.src = `data:image/jpeg;base64,${event.payload}`;
       });
     };
-    if (isHostMode) startListening();
-    return () => { if (unlisten) unlisten(); };
-  }, [isHostMode]);
+    if (isHostingActive) startListening();
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, [isHostingActive]);
 
-  // ... (Helper Functions 동일) ...
+  // Periodic Clipboard Sync (Both Host and Guest)
+  useEffect(() => {
+    if (!isConnected || !autoClipboardSync) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const currentText = await invoke<string>("get_clipboard_text");
+        if (currentText && currentText !== lastClipboardTextRef.current) {
+          lastClipboardTextRef.current = currentText;
+          socketRef.current?.emit("clipboard-sync", {
+            targetRoom: sessionRoomId || myDeviceId,
+            text: currentText,
+          });
+        }
+      } catch {
+        // clipboard read errors ignored
+      }
+    }, 1500);
+
+    return () => clearInterval(interval);
+  }, [isConnected, autoClipboardSync, sessionRoomId, myDeviceId]);
+
+  // Periodic Ping Measurement
+  useEffect(() => {
+    if (!isConnected) return;
+    const interval = setInterval(() => {
+      const start = Date.now();
+      socketRef.current?.emit("ping-check", start, (sentTime: number) => {
+        setPing(Date.now() - sentTime);
+      });
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [isConnected]);
+
+  // WebRTC Helper
   const createPeerConnection = (targetId: string) => {
     const peer = new RTCPeerConnection(ICE_SERVERS);
-    peer.onicecandidate = (e) => { if(e.candidate) socketRef.current?.emit("ice-candidate", { target: targetId, candidate: e.candidate }); };
+    peer.onicecandidate = (e) => {
+      if (e.candidate) {
+        socketRef.current?.emit("ice-candidate", { target: targetId, candidate: e.candidate });
+      }
+    };
     peer.ontrack = (e) => {
       setStatus("Connected");
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = e.streams[0];
-        remoteVideoRef.current.play().catch(e => console.error(e));
+        remoteVideoRef.current.play().catch((err) => console.error("Play error:", err));
       }
     };
     return peer;
   };
+
   const processCandidateQueue = async (peer: RTCPeerConnection) => {
-      while (candidateQueue.current.length > 0) { const c = candidateQueue.current.shift(); if(c) peer.addIceCandidate(c); }
-  };
-
-  // Guest 요청 처리
-  const requestMonitorSwitch = (newIndex: number) => {
-      updateMonitorIndex(newIndex); // State + Ref 업데이트
-      
-      if (isHostMode) {
-          invoke("start_screen_capture", { monitorIndex: newIndex });
-      } else {
-          socketRef.current?.emit("control-event", { 
-              targetRoom: roomId, 
-              type: "switch-monitor", 
-              monitorIndex: newIndex 
-          });
-      }
-  };
-
-  const startHosting = async () => {
-    if (!roomId) return alert("Please enter a Room ID");
-    isHostRef.current = true;
-    setIsHostMode(true);
-    setIsConnected(true);
-    setStatus("Hosting...");
-    
-    socketRef.current?.emit("join-room", roomId);
-
-    try {
-      await invoke("start_screen_capture", { monitorIndex: Number(monitorIndex) });
-
-      // [삭제] 로컬 비디오 미리보기 연결 코드 제거
-      // if (!captureCanvasRef.current) return;
-      // const canvas = captureCanvasRef.current as any;
-      // const stream = canvas.captureStream(30); 
-      // if (localVideoRef.current) localVideoRef.current.srcObject = stream; <--- 삭제
-
-      // WebRTC 연결 준비
-      if (!captureCanvasRef.current) return;
-      const canvas = captureCanvasRef.current as any;
-      const stream = canvas.captureStream(30);
-      
-      const peer = createPeerConnection("unknown"); 
-      stream.getTracks().forEach((track: any) => peer.addTrack(track, stream));
-      peerRef.current = peer; 
-
-    } catch (err) { 
-        console.error(err);
-        setIsHostMode(false);
-        setIsConnected(false);
-        isHostRef.current = false;
+    while (candidateQueue.current.length > 0) {
+      const c = candidateQueue.current.shift();
+      if (c) peer.addIceCandidate(c);
     }
   };
 
-  const joinStream = () => {
-    if (!roomId) return alert("Please enter a Room ID");
-    isHostRef.current = false;
-    setIsHostMode(false);
-    setIsConnected(true); 
-    setStatus("Connecting...");
-    peerRef.current = null; 
-    socketRef.current?.emit("join-room", roomId);
-  };
+  // Start Hosting
+  const startHosting = async () => {
+    if (!myPin) return alert("무인 접속을 위한 PIN 비밀번호를 설정해주세요.");
+    isHostRef.current = true;
+    setIsHostingActive(true);
+    setIsHostMode(true);
+    setSessionRoomId(myDeviceId);
+    setSessionDeviceName(myDeviceName);
+    setStatus("Hosting Active");
 
-  const disconnect = () => window.location.reload();
+    socketRef.current?.emit("register-host", {
+      roomId: myDeviceId,
+      password: myPin,
+      deviceName: myDeviceName,
+    });
 
-  const handleRemoteInput = (e: React.MouseEvent, type: string) => {
-      if (isHostRef.current) return; 
-      const video = e.currentTarget as HTMLVideoElement;
-      if (type === 'click') { const wrapper = video.parentElement; if (wrapper) wrapper.focus(); }
-      const rect = video.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) return;
-      const x = (e.clientX - rect.left) / rect.width;
-      const y = (e.clientY - rect.top) / rect.height;
+    try {
+      await invoke("start_screen_capture", {
+        monitorIndex: hostMonitorIndex,
+        fps: hostFps,
+        quality: hostQuality,
+      });
 
-      // [중요] Guest도 현재 monitorIndex를 담아서 보냄
-      if (type === 'mousemove') {
-          if (e.movementX * e.movementX + e.movementY * e.movementY > 10) {
-             socketRef.current?.emit("control-event", { 
-                 targetRoom: roomId, 
-                 type: "mousemove", 
-                 x, 
-                 y, 
-                 monitorIndex // 현재 state 값 전송
-             });
-          }
-      } else if (type === 'click') {
-          socketRef.current?.emit("control-event", { targetRoom: roomId, type: "click", button: "left" });
+      if (captureCanvasRef.current) {
+        const canvas = captureCanvasRef.current as any;
+        const stream = canvas.captureStream(hostFps);
+        const peer = createPeerConnection("guest");
+        stream.getTracks().forEach((track: any) => peer.addTrack(track, stream));
+        peerRef.current = peer;
       }
+    } catch (err) {
+      console.error("Start host error:", err);
+      setIsHostingActive(false);
+      isHostRef.current = false;
+    }
   };
 
-  const handleKeyInput = (e: React.KeyboardEvent, type: 'keydown' | 'keyup') => {
-      if (isHostRef.current) return;
-      socketRef.current?.emit("control-event", { targetRoom: roomId, type: type, key: e.key });
+  // Stop Hosting
+  const stopHosting = () => {
+    setIsHostingActive(false);
+    isHostRef.current = false;
+    setIsConnected(false);
+    peerRef.current?.close();
+    peerRef.current = null;
+    setStatus("Ready");
+  };
+
+  // Connect as Guest
+  const connectToDevice = (target: string, pin: string) => {
+    const cleanId = target.replace(/\s+/g, "");
+    if (!cleanId) return alert("접속할 기기 ID를 입력해주세요.");
+    setIsConnecting(true);
+    setAuthError(null);
+
+    socketRef.current?.emit("auth-connect", {
+      roomId: cleanId,
+      password: pin,
+    });
+  };
+
+  // Add Recent Device
+  const addRecentDevice = (id: string, name?: string, pin?: string) => {
+    setRecentDevices((prev) => {
+      const filtered = prev.filter((d) => d.id !== id);
+      return [{ id, name, pin, lastConnected: Date.now() }, ...filtered].slice(0, 5);
+    });
+  };
+
+  // Add Saved Device
+  const addSavedDevice = (id: string, name: string, pin?: string, memo?: string) => {
+    const cleanId = id.replace(/\s+/g, "");
+    setSavedDevices((prev) => {
+      const filtered = prev.filter((d) => d.id !== cleanId);
+      return [{ id: cleanId, name, pin, memo, createdAt: Date.now() }, ...filtered];
+    });
+  };
+
+  // Remove Saved Device
+  const removeSavedDevice = (id: string) => {
+    setSavedDevices((prev) => prev.filter((d) => d.id !== id));
+  };
+
+  // End Current Session
+  const endSession = () => {
+    peerRef.current?.close();
+    peerRef.current = null;
+    setIsConnected(false);
+    setStatus("Ready");
+    setPing(null);
+    if (isHostRef.current) {
+      setIsHostingActive(false);
+      isHostRef.current = false;
+    }
+  };
+
+  // Guest Input Handlers
+  const handleRemoteInput = (e: React.MouseEvent, type: string) => {
+    if (isHostRef.current) return;
+    const video = e.currentTarget as HTMLVideoElement;
+    if (type === "click") {
+      const wrapper = video.parentElement;
+      if (wrapper) wrapper.focus();
+    }
+    const rect = video.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+
+    if (type === "mousemove") {
+      if (e.movementX * e.movementX + e.movementY * e.movementY > 8) {
+        socketRef.current?.emit("control-event", {
+          targetRoom: sessionRoomId,
+          type: "mousemove",
+          x,
+          y,
+          monitorIndex: sessionMonitor,
+        });
+      }
+    } else if (type === "click") {
+      socketRef.current?.emit("control-event", {
+        targetRoom: sessionRoomId,
+        type: "click",
+        button: e.button === 2 ? "right" : e.button === 1 ? "middle" : "left",
+      });
+    }
+  };
+
+  const handleKeyInput = (e: React.KeyboardEvent, type: "keydown" | "keyup") => {
+    if (isHostRef.current) return;
+    socketRef.current?.emit("control-event", {
+      targetRoom: sessionRoomId,
+      type,
+      key: e.key,
+    });
+  };
+
+  // Change Remote Quality Preset
+  const applyQualityPreset = (quality: number, fps: number) => {
+    setSessionQuality(quality);
+    setSessionFps(fps);
+    socketRef.current?.emit("quality-change", {
+      targetRoom: sessionRoomId,
+      fps,
+      quality,
+    });
+  };
+
+  // Switch Remote Monitor
+  const switchRemoteMonitor = (newIndex: number) => {
+    setSessionMonitor(newIndex);
+    socketRef.current?.emit("control-event", {
+      targetRoom: sessionRoomId,
+      type: "switch-monitor",
+      monitorIndex: newIndex,
+    });
+  };
+
+  // Fullscreen Toggle
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      videoContainerRef.current?.requestFullscreen().catch((err) => console.error(err));
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen().catch((err) => console.error(err));
+      setIsFullscreen(false);
+    }
+  };
+
+  // Copy to Clipboard Helper
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedNotification(true);
+    setTimeout(() => setCopiedNotification(false), 2000);
   };
 
   return (
     <div className="container">
+      {/* macOS 권한 경고 배너 */}
       {!permissionGranted && (
-        <div style={{
-            position: 'absolute', top: 0, left: 0, right: 0,
-            background: '#ef4444', color: 'white', padding: '12px',
-            display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px',
-            zIndex: 9999
-        }}>
-            <span>⚠️ 원격 제어를 위해 '손쉬운 사용' 권한이 필요합니다.</span>
-            <button 
-                onClick={() => invoke("open_permission_settings")}
-                style={{
-                    padding: '6px 12px', borderRadius: '4px', border: 'none', 
-                    background: 'white', color: '#ef4444', fontWeight: 'bold', cursor: 'pointer'
-                }}
+        <div className="alert-banner">
+          <span>⚠️ 원격 제어 및 화면 캡처를 위해 macOS 시스템 권한이 필요합니다.</span>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button
+              onClick={() => invoke("open_permission_settings", { permissionType: "accessibility" })}
+              style={{ padding: "6px 12px", borderRadius: "6px", border: "none", background: "white", color: "#ef4444", fontWeight: "bold", cursor: "pointer" }}
             >
-                설정 열기 ⚙️
+              제어 권한 ⚙️
             </button>
+            <button
+              onClick={() => invoke("open_permission_settings", { permissionType: "screen" })}
+              style={{ padding: "6px 12px", borderRadius: "6px", border: "none", background: "white", color: "#ef4444", fontWeight: "bold", cursor: "pointer" }}
+            >
+              화면 기록 📷
+            </button>
+          </div>
         </div>
       )}
-      <canvas ref={captureCanvasRef} style={{ position: 'absolute', top: -9999, left: -9999, visibility: 'hidden' }} />
-      
+
+      {/* Background Frame Capture Canvas */}
+      <canvas ref={captureCanvasRef} style={{ position: "absolute", top: -9999, left: -9999, visibility: "hidden" }} />
+
+      {/* ─────────────────── MAIN DASHBOARD ─────────────────── */}
       {!isConnected ? (
-        <div className="lobby">
-          <div className="brand"><h1>SyncLink<span style={{color:'#3b82f6'}}>.</span></h1><p>Remote Control</p></div>
-          <div className="login-card">
-            <div className="input-group">
-              <Hash className="input-icon" size={20} />
-              <input className="room-input" placeholder="Enter Room ID" value={roomId} onChange={(e) => setRoomId(e.target.value)} />
+        <div className="main-layout">
+          {/* 사이드바 네비게이션 */}
+          <div className="sidebar">
+            <div className="brand-section">
+              <div className="brand-logo">
+                <Zap size={22} />
+              </div>
+              <div>
+                <h2 className="brand-title">SyncLink</h2>
+                <span className="brand-badge">Enterprise v1.1</span>
+              </div>
             </div>
-            <div className="input-group" style={{ marginTop: '10px' }}>
-               <Monitor className="input-icon" size={20} />
-               <select className="room-input" value={monitorIndex} onChange={(e) => updateMonitorIndex(Number(e.target.value))}>
-                 <option value={0}>Monitor 1</option>
-                 <option value={1}>Monitor 2</option>
-               </select>
+
+            <div className="nav-menu">
+              <button className={`nav-item ${activeTab === "connect" ? "active" : ""}`} onClick={() => setActiveTab("connect")}>
+                <Cast size={18} />
+                <span>원격 접속 (Connect)</span>
+              </button>
+              <button className={`nav-item ${activeTab === "host" ? "active" : ""}`} onClick={() => setActiveTab("host")}>
+                <Laptop size={18} />
+                <span>내 PC 호스팅 (Host)</span>
+              </button>
+              <button className={`nav-item ${activeTab === "devices" ? "active" : ""}`} onClick={() => setActiveTab("devices")}>
+                <BookOpen size={18} />
+                <span>기기 주소록 ({savedDevices.length})</span>
+              </button>
+              <button className={`nav-item ${activeTab === "settings" ? "active" : ""}`} onClick={() => setActiveTab("settings")}>
+                <SettingsIcon size={18} />
+                <span>설정 (Settings)</span>
+              </button>
             </div>
-            <div className="action-buttons" style={{marginTop:'20px'}}>
-              <button className="btn btn-primary" onClick={startHosting}><Cast size={18} /> Host</button>
-              <button className="btn btn-secondary" onClick={joinStream}><Monitor size={18} /> Connect</button>
+
+            <div className="sidebar-footer">
+              <div className="server-status">
+                <div className={`status-dot-sm ${isServerConnected ? "online" : "offline"}`} />
+                <span>{isServerConnected ? "시그널링 서버 연결됨" : "서버 오프라인"}</span>
+              </div>
             </div>
+          </div>
+
+          {/* 메인 컨텐츠 영역 */}
+          <div className="content-area">
+            {/* 탭 1: 원격 접속 (Connect) */}
+            {activeTab === "connect" && (
+              <div>
+                <div className="content-header">
+                  <h1 className="content-title">원격 데스크톱 접속</h1>
+                  <p className="content-subtitle">접속할 컴퓨터의 9자리 기기 ID와 PIN 비밀번호를 입력하세요.</p>
+                </div>
+
+                <div className="card-grid">
+                  {/* 접속 입력 카드 */}
+                  <div className="glass-card">
+                    <div className="card-title-row">
+                      <h3 className="card-title">
+                        <Monitor size={20} color="#60a5fa" />
+                        새 세션 연결
+                      </h3>
+                    </div>
+
+                    {authError && (
+                      <div style={{ padding: "10px 14px", background: "rgba(239, 68, 68, 0.15)", border: "1px solid rgba(239, 68, 68, 0.3)", borderRadius: "10px", color: "#fca5a5", fontSize: "0.85rem" }}>
+                        ⚠️ {authError}
+                      </div>
+                    )}
+
+                    <div className="input-field-group">
+                      <label className="input-label">기기 ID (9자리)</label>
+                      <div className="custom-input-wrapper">
+                        <Hash className="input-icon-left" size={18} />
+                        <input
+                          className="custom-input large-id mono"
+                          placeholder="000 000 000"
+                          value={formatDeviceId(targetId)}
+                          onChange={(e) => setTargetId(e.target.value.replace(/\s+/g, ""))}
+                          maxLength={11}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="input-field-group">
+                      <label className="input-label">무인 접속 PIN / 비밀번호</label>
+                      <div className="custom-input-wrapper">
+                        <Key className="input-icon-left" size={18} />
+                        <input
+                          className="custom-input mono"
+                          type="password"
+                          placeholder="••••••"
+                          value={targetPin}
+                          onChange={(e) => setTargetPin(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "4px" }}>
+                      <input
+                        type="checkbox"
+                        id="saveDevice"
+                        checked={saveToBookAfterConnect}
+                        onChange={(e) => setSaveToBookAfterConnect(e.target.checked)}
+                        style={{ accentColor: "var(--primary)" }}
+                      />
+                      <label htmlFor="saveDevice" style={{ fontSize: "0.85rem", color: "var(--text-muted)", cursor: "pointer" }}>
+                        접속 성공 시 주소록에 자동 저장
+                      </label>
+                    </div>
+
+                    <button
+                      className="btn-main btn-primary-glow"
+                      onClick={() => connectToDevice(targetId, targetPin)}
+                      disabled={isConnecting || !isServerConnected}
+                    >
+                      {isConnecting ? (
+                        <>
+                          <Activity className="animate-spin" size={18} />
+                          <span>연결 중...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play size={18} />
+                          <span>원격 접속 시작</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* 최근 접속 기기 카드 */}
+                  <div className="glass-card">
+                    <div className="card-title-row">
+                      <h3 className="card-title">
+                        <Laptop size={20} color="#818cf8" />
+                        최근 접속 기기
+                      </h3>
+                    </div>
+
+                    {recentDevices.length === 0 ? (
+                      <div style={{ color: "var(--text-dim)", textAlign: "center", padding: "40px 0", fontSize: "0.9rem" }}>
+                        최근 접속한 기기 기록이 없습니다.
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                        {recentDevices.map((dev) => (
+                          <div key={dev.id} className="device-card">
+                            <div className="device-info-left">
+                              <div className="device-icon-box">
+                                <Monitor size={20} />
+                              </div>
+                              <div>
+                                <h4 className="device-name">{dev.name || `PC ${formatDeviceId(dev.id)}`}</h4>
+                                <span className="device-id-tag mono">{formatDeviceId(dev.id)}</span>
+                              </div>
+                            </div>
+                            <button
+                              className="btn-main btn-secondary-dark"
+                              style={{ padding: "8px 14px", fontSize: "0.85rem" }}
+                              onClick={() => {
+                                setTargetId(dev.id);
+                                if (dev.pin) setTargetPin(dev.pin);
+                                connectToDevice(dev.id, dev.pin || targetPin);
+                              }}
+                            >
+                              접속
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 탭 2: 내 PC 호스팅 (Host) */}
+            {activeTab === "host" && (
+              <div>
+                <div className="content-header">
+                  <h1 className="content-title">내 PC 호스팅 및 무인 접속 설정</h1>
+                  <p className="content-subtitle">이 PC를 원격에서 접속할 수 있도록 고정 ID와 비밀번호를 설정하세요.</p>
+                </div>
+
+                <div className="card-grid">
+                  <div className="glass-card">
+                    <div className="card-title-row">
+                      <h3 className="card-title">
+                        <Shield size={20} color="#34d399" />
+                        내 호스트 기기 정보
+                      </h3>
+                      {isHostingActive && (
+                        <span style={{ fontSize: "0.75rem", background: "rgba(16, 185, 129, 0.2)", color: "#34d399", padding: "4px 8px", borderRadius: "6px", fontWeight: "bold" }}>
+                          ● 호스팅 서비스 동작 중
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="input-field-group">
+                      <label className="input-label">내 기기 ID (외부 공유용)</label>
+                      <div className="custom-input-wrapper">
+                        <Hash className="input-icon-left" size={18} />
+                        <input className="custom-input large-id mono" value={formatDeviceId(myDeviceId)} readOnly />
+                        <button
+                          className="btn-icon-only"
+                          style={{ position: "absolute", right: "8px" }}
+                          onClick={() => copyToClipboard(myDeviceId)}
+                          title="기기 ID 복사"
+                        >
+                          {copiedNotification ? <Check size={16} color="#34d399" /> : <Copy size={16} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="input-field-group">
+                      <label className="input-label">내 컴퓨터 이름</label>
+                      <div className="custom-input-wrapper">
+                        <Laptop className="input-icon-left" size={18} />
+                        <input
+                          className="custom-input"
+                          value={myDeviceName}
+                          onChange={(e) => setMyDeviceName(e.target.value)}
+                          placeholder="예: Jay's Office PC"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="input-field-group">
+                      <label className="input-label">무인 접속 고정 PIN (비밀번호)</label>
+                      <div className="custom-input-wrapper">
+                        <Lock className="input-icon-left" size={18} />
+                        <input
+                          className="custom-input mono"
+                          value={myPin}
+                          onChange={(e) => setMyPin(e.target.value)}
+                          placeholder="접속 비밀번호 설정"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="input-field-group">
+                      <label className="input-label">기본 공유 모니터</label>
+                      <div className="custom-input-wrapper">
+                        <Monitor className="input-icon-left" size={18} />
+                        <select
+                          className="custom-select"
+                          value={hostMonitorIndex}
+                          onChange={(e) => setHostMonitorIndex(Number(e.target.value))}
+                        >
+                          <option value={0}>디스플레이 1 (주 모니터)</option>
+                          <option value={1}>디스플레이 2 (보조 모니터)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {!isHostingActive ? (
+                      <button className="btn-main btn-primary-glow" onClick={startHosting} disabled={!isServerConnected}>
+                        <Play size={18} />
+                        <span>호스팅 서비스 시작</span>
+                      </button>
+                    ) : (
+                      <button className="btn-main btn-danger-soft" onClick={stopHosting}>
+                        <Square size={18} />
+                        <span>호스팅 중지</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* 호스팅 상태 레이더 카드 */}
+                  <div className="glass-card" style={{ alignItems: "center", justifyContent: "center" }}>
+                    {isHostingActive ? (
+                      <div className="host-active-box" style={{ width: "100%" }}>
+                        <div className="radar-wrapper">
+                          <div className="radar-pulse" />
+                          <div className="radar-core">
+                            <Cast size={32} />
+                          </div>
+                        </div>
+                        <div style={{ textAlign: "center" }}>
+                          <h3 style={{ margin: "0 0 6px 0", fontSize: "1.3rem" }}>호스팅 서비스 활성화됨</h3>
+                          <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", margin: 0 }}>
+                            외부에서 ID <b>{formatDeviceId(myDeviceId)}</b> 로 언제든 원격 제어할 수 있습니다.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-dim)" }}>
+                        <Laptop size={48} style={{ opacity: 0.3, marginBottom: "12px" }} />
+                        <p style={{ margin: 0 }}>호스팅 서비스를 시작하면 원격 접속 요청을 수신합니다.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 탭 3: 기기 주소록 (Address Book) */}
+            {activeTab === "devices" && (
+              <div>
+                <div className="content-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <h1 className="content-title">기기 주소록</h1>
+                    <p className="content-subtitle">자주 접속하는 원격 컴퓨터를 등록하고 원클릭으로 연결하세요.</p>
+                  </div>
+                  <button className="btn-main btn-primary-glow" style={{ padding: "10px 16px" }} onClick={() => setShowAddModal(true)}>
+                    <Plus size={18} />
+                    <span>새 기기 추가</span>
+                  </button>
+                </div>
+
+                {savedDevices.length === 0 ? (
+                  <div className="glass-card" style={{ textAlign: "center", padding: "60px 20px" }}>
+                    <BookOpen size={48} style={{ opacity: 0.2, margin: "0 auto 16px auto" }} />
+                    <h3 style={{ margin: "0 0 8px 0" }}>등록된 기기가 없습니다</h3>
+                    <p style={{ color: "var(--text-muted)", margin: 0, fontSize: "0.9rem" }}>
+                      [새 기기 추가] 버튼을 눌러 자주 쓰는 컴퓨터를 등록해 보세요.
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                    {savedDevices.map((dev) => (
+                      <div key={dev.id} className="device-card">
+                        <div className="device-info-left">
+                          <div className="device-icon-box">
+                            <Laptop size={22} />
+                          </div>
+                          <div>
+                            <h4 className="device-name">{dev.name}</h4>
+                            <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                              <span className="device-id-tag mono">{formatDeviceId(dev.id)}</span>
+                              {dev.memo && <span style={{ fontSize: "0.75rem", color: "var(--text-dim)" }}>• {dev.memo}</span>}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: "8px" }}>
+                          <button
+                            className="btn-main btn-primary-glow"
+                            style={{ padding: "8px 16px", fontSize: "0.85rem" }}
+                            onClick={() => {
+                              setTargetId(dev.id);
+                              if (dev.pin) setTargetPin(dev.pin);
+                              connectToDevice(dev.id, dev.pin || "");
+                            }}
+                          >
+                            <Play size={14} />
+                            <span>연결</span>
+                          </button>
+                          <button className="btn-icon-only" onClick={() => removeSavedDevice(dev.id)} title="기기 삭제">
+                            <Trash2 size={16} color="#fca5a5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 탭 4: 설정 (Settings) */}
+            {activeTab === "settings" && (
+              <div>
+                <div className="content-header">
+                  <h1 className="content-title">시스템 설정</h1>
+                  <p className="content-subtitle">시그널링 서버 주소 및 클립보드 동기화 옵션을 관리합니다.</p>
+                </div>
+
+                <div className="glass-card" style={{ maxWidth: "600px" }}>
+                  <div className="input-field-group">
+                    <label className="input-label">시그널링 서버 주소 (Signaling Server URL)</label>
+                    <div className="custom-input-wrapper">
+                      <Wifi className="input-icon-left" size={18} />
+                      <input className="custom-input mono" value={serverUrl} onChange={(e) => setServerUrl(e.target.value)} />
+                    </div>
+                    <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+                      <button className="btn-main btn-secondary-dark" style={{ padding: "6px 12px", fontSize: "0.8rem" }} onClick={() => setServerUrl(DEFAULT_SERVER_URL)}>
+                        기본 공용 서버
+                      </button>
+                      <button className="btn-main btn-secondary-dark" style={{ padding: "6px 12px", fontSize: "0.8rem" }} onClick={() => setServerUrl("http://localhost:3001")}>
+                        로컬호스트 (3001)
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="input-field-group" style={{ marginTop: "12px" }}>
+                    <label className="input-label">클립보드 동기화</label>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <input
+                        type="checkbox"
+                        id="autoClip"
+                        checked={autoClipboardSync}
+                        onChange={(e) => setAutoClipboardSync(e.target.checked)}
+                        style={{ accentColor: "var(--primary)" }}
+                      />
+                      <label htmlFor="autoClip" style={{ fontSize: "0.9rem", color: "var(--text-main)", cursor: "pointer" }}>
+                        세션 연결 중 텍스트 복사(`Ctrl+C` / `Ctrl+V`) 자동 양방향 동기화
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : (
-        <>
-          <div className="session-header">
-            <div className="status-badge"><div className="status-dot"></div><span>{status}</span></div>
-            <div className="monitor-switcher" style={{ marginLeft: 'auto', marginRight: '10px' }}>
-                <select className="room-input" style={{ padding: '8px', fontSize: '0.9rem', width: 'auto' }}
-                    value={monitorIndex}
-                    onChange={(e) => requestMonitorSwitch(Number(e.target.value))}
-                >
-                    <option value={0}>Display 1</option>
-                    <option value={1}>Display 2</option>
-                </select>
+        /* ─────────────────── IN-SESSION SCREEN (ACTIVE) ─────────────────── */
+        <div className="session-screen" ref={videoContainerRef}>
+          {/* 상단 플로팅 글래스모피즘 툴바 */}
+          <div className="in-session-toolbar">
+            <div className="toolbar-badge">
+              <div className="status-dot-sm online" />
+              <span>{sessionDeviceName || formatDeviceId(sessionRoomId)}</span>
+              <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginLeft: "4px" }}>({status})</span>
             </div>
-            <button className="btn btn-danger" onClick={disconnect}><Power size={16} /> End</button>
-          </div>
 
-          <div className="video-container">
-            {/* [Host View] 비디오 대신 상태 대시보드 표시 */}
-            {isHostMode && (
-                <div className="host-dashboard" style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px',
-                    color: 'white', userSelect: 'none'
-                }}>
-                    {/* 레이더 애니메이션 효과 */}
-                    <div style={{ position: 'relative', width: '100px', height: '100px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                        <div style={{
-                            position: 'absolute', width: '100%', height: '100%', borderRadius: '50%',
-                            background: 'rgba(59, 130, 246, 0.3)', animation: 'ping 2s cubic-bezier(0, 0, 0.2, 1) infinite'
-                        }}></div>
-                        <div style={{
-                            position: 'absolute', width: '60%', height: '60%', borderRadius: '50%',
-                            background: '#3b82f6', boxShadow: '0 0 20px #3b82f6'
-                        }}></div>
-                        <Cast size={32} color="white" style={{ zIndex: 10, position: 'relative' }} />
-                    </div>
-
-                    <div style={{ textAlign: 'center' }}>
-                        <h2 style={{ margin: '0 0 10px 0', fontSize: '1.8rem' }}>ON AIR</h2>
-                        <p style={{ color: '#94a3b8', margin: 0 }}>
-                            Display {Number(monitorIndex) + 1} is being shared.
-                        </p>
-                        <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '5px' }}>
-                            Room ID: <span style={{ color: '#f8fafc', fontWeight: 'bold' }}>{roomId}</span>
-                        </p>
-                    </div>
-
-                    {/* 유령 커서 정보 (디버깅용으로 좌표만 표시하거나 숨김) */}
-                    <div style={{ 
-                        background: 'rgba(0,0,0,0.5)', padding: '10px 20px', borderRadius: '8px', 
-                        border: '1px solid rgba(255,255,255,0.1)', fontSize: '0.8rem', color: '#64748b'
-                    }}>
-                        Guest Mouse: {ghostCursor.x.toFixed(2)}, {ghostCursor.y.toFixed(2)}
-                    </div>
-                </div>
+            {ping !== null && (
+              <div className="toolbar-badge" style={{ color: ping < 50 ? "#34d399" : "#f59e0b" }}>
+                <Activity size={14} />
+                <span>{ping} ms</span>
+                <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginLeft: "4px" }}>• {sessionFps} FPS</span>
+              </div>
             )}
 
-            {/* [Guest View] 기존과 동일 (화면 봄) */}
+            <div className="toolbar-divider" />
+
+            {/* 게스트 제어 옵션들 */}
             {!isHostMode && (
-                <div className="video-wrapper" tabIndex={0} onKeyDown={(e) => handleKeyInput(e, 'keydown')} onKeyUp={(e) => handleKeyInput(e, 'keyup')}>
-                    <video ref={remoteVideoRef} autoPlay playsInline muted onClick={(e) => handleRemoteInput(e, 'click')} onMouseMove={(e) => handleRemoteInput(e, 'mousemove')} />
+              <>
+                {/* 화질 프리셋 */}
+                <button
+                  className={`toolbar-btn ${sessionQuality === 95 ? "active" : ""}`}
+                  onClick={() => applyQualityPreset(95, 60)}
+                  title="초고화질 (60 FPS)"
+                >
+                  <Zap size={14} />
+                  <span>Ultra 60fps</span>
+                </button>
+
+                <button
+                  className={`toolbar-btn ${sessionQuality === 65 ? "active" : ""}`}
+                  onClick={() => applyQualityPreset(65, 30)}
+                  title="균형 화질 (30 FPS)"
+                >
+                  <span>Balanced</span>
+                </button>
+
+                {/* 모니터 전환 */}
+                <button
+                  className="toolbar-btn"
+                  onClick={() => switchRemoteMonitor(sessionMonitor === 0 ? 1 : 0)}
+                  title="화면 전환"
+                >
+                  <Monitor size={14} />
+                  <span>Display {sessionMonitor + 1}</span>
+                </button>
+
+                {/* 클립보드 동기화 상태 */}
+                <button
+                  className={`toolbar-btn ${autoClipboardSync ? "active" : ""}`}
+                  onClick={() => setAutoClipboardSync(!autoClipboardSync)}
+                  title="클립보드 자동 동기화 토글"
+                >
+                  <Clipboard size={14} />
+                  <span>클립보드</span>
+                </button>
+
+                <div className="toolbar-divider" />
+
+                {/* 전체화면 */}
+                <button className="toolbar-btn" onClick={toggleFullscreen} title="전체화면">
+                  {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                </button>
+              </>
+            )}
+
+            {/* 세션 종료 */}
+            <button className="btn-main btn-danger-soft" style={{ padding: "6px 12px", fontSize: "0.85rem" }} onClick={endSession}>
+              <Power size={14} />
+              <span>종료</span>
+            </button>
+          </div>
+
+          {/* 영상 스트리밍 뷰 */}
+          <div className="video-container">
+            {isHostMode ? (
+              <div className="host-active-box">
+                <div className="radar-wrapper">
+                  <div className="radar-pulse" />
+                  <div className="radar-core">
+                    <Cast size={36} />
+                  </div>
                 </div>
+                <div style={{ textAlign: "center" }}>
+                  <h2 style={{ margin: "0 0 8px 0" }}>ON AIR</h2>
+                  <p style={{ color: "var(--text-muted)", margin: 0 }}>게스트가 현재 PC를 원격 제어 중입니다.</p>
+                </div>
+              </div>
+            ) : (
+              <div
+                className="video-wrapper"
+                tabIndex={0}
+                onKeyDown={(e) => handleKeyInput(e, "keydown")}
+                onKeyUp={(e) => handleKeyInput(e, "keyup")}
+                onContextMenu={(e) => e.preventDefault()}
+              >
+                <video
+                  ref={remoteVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  onClick={(e) => handleRemoteInput(e, "click")}
+                  onMouseMove={(e) => handleRemoteInput(e, "mousemove")}
+                  onMouseDown={(e) => handleRemoteInput(e, "click")}
+                />
+              </div>
             )}
           </div>
-        </>
+        </div>
+      )}
+
+      {/* ─────────────────── 기기 추가 모달 ─────────────────── */}
+      {showAddModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.75)",
+            backdropFilter: "blur(8px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10000,
+          }}
+        >
+          <div className="glass-card" style={{ width: "400px", background: "#111827", borderColor: "rgba(255,255,255,0.15)" }}>
+            <h3 style={{ margin: 0, fontSize: "1.2rem" }}>새 원격 기기 등록</h3>
+
+            <div className="input-field-group">
+              <label className="input-label">기기 별칭 (이름)</label>
+              <input
+                className="custom-input"
+                placeholder="예: 회사 사무실 PC"
+                value={newDeviceName}
+                onChange={(e) => setNewDeviceName(e.target.value)}
+              />
+            </div>
+
+            <div className="input-field-group">
+              <label className="input-label">기기 ID (9자리)</label>
+              <input
+                className="custom-input mono"
+                placeholder="000 000 000"
+                value={formatDeviceId(newDeviceId)}
+                onChange={(e) => setNewDeviceId(e.target.value.replace(/\s+/g, ""))}
+              />
+            </div>
+
+            <div className="input-field-group">
+              <label className="input-label">PIN 비밀번호 (선택사항)</label>
+              <input
+                className="custom-input mono"
+                type="password"
+                placeholder="••••••"
+                value={newDevicePin}
+                onChange={(e) => setNewDevicePin(e.target.value)}
+              />
+            </div>
+
+            <div className="input-field-group">
+              <label className="input-label">메모 (선택사항)</label>
+              <input
+                className="custom-input"
+                placeholder="예: 3층 연구실 4번 좌석"
+                value={newDeviceMemo}
+                onChange={(e) => setNewDeviceMemo(e.target.value)}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+              <button
+                className="btn-main btn-secondary-dark"
+                style={{ flex: 1 }}
+                onClick={() => {
+                  setShowAddModal(false);
+                  setNewDeviceName("");
+                  setNewDeviceId("");
+                  setNewDevicePin("");
+                  setNewDeviceMemo("");
+                }}
+              >
+                취소
+              </button>
+              <button
+                className="btn-main btn-primary-glow"
+                style={{ flex: 1 }}
+                onClick={() => {
+                  if (!newDeviceId || !newDeviceName) return alert("기기 이름과 ID를 입력해주세요.");
+                  addSavedDevice(newDeviceId, newDeviceName, newDevicePin, newDeviceMemo);
+                  setShowAddModal(false);
+                  setNewDeviceName("");
+                  setNewDeviceId("");
+                  setNewDevicePin("");
+                  setNewDeviceMemo("");
+                }}
+              >
+                저장
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

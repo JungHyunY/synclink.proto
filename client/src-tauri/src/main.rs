@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use rdev::{simulate, Button, EventType, Key};
-use tauri::{command, Emitter, Manager, Window};
+use tauri::{command, Emitter, Window};
 use screenshots::Screen; 
 use std::io::Cursor;
 use base64::{engine::general_purpose, Engine as _};
@@ -11,6 +11,8 @@ use image::ColorType;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 static CAPTURE_SESSION_ID: AtomicUsize = AtomicUsize::new(0);
+static CAPTURE_FPS: AtomicUsize = AtomicUsize::new(30);
+static CAPTURE_QUALITY: AtomicUsize = AtomicUsize::new(50);
 
 // --- 키보드 매핑 ---
 fn str_to_key(key_str: &str) -> Option<Key> {
@@ -44,7 +46,6 @@ fn str_to_key(key_str: &str) -> Option<Key> {
     }
 }
 
-// [수정됨] 괄호 () 제거
 #[command]
 fn remote_mouse_move(x: f64, y: f64, monitor_index: usize) {
     let screens = Screen::all().unwrap_or_default();
@@ -53,7 +54,6 @@ fn remote_mouse_move(x: f64, y: f64, monitor_index: usize) {
     if let Some(s) = screen {
         let info = s.display_info;
         
-        // [핵심 수정] info.x() -> info.x (필드 접근)
         let offset_x = info.x as f64;
         let offset_y = info.y as f64;
         let width = info.width as f64;
@@ -62,7 +62,16 @@ fn remote_mouse_move(x: f64, y: f64, monitor_index: usize) {
         let target_x = offset_x + (x * width);
         let target_y = offset_y + (y * height);
 
-        let _ = simulate(&EventType::MouseMove { x: target_x, y: target_y });
+        #[cfg(target_os = "macos")]
+        let (final_x, final_y) = {
+            let scale = info.scale_factor as f64;
+            (target_x / scale, target_y / scale)
+        };
+        
+        #[cfg(not(target_os = "macos"))]
+        let (final_x, final_y) = (target_x, target_y);
+
+        let _ = simulate(&EventType::MouseMove { x: final_x, y: final_y });
     }
 }
 
@@ -70,19 +79,18 @@ fn remote_mouse_move(x: f64, y: f64, monitor_index: usize) {
 fn remote_mouse_click(button: String) {
     let btn = match button.as_str() {
         "right" => Button::Right,
+        "middle" => Button::Middle,
         _ => Button::Left,
     };
     
     // 1. 누른다
     let _ = simulate(&EventType::ButtonPress(btn));
     
-    // 2. [핵심] 0.1초 기다린다 (OS가 인식할 시간을 줌)
-    thread::sleep(Duration::from_millis(100));
+    // 2. 0.05초 대기 (OS가 인식할 시간을 줌)
+    thread::sleep(Duration::from_millis(50));
     
     // 3. 뗀다
     let _ = simulate(&EventType::ButtonRelease(btn));
-    
-    println!("🖱️ Click simulated: {}", button);
 }
 
 #[command]
@@ -98,15 +106,38 @@ fn remote_keyboard_event(state: String, key: String) {
 }
 
 #[command]
-async fn start_screen_capture(window: Window, monitor_index: usize) {
+fn update_capture_settings(fps: Option<u32>, quality: Option<u8>) {
+    if let Some(f) = fps {
+        let clamped_fps = f.clamp(10, 60) as usize;
+        CAPTURE_FPS.store(clamped_fps, Ordering::Relaxed);
+        println!("⚙️ Updated capture FPS to: {}", clamped_fps);
+    }
+    if let Some(q) = quality {
+        let clamped_q = q.clamp(10, 100) as usize;
+        CAPTURE_QUALITY.store(clamped_q, Ordering::Relaxed);
+        println!("⚙️ Updated capture quality to: {}", clamped_q);
+    }
+}
+
+#[command]
+async fn start_screen_capture(window: Window, monitor_index: usize, fps: Option<u32>, quality: Option<u8>) {
+    if let Some(f) = fps {
+        CAPTURE_FPS.store(f.clamp(10, 60) as usize, Ordering::Relaxed);
+    }
+    if let Some(q) = quality {
+        CAPTURE_QUALITY.store(q.clamp(10, 100) as usize, Ordering::Relaxed);
+    }
+
     let my_session_id = CAPTURE_SESSION_ID.fetch_add(1, Ordering::SeqCst) + 1;
-    println!("📸 Starting capture (screenshots) for Monitor {} (Session {})", monitor_index, my_session_id);
+    let initial_fps = CAPTURE_FPS.load(Ordering::Relaxed);
+    let initial_quality = CAPTURE_QUALITY.load(Ordering::Relaxed);
+    println!("📸 Starting capture for Monitor {} (Session {}, {} FPS, {}% Quality)", monitor_index, my_session_id, initial_fps, initial_quality);
 
     thread::spawn(move || {
         loop {
             let current_global_id = CAPTURE_SESSION_ID.load(Ordering::SeqCst);
             if current_global_id != my_session_id {
-                println!("🛑 Thread {} stopping...", my_session_id);
+                println!("🛑 Capture Thread {} stopping...", my_session_id);
                 break;
             }
 
@@ -117,13 +148,13 @@ async fn start_screen_capture(window: Window, monitor_index: usize) {
             if let Some(screen) = screen {
                 match screen.capture() {
                     Ok(image) => {
-                        // capture()가 반환하는 image는 메서드 width(), height()를 가집니다 (여긴 괄호 유지)
                         let width = image.width();
                         let height = image.height();
-                        let raw_data = image.as_raw(); // Vec<u8>
+                        let raw_data = image.as_raw();
 
+                        let quality = CAPTURE_QUALITY.load(Ordering::Relaxed) as u8;
                         let mut buffer = Cursor::new(Vec::new());
-                        let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buffer, 50);
+                        let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buffer, quality);
                         
                         match encoder.encode(raw_data, width, height, ColorType::Rgba8) {
                             Ok(_) => {
@@ -139,40 +170,57 @@ async fn start_screen_capture(window: Window, monitor_index: usize) {
                 }
             }
 
+            let current_fps = CAPTURE_FPS.load(Ordering::Relaxed).max(10);
+            let frame_target_duration = Duration::from_millis((1000 / current_fps) as u64);
             let elapsed = start_time.elapsed();
-            if elapsed < Duration::from_millis(33) {
-                thread::sleep(Duration::from_millis(33) - elapsed);
+            if elapsed < frame_target_duration {
+                thread::sleep(frame_target_duration - elapsed);
             }
         }
     });
 }
 
 #[command]
+fn get_clipboard_text() -> Result<String, String> {
+    let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
+    clipboard.get_text().map_err(|e| e.to_string())
+}
+
+#[command]
+fn set_clipboard_text(text: String) -> Result<(), String> {
+    let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
+    clipboard.set_text(text).map_err(|e| e.to_string())
+}
+
+#[command]
 fn check_permissions() -> bool {
     #[cfg(target_os = "macos")]
     {
-        // 접근성 권한(마우스 제어)이 있는지 확인
         return macos_accessibility_client::accessibility::application_is_trusted();
     }
     #[cfg(not(target_os = "macos"))]
     {
-        // 윈도우는 별도 체크 없이 true 반환 (MVP 기준)
         return true;
     }
 }
 
-// [NEW] 설정창 열기 로직
 #[command]
-fn open_permission_settings() {
+fn open_permission_settings(permission_type: String) {
     #[cfg(target_os = "macos")]
     {
-        // '손쉬운 사용' 설정 패널을 직접 엽니다.
+        let url = match permission_type.as_str() {
+            "screen" => "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+            _ => "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+        };
+        
         std::process::Command::new("open")
-            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+            .arg(url)
             .spawn()
             .ok();
-            
-        // (참고) 화면 기록 설정창 URL: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = permission_type;
     }
 }
 
@@ -184,6 +232,9 @@ fn main() {
             remote_mouse_click,
             remote_keyboard_event,
             start_screen_capture,
+            update_capture_settings,
+            get_clipboard_text,
+            set_clipboard_text,
             check_permissions,
             open_permission_settings
         ])
