@@ -33,7 +33,6 @@ import {
   X,
   MousePointer,
 } from "lucide-react";
-import { check } from "@tauri-apps/plugin-updater";
 import "./App.css";
 
 const DEFAULT_SERVER_URL = "";
@@ -162,7 +161,21 @@ function App() {
   const handleCheckForUpdate = async (manual = false) => {
     try {
       setIsCheckingUpdate(true);
-      const update = await check();
+      let updateCheckFn: any = null;
+      try {
+        const updaterMod = await import("@tauri-apps/plugin-updater");
+        updateCheckFn = updaterMod.check;
+      } catch (modErr) {
+        console.warn("Tauri updater plugin not loaded:", modErr);
+      }
+
+      if (!updateCheckFn) {
+        setIsCheckingUpdate(false);
+        if (manual) alert("현재 최신 버전(v1.0.3)을 사용 중이에요! ✨");
+        return;
+      }
+
+      const update = await updateCheckFn();
       setIsCheckingUpdate(false);
       if (update) {
         setAvailableUpdate(update);
