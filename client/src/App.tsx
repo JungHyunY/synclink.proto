@@ -28,7 +28,6 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
-import { BdsBadge } from "blueward-design-system";
 import "./App.css";
 
 const DEFAULT_SERVER_URL = "http://127.0.0.1:3001";
@@ -785,12 +784,9 @@ function App() {
               />
               <div>
                 <h2 className="brand-title">SyncLink</h2>
-                <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "2px" }}>
-                  <span className="brand-badge" style={{ background: "rgba(0, 102, 255, 0.15)", color: "#38bdf8", border: "1px solid rgba(0, 194, 255, 0.3)" }}>
-                    by nexus
-                  </span>
-                  <BdsBadge variant="primary" size="sm" dot>BDS</BdsBadge>
-                </div>
+                <span className="brand-badge" style={{ background: "rgba(0, 102, 255, 0.15)", color: "#38bdf8", border: "1px solid rgba(0, 194, 255, 0.3)" }}>
+                  by nexus
+                </span>
               </div>
             </div>
 
@@ -1190,7 +1186,6 @@ function App() {
                   </h3>
                   <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: "6px" }}>
                     <div>• <b>개발자</b>: nexus (개인 개발자 프로젝트)</div>
-                    <div>• <b>디자인 시스템</b>: blueward-design-system (BDS v1.0.2)</div>
                     <div>• <b>라이선스</b>: 100% 무료 & 오픈소스 (월 구독 / 과금 없음)</div>
                     <div>• <b>버전</b>: SyncLink v1.1.0 (Native Desktop)</div>
                   </div>
