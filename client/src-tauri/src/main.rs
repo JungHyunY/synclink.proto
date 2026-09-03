@@ -279,11 +279,24 @@ fn set_clipboard_text(text: String) -> Result<(), String> {
     clipboard.set_text(text).map_err(|e| e.to_string())
 }
 
+#[cfg(target_os = "macos")]
+extern "C" {
+    fn CGPreflightScreenCaptureAccess() -> bool;
+    fn CGRequestScreenCaptureAccess() -> bool;
+}
+
 #[command]
 fn check_permissions() -> bool {
     #[cfg(target_os = "macos")]
     {
-        return macos_accessibility_client::accessibility::application_is_trusted();
+        let a11y = macos_accessibility_client::accessibility::application_is_trusted();
+        let screen = unsafe { CGPreflightScreenCaptureAccess() };
+        if !screen {
+            unsafe {
+                CGRequestScreenCaptureAccess();
+            }
+        }
+        return a11y && screen;
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -315,14 +328,78 @@ fn open_permission_settings(permission_type: String) {
 async fn set_window_session_mode(window: Window, is_session: bool) {
     if is_session {
         let _ = window.set_resizable(true);
+        let _ = window.set_maximizable(true);
         let _ = window.set_min_size(Some(tauri::Size::Logical(tauri::LogicalSize { width: 800.0, height: 500.0 })));
         let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize { width: 1280.0, height: 800.0 }));
         let _ = window.center();
     } else {
         let _ = window.set_resizable(false);
+        let _ = window.set_maximizable(false);
         let _ = window.set_min_size(Some(tauri::Size::Logical(tauri::LogicalSize { width: 980.0, height: 640.0 })));
         let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize { width: 980.0, height: 640.0 }));
         let _ = window.center();
+    }
+}
+
+#[cfg(target_os = "macos")]
+mod mac_brightness {
+    use std::ffi::CString;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    static SAVED_BRIGHTNESS: AtomicU32 = AtomicU32::new(70);
+
+    extern "C" {
+        fn dlopen(filename: *const std::os::raw::c_char, flag: std::os::raw::c_int) -> *mut std::ffi::c_void;
+        fn dlsym(handle: *mut std::ffi::c_void, symbol: *const std::os::raw::c_char) -> *mut std::ffi::c_void;
+        fn dlclose(handle: *mut std::ffi::c_void) -> std::os::raw::c_int;
+    }
+
+    pub fn set_display_brightness(zero: bool) {
+        unsafe {
+            let path = CString::new("/System/Library/PrivateFrameworks/DisplayServices.framework/DisplayServices").unwrap();
+            let handle = dlopen(path.as_ptr(), 1);
+            if handle.is_null() {
+                eprintln!("[Brightness] Failed to load DisplayServices.framework");
+                return;
+            }
+
+            let set_sym = CString::new("DisplayServicesSetBrightness").unwrap();
+            let set_ptr = dlsym(handle, set_sym.as_ptr());
+
+            let get_sym = CString::new("DisplayServicesGetBrightness").unwrap();
+            let get_ptr = dlsym(handle, get_sym.as_ptr());
+
+            if !set_ptr.is_null() {
+                type SetFn = unsafe extern "C" fn(u32, f32) -> i32;
+                type GetFn = unsafe extern "C" fn(u32, *mut f32) -> i32;
+                let set_fn: SetFn = std::mem::transmute(set_ptr);
+
+                if zero {
+                    if !get_ptr.is_null() {
+                        let get_fn: GetFn = std::mem::transmute(get_ptr);
+                        let mut curr: f32 = 0.7;
+                        if get_fn(1, &mut curr) == 0 && curr > 0.05 {
+                            SAVED_BRIGHTNESS.store((curr * 100.0) as u32, Ordering::SeqCst);
+                        }
+                    }
+                    for d in 1..=4 {
+                        set_fn(d, 0.0);
+                    }
+                    println!("[Brightness] Displays dimmed to 0.0 (Curtain mode ON)");
+                } else {
+                    let target = (SAVED_BRIGHTNESS.load(Ordering::SeqCst) as f32) / 100.0;
+                    let restore_val = if target > 0.05 { target } else { 0.7 };
+                    for d in 1..=4 {
+                        set_fn(d, restore_val);
+                    }
+                    println!("[Brightness] Displays restored to {} (Curtain mode OFF)", restore_val);
+                }
+            } else {
+                eprintln!("[Brightness] DisplayServicesSetBrightness symbol not found");
+            }
+
+            dlclose(handle);
+        }
     }
 }
 
@@ -330,15 +407,7 @@ async fn set_window_session_mode(window: Window, is_session: bool) {
 async fn set_privacy_mode(enabled: bool) {
     #[cfg(target_os = "macos")]
     {
-        let script = if enabled {
-            "tell application \"System Events\" to repeat 16 times\nkey code 145\nend repeat"
-        } else {
-            "tell application \"System Events\" to repeat 10 times\nkey code 144\nend repeat"
-        };
-        let _ = std::process::Command::new("osascript")
-            .arg("-e")
-            .arg(script)
-            .spawn();
+        mac_brightness::set_display_brightness(enabled);
     }
     #[cfg(target_os = "windows")]
     {

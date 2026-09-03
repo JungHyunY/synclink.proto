@@ -662,6 +662,7 @@ body {
   align-items: center;
   justify-content: center;
   outline: none;
+  cursor: default !important;
 }
 
 .video-wrapper:focus {
@@ -672,6 +673,7 @@ video {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
+  cursor: default !important;
 }
 
 /* --- Toast / Alert Banner --- */
