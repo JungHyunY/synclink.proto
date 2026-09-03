@@ -125,6 +125,50 @@ fn get_machine_id() -> String {
     nine_digit_id.to_string()
 }
 
+#[command]
+fn get_device_name() -> String {
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(name) = std::env::var("COMPUTERNAME") {
+            let trimmed = name.trim();
+            if !trimmed.is_empty() {
+                return trimmed.to_string();
+            }
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(output) = std::process::Command::new("scutil").args(["--get", "ComputerName"]).output() {
+            if output.status.success() {
+                let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !name.is_empty() {
+                    return name;
+                }
+            }
+        }
+        if let Ok(output) = std::process::Command::new("hostname").output() {
+            if output.status.success() {
+                let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !name.is_empty() {
+                    return name;
+                }
+            }
+        }
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        if let Ok(output) = std::process::Command::new("hostname").output() {
+            if output.status.success() {
+                let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !name.is_empty() {
+                    return name;
+                }
+            }
+        }
+    }
+    "Desktop PC".to_string()
+}
+
 #[derive(serde::Serialize)]
 struct MonitorInfo {
     index: usize,
@@ -455,6 +499,7 @@ fn main() {
         .setup(|_app| { Ok(()) })
         .invoke_handler(tauri::generate_handler![
             get_machine_id,
+            get_device_name,
             get_monitors,
             remote_mouse_move, 
             remote_mouse_click,

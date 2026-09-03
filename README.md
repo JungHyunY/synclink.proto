@@ -6,7 +6,6 @@
 [![Tauri: v2](https://img.shields.io/badge/Tauri-v2.0-24C8D8.svg)](https://tauri.app/)
 [![Rust](https://img.shields.io/badge/Rust-Tokio_|_rdev-DEA584.svg)](https://www.rust-lang.org/)
 [![UI: BDS](https://img.shields.io/badge/Design_System-BDS_v1.0.2-6366F1.svg)](https://www.npmjs.com/package/blueward-design-system)
-[![Sponsor](https://img.shields.io/badge/Sponsor-Buy_Me_a_Coffee-rose.svg)](https://buymeacoffee.com/junghyuny)
 
 ---
 
@@ -42,13 +41,3 @@ cd client
 npm install
 npm run tauri dev
 ```
-
----
-
-## 4. Yoonikon 3대 플래그십 생태계
-
-| 제품명 | 핵심 역할 | 기술 스택 |
-| :--- | :--- | :--- |
-| **🛡️ Yoonikon Sentinel** | AIOps 텔레메트리 관제 & AI 이상 탐지 | .NET 10, React, Python |
-| **⚡ Yoonikon SyncLink** | WebRTC P2P 초고속 원격 데스크톱 제어 | Tauri v2, Rust, React 19, BDS |
-| **🧠 Yoonikon RAG** | 코그니티브 3,072차원 고속 벡터 지식 플랫폼 | .NET 10, Gemini 2.5, React |

@@ -27,12 +27,13 @@ import {
   Square,
   Eye,
   EyeOff,
-  Cloud,
   Mail,
   Heart,
   ExternalLink,
   RefreshCw,
   Server,
+  Edit2,
+  X,
 } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { check } from "@tauri-apps/plugin-updater";
@@ -43,9 +44,10 @@ const ICE_SERVERS = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
 // ─── 서포트 & 파트너십 링크 (언제든 본인의 주소로 쉽게 변경 가능) ───
 const SUPPORT_LINKS = {
-  buyMeACoffee: "https://buymeacoffee.com/junghyuny", // Buy Me a Coffee 후원 링크
-  digitalOcean: "https://m.do.co/c/synclink",     // DigitalOcean $200 무료 크레딧 추천인 링크
-  contactEmail: "tpp6347@gmail.com",       // 광고 & 제휴 문의 수신 Gmail
+  buyMeACoffee: "https://buymeacoffee.com/tpp6347",         // Buy Me a Coffee 공식 후원 링크
+  tossDonation: "https://toss.me/tpp6347",                 // 토스(Toss) 간편 송금 후원 링크
+  githubSponsors: "https://github.com/sponsors/JungHyunY", // GitHub Sponsors 공식 개발자 스폰서
+  contactEmail: "tpp6347@gmail.com",                       // 광고 & 제휴 문의 수신 Gmail
 };
 
 const openExternalLink = async (url: string) => {
@@ -55,6 +57,80 @@ const openExternalLink = async (url: string) => {
     window.open(url, "_blank");
   }
 };
+
+function CarbonAdsBanner({ contactEmail }: { contactEmail: string }) {
+  return (
+    <div
+      style={{
+        background: "rgba(15, 23, 42, 0.7)",
+        border: "1px solid rgba(56, 189, 248, 0.2)",
+        borderRadius: "12px",
+        padding: "12px 16px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "14px",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <div
+          style={{
+            width: "80px",
+            height: "54px",
+            borderRadius: "8px",
+            background: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)",
+            border: "1px solid rgba(56, 189, 248, 0.3)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+            cursor: "pointer",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+          }}
+          onClick={() => openExternalLink(`mailto:${contactEmail}?subject=[SyncLink Carbon Ads / 스폰서십 문의]`)}
+          title="스폰서십 파트너 모집"
+        >
+          <span style={{ fontSize: "0.7rem", fontWeight: 900, color: "#38bdf8", letterSpacing: "0.5px" }}>CARBON</span>
+          <span style={{ fontSize: "0.55rem", color: "var(--text-muted)", marginTop: "2px" }}>SPONSOR</span>
+        </div>
+
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-main)" }}>
+              기술 기업 & 개발자 툴 스폰서십
+            </span>
+            <span
+              style={{
+                fontSize: "0.65rem",
+                padding: "2px 6px",
+                borderRadius: "4px",
+                background: "rgba(56, 189, 248, 0.15)",
+                color: "#38bdf8",
+                fontWeight: 700,
+                border: "1px solid rgba(56, 189, 248, 0.3)",
+              }}
+            >
+              Ads via Carbon
+            </span>
+          </div>
+          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "3px", lineHeight: 1.4 }}>
+            SyncLink 전 세계 사용자에게 당신의 서비스와 제품을 알리세요 (Carbon Ads 또는 독점 배너)
+          </div>
+        </div>
+      </div>
+
+      <button
+        className="btn-main btn-secondary-dark"
+        style={{ padding: "7px 12px", fontSize: "0.75rem", flexShrink: 0, display: "flex", alignItems: "center", gap: "4px" }}
+        onClick={() => openExternalLink(`mailto:${contactEmail}?subject=[SyncLink 광고 및 스폰서십 게재 문의]`)}
+      >
+        <span>광고주 문의</span>
+        <ExternalLink size={12} />
+      </button>
+    </div>
+  );
+}
 
 function BuyMeACoffeeOfficialButton({ url }: { url: string }) {
   return (
@@ -145,7 +221,7 @@ function App() {
     return localStorage.getItem("synclink_device_id") || "100000000";
   });
   const [myPin, setMyPin] = useState(() => localStorage.getItem("synclink_pin") || "1234");
-  const [myDeviceName, setMyDeviceName] = useState(() => localStorage.getItem("synclink_devicename") || "My Workstation");
+  const [myDeviceName, setMyDeviceName] = useState(() => localStorage.getItem("synclink_devicename") || "");
   const [isHostingActive, setIsHostingActive] = useState(false);
   const [hostMonitorIndex, setHostMonitorIndex] = useState(0);
   const [hostFps, setHostFps] = useState<number>(30);
@@ -196,6 +272,10 @@ function App() {
   const [newDeviceId, setNewDeviceId] = useState("");
   const [newDevicePin, setNewDevicePin] = useState("");
   const [newDeviceMemo, setNewDeviceMemo] = useState("");
+
+  // Edit Device State
+  const [editingDeviceId, setEditingDeviceId] = useState<string | null>(null);
+  const [editingDeviceName, setEditingDeviceName] = useState("");
 
   // Auto-Updater State
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
@@ -290,6 +370,18 @@ function App() {
           setMyDeviceId(generated);
           localStorage.setItem("synclink_device_id", generated);
         }
+      }
+
+      // Fetch actual OS computer name
+      try {
+        const osDeviceName = await invoke<string>("get_device_name");
+        const currentSaved = localStorage.getItem("synclink_devicename");
+        if (osDeviceName && (!currentSaved || currentSaved === "My Workstation" || currentSaved.trim() === "")) {
+          setMyDeviceName(osDeviceName);
+          localStorage.setItem("synclink_devicename", osDeviceName);
+        }
+      } catch (err) {
+        console.warn("Device name fetch error:", err);
       }
     };
     init();
@@ -724,6 +816,18 @@ function App() {
     setSavedDevices((prev) => prev.filter((d) => d.id !== id));
   };
 
+  // Update Saved Device Name
+  const updateSavedDeviceName = (id: string, newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    setSavedDevices((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, name: trimmed } : d))
+    );
+    setRecentDevices((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, name: trimmed } : d))
+    );
+  };
+
   // End Current Session
   const endSession = () => {
     if (!isHostRef.current && sessionRoomId) {
@@ -959,13 +1063,12 @@ function App() {
                   <span>BMC</span>
                 </button>
                 <button
-                  className="btn-main btn-secondary-dark"
-                  style={{ flex: 1, padding: "5px 2px", fontSize: "0.75rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "3px" }}
-                  onClick={() => openExternalLink(SUPPORT_LINKS.digitalOcean)}
-                  title="DigitalOcean $200 무료 크레딧"
+                  className="btn-main"
+                  style={{ flex: 1, padding: "5px 2px", fontSize: "0.75rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "3px", background: "#0064FF", color: "white", border: "none", fontWeight: 700 }}
+                  onClick={() => openExternalLink(SUPPORT_LINKS.tossDonation)}
+                  title="토스(Toss) 간편 송금 후원"
                 >
-                  <Cloud size={13} color="#00C2FF" />
-                  <span>DO 서버</span>
+                  <span>토스</span>
                 </button>
                 <button
                   className="btn-main btn-secondary-dark"
@@ -1156,14 +1259,43 @@ function App() {
                     </div>
 
                     <div className="input-field-group">
-                      <label className="input-label">내 컴퓨터 이름</label>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                        <label className="input-label" style={{ margin: 0 }}>내 컴퓨터 이름</label>
+                        <button
+                          type="button"
+                          style={{
+                            fontSize: "0.72rem",
+                            color: "#60a5fa",
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "3px",
+                            padding: "0 2px",
+                          }}
+                          onClick={async () => {
+                            try {
+                              const name = await invoke<string>("get_device_name");
+                              if (name) {
+                                setMyDeviceName(name);
+                                localStorage.setItem("synclink_devicename", name);
+                              }
+                            } catch {}
+                          }}
+                          title="OS의 실제 기기 이름으로 다시 가져와요"
+                        >
+                          <RefreshCw size={11} />
+                          <span>OS 기기 이름 불러오기</span>
+                        </button>
+                      </div>
                       <div className="custom-input-wrapper">
                         <Laptop className="input-icon-left" size={18} />
                         <input
                           className="custom-input"
                           value={myDeviceName}
                           onChange={(e) => setMyDeviceName(e.target.value)}
-                          placeholder="예: Jay's Office PC"
+                          placeholder="OS 컴퓨터 이름"
                         />
                       </div>
                     </div>
@@ -1258,7 +1390,68 @@ function App() {
                             <Laptop size={22} />
                           </div>
                           <div>
-                            <h4 className="device-name">{dev.name}</h4>
+                            {editingDeviceId === dev.id ? (
+                              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                                <input
+                                  className="custom-input"
+                                  style={{
+                                    padding: "4px 8px",
+                                    fontSize: "0.9rem",
+                                    fontWeight: 700,
+                                    borderRadius: "6px",
+                                    width: "170px",
+                                    border: "1px solid var(--primary)",
+                                    background: "rgba(0,0,0,0.5)",
+                                    color: "var(--text-main)",
+                                  }}
+                                  value={editingDeviceName}
+                                  onChange={(e) => setEditingDeviceName(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      updateSavedDeviceName(dev.id, editingDeviceName);
+                                      setEditingDeviceId(null);
+                                    } else if (e.key === "Escape") {
+                                      setEditingDeviceId(null);
+                                    }
+                                  }}
+                                  autoFocus
+                                />
+                                <button
+                                  className="btn-icon-only"
+                                  style={{ padding: "4px" }}
+                                  onClick={() => {
+                                    updateSavedDeviceName(dev.id, editingDeviceName);
+                                    setEditingDeviceId(null);
+                                  }}
+                                  title="이름 저장"
+                                >
+                                  <Check size={16} color="#34d399" />
+                                </button>
+                                <button
+                                  className="btn-icon-only"
+                                  style={{ padding: "4px" }}
+                                  onClick={() => setEditingDeviceId(null)}
+                                  title="취소"
+                                >
+                                  <X size={16} color="#94a3b8" />
+                                </button>
+                              </div>
+                            ) : (
+                              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "2px" }}>
+                                <h4 className="device-name" style={{ margin: 0 }}>{dev.name}</h4>
+                                <button
+                                  className="btn-icon-only"
+                                  style={{ padding: "2px 4px", opacity: 0.7, cursor: "pointer" }}
+                                  onClick={() => {
+                                    setEditingDeviceId(dev.id);
+                                    setEditingDeviceName(dev.name);
+                                  }}
+                                  title="기기 이름 변경하기"
+                                >
+                                  <Edit2 size={13} color="#60a5fa" />
+                                </button>
+                              </div>
+                            )}
                             <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
                               <span className="device-id-tag mono">{formatDeviceId(dev.id)}</span>
                               {dev.memo && <span style={{ fontSize: "0.75rem", color: "var(--text-dim)" }}>• {dev.memo}</span>}
@@ -1364,7 +1557,7 @@ function App() {
                     <div>• <b>개발자</b>: nexus (개인 개발자 프로젝트)</div>
                     <div>• <b>라이선스</b>: 100% 무료 & 오픈소스 (월 구독 / 과금 없음)</div>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: "4px" }}>
-                      <span>• <b>버전</b>: Yoonikon SyncLink v1.0.0 (Native Desktop)</span>
+                      <span>• <b>버전</b>: Yoonikon SyncLink v1.0.1 (Native Desktop)</span>
                       <button
                         className="btn-main btn-secondary-dark"
                         style={{ padding: "4px 10px", fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "5px" }}
@@ -1440,24 +1633,29 @@ function App() {
                       <BuyMeACoffeeOfficialButton url={SUPPORT_LINKS.buyMeACoffee} />
                     </div>
 
-                    {/* DigitalOcean 레퍼럴 */}
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(0, 194, 255, 0.08)", border: "1px solid rgba(0, 194, 255, 0.25)", borderRadius: "10px", padding: "10px 14px" }}>
+                    {/* 토스(Toss) 간편 송금 (국내 사용자 맞춤) */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(0, 100, 255, 0.08)", border: "1px solid rgba(0, 100, 255, 0.28)", borderRadius: "10px", padding: "10px 14px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                        <Cloud size={20} color="#00C2FF" />
+                        <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#0064FF", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: 900, fontSize: "0.85rem", flexShrink: 0, boxShadow: "0 2px 8px rgba(0, 100, 255, 0.4)" }}>
+                          toss
+                        </div>
                         <div>
-                          <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-main)" }}>DigitalOcean 클라우드 $200 무료 크레딧</div>
-                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>추천 링크로 가입하고 나만의 시그널링 서버를 60일간 무료로 구축해 보세요</div>
+                          <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-main)" }}>토스(Toss)로 간편 응원하기 (국내 계좌/간편송금)</div>
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>해외 카드나 가입 없이 토스 익명 송금으로 따뜻한 커피 한 잔 선물해 주세요</div>
                         </div>
                       </div>
                       <button
                         className="btn-main"
-                        style={{ padding: "6px 14px", fontSize: "0.8rem", background: "linear-gradient(135deg, #0066FF 0%, #00C2FF 100%)", color: "white", border: "none", display: "flex", alignItems: "center", gap: "4px" }}
-                        onClick={() => openExternalLink(SUPPORT_LINKS.digitalOcean)}
+                        style={{ padding: "6px 14px", fontSize: "0.8rem", background: "#0064FF", color: "white", border: "none", display: "flex", alignItems: "center", gap: "4px", fontWeight: 700 }}
+                        onClick={() => openExternalLink(SUPPORT_LINKS.tossDonation)}
                       >
-                        <span>$200 받기</span>
+                        <span>토스 응원</span>
                         <ExternalLink size={12} />
                       </button>
                     </div>
+
+                    {/* Carbon Ads / 테크 스폰서십 배너 */}
+                    <CarbonAdsBanner contactEmail={SUPPORT_LINKS.contactEmail} />
 
                     {/* 광고 및 제휴 문의 */}
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(52, 211, 153, 0.08)", border: "1px solid rgba(52, 211, 153, 0.25)", borderRadius: "10px", padding: "10px 14px" }}>
