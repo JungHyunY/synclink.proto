@@ -163,7 +163,8 @@ function App() {
       setIsCheckingUpdate(true);
       let updateCheckFn: any = null;
       try {
-        const updaterMod = await import("@tauri-apps/plugin-updater");
+        const updaterPkg = "@tauri-apps/plugin-updater";
+        const updaterMod = await import(/* @vite-ignore */ updaterPkg);
         updateCheckFn = updaterMod.check;
       } catch (modErr) {
         console.warn("Tauri updater plugin not loaded:", modErr);
