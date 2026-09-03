@@ -1611,14 +1611,15 @@ function App() {
                     나만의 시그널링 서버 셀프 호스팅 (Self-Hosted)
                   </h3>
                   <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: 1.5, margin: "0 0 12px 0" }}>
-                    외부 공용 서버에 의존하지 않고 개인 VPS 또는 홈 서버에 직접 시그널링 서버를 띄워 독립적인 사설 원격망을 운영할 수 있어요.
+                    개인 VPS 또는 홈 서버에 직접 시그널링 서버를 띄워 독립적인 사설 원격망을 운영할 수 있어요.
+                    리눅스 터미널에서 아래 명령어를 실행하면 <b>자동 설치 및 백그라운드 구동</b>이 완료됩니다.
                   </p>
-                  <div style={{ background: "rgba(0,0,0,0.4)", padding: "10px 14px", borderRadius: "8px", fontFamily: "monospace", fontSize: "0.8rem", color: "#60a5fa", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span>cd signaling-server && npm install && npm start</span>
+                  <div style={{ background: "rgba(0,0,0,0.4)", padding: "10px 14px", borderRadius: "8px", fontFamily: "monospace", fontSize: "0.75rem", color: "#60a5fa", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
+                    <span style={{ wordBreak: "break-all" }}>curl -fsSL https://raw.githubusercontent.com/JungHyunY/synclink.proto/main/signaling-server/install.sh | sudo bash</span>
                     <button
                       className="btn-icon-only"
-                      onClick={() => copyToClipboard("cd signaling-server && npm install && npm start")}
-                      title="실행 명령어 복사"
+                      onClick={() => copyToClipboard("curl -fsSL https://raw.githubusercontent.com/JungHyunY/synclink.proto/main/signaling-server/install.sh | sudo bash")}
+                      title="리눅스 원클릭 자동 설치 명령어 복사"
                     >
                       {copiedNotification ? <Check size={14} color="#34d399" /> : <Copy size={14} />}
                     </button>

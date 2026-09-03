@@ -23,6 +23,23 @@
 
 ---
 
+## ⚡ 퀵 스타트 (Quick Start - 3분 완성)
+
+### 1️⃣ 리눅스 서버 준비 (원클릭 자동 설치)
+개인 VPS나 홈 서버(Ubuntu, Debian, CentOS, Rocky Linux 등) 터미널에 아래 명령어를 입력하면 **Node.js 설치 + 방화벽 개방 + 부팅 시 자동 시작 등록**까지 자동으로 완료됩니다:
+```bash
+curl -fsSL https://raw.githubusercontent.com/JungHyunY/synclink.proto/main/signaling-server/install.sh | sudo bash
+```
+> *Docker 사용 시*: `cd signaling-server && docker compose up -d`
+
+### 2️⃣ 클라이언트 실행 및 원격 연결
+1. 상단 **[클라이언트 다운로드]**에서 본인 OS에 맞는 설치 파일(`.exe` / `.dmg`)을 받아 실행합니다.
+2. **[설정] 탭**에서 구축한 서버 주소(예: `http://내_서버_IP:5963`)를 입력합니다.
+3. **[원격 접속] 탭**에서 상대방 PC의 9자리 기기 ID와 PIN을 입력하면 즉시 60FPS 초저지연 원격 제어가 시작됩니다!
+   *(호스트 PC는 [무인 원격 접속 상시 대기]가 켜져 있어 별도의 버튼 클릭 없이 자동 수락됩니다)*
+
+---
+
 ## 2. 아키텍처 및 핵심 기술
 
 * **초경량 데스크톱 클라이언트 (`client/`):** Tauri v2 기반의 10MB 미만 초경량 번들 (Electron 대비 메모리 점유율 90% 절감)
