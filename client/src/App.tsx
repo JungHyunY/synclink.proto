@@ -27,151 +27,17 @@ import {
   Square,
   Eye,
   EyeOff,
-  Mail,
-  Heart,
-  ExternalLink,
   RefreshCw,
   Server,
   Edit2,
   X,
   MousePointer,
 } from "lucide-react";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { check } from "@tauri-apps/plugin-updater";
 import "./App.css";
 
 const DEFAULT_SERVER_URL = "";
 const ICE_SERVERS = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
-
-// ─── 서포트 & 파트너십 링크 (언제든 본인의 주소로 쉽게 변경 가능) ───
-const SUPPORT_LINKS = {
-  buyMeACoffee: "https://buymeacoffee.com/tpp6347",         // Buy Me a Coffee 공식 후원 링크
-  tossDonation: "https://toss.me/tpp6347",                 // 토스(Toss) 간편 송금 후원 링크
-  githubSponsors: "https://github.com/sponsors/JungHyunY", // GitHub Sponsors 공식 개발자 스폰서
-  contactEmail: "tpp6347@gmail.com",                       // 광고 & 제휴 문의 수신 Gmail
-};
-
-const openExternalLink = async (url: string) => {
-  try {
-    await openUrl(url);
-  } catch {
-    window.open(url, "_blank");
-  }
-};
-
-function CarbonAdsBanner({ contactEmail }: { contactEmail: string }) {
-  return (
-    <div
-      style={{
-        background: "rgba(15, 23, 42, 0.7)",
-        border: "1px solid rgba(56, 189, 248, 0.2)",
-        borderRadius: "12px",
-        padding: "12px 16px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: "14px",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-        <div
-          style={{
-            width: "80px",
-            height: "54px",
-            borderRadius: "8px",
-            background: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)",
-            border: "1px solid rgba(56, 189, 248, 0.3)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-            cursor: "pointer",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
-          }}
-          onClick={() => openExternalLink(`mailto:${contactEmail}?subject=[SyncLink Carbon Ads / 스폰서십 문의]`)}
-          title="스폰서십 파트너 모집"
-        >
-          <span style={{ fontSize: "0.7rem", fontWeight: 900, color: "#38bdf8", letterSpacing: "0.5px" }}>CARBON</span>
-          <span style={{ fontSize: "0.55rem", color: "var(--text-muted)", marginTop: "2px" }}>SPONSOR</span>
-        </div>
-
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-main)" }}>
-              기술 기업 & 개발자 툴 스폰서십
-            </span>
-            <span
-              style={{
-                fontSize: "0.65rem",
-                padding: "2px 6px",
-                borderRadius: "4px",
-                background: "rgba(56, 189, 248, 0.15)",
-                color: "#38bdf8",
-                fontWeight: 700,
-                border: "1px solid rgba(56, 189, 248, 0.3)",
-              }}
-            >
-              Ads via Carbon
-            </span>
-          </div>
-          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "3px", lineHeight: 1.4 }}>
-            SyncLink 전 세계 사용자에게 당신의 서비스와 제품을 알리세요 (Carbon Ads 또는 독점 배너)
-          </div>
-        </div>
-      </div>
-
-      <button
-        className="btn-main btn-secondary-dark"
-        style={{ padding: "7px 12px", fontSize: "0.75rem", flexShrink: 0, display: "flex", alignItems: "center", gap: "4px" }}
-        onClick={() => openExternalLink(`mailto:${contactEmail}?subject=[SyncLink 광고 및 스폰서십 게재 문의]`)}
-      >
-        <span>광고주 문의</span>
-        <ExternalLink size={12} />
-      </button>
-    </div>
-  );
-}
-
-function BuyMeACoffeeOfficialButton({ url }: { url: string }) {
-  return (
-    <button
-      onClick={() => openExternalLink(url)}
-      title="Buy Me a Coffee 공식 후원 페이지 열기"
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: "8px",
-        background: "#FFDD00",
-        color: "#000000",
-        border: "none",
-        borderRadius: "8px",
-        padding: "8px 16px",
-        fontFamily: "'Cookie', cursive, var(--bds-font-sans)",
-        fontSize: "1.15rem",
-        fontWeight: 700,
-        letterSpacing: "0.2px",
-        cursor: "pointer",
-        boxShadow: "0 4px 14px rgba(255, 221, 0, 0.35)",
-        transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translateY(-1px) scale(1.02)";
-        e.currentTarget.style.boxShadow = "0 6px 20px rgba(255, 221, 0, 0.5)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "translateY(0) scale(1)";
-        e.currentTarget.style.boxShadow = "0 4px 14px rgba(255, 221, 0, 0.35)";
-      }}
-    >
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M20.216 6.415l-.132-.666c-.119-.597-.388-1.156-1.01-1.378-.602-.217-1.385-.181-2.428-.181H4.636c-.954 0-1.74.032-2.348.243-.616.216-.902.776-1.026 1.381l-.872 4.417c-.366 1.849.208 3.731 1.545 5.051 1.258 1.242 3.018 1.838 4.887 1.838h8.556c1.869 0 3.629-.596 4.887-1.838 1.337-1.32 1.911-3.202 1.545-5.051l-.594-3.216zm-3.284 3.518h-2.133v-1.07h2.133v1.07zm0-2.14h-2.133V6.723h2.133v1.07zm-3.2 2.14h-2.133v-1.07h2.133v1.07zm0-2.14h-2.133V6.723h2.133v1.07zm-3.2 2.14H8.4v-1.07h2.132v1.07zm0-2.14H8.4V6.723h2.132v1.07zM23.99 8.21c-.044-.225-.13-.443-.263-.637-.216-.317-.557-.525-.951-.577l-1.082-.143.435 2.193c.196.993-.058 2.01-.699 2.788-.475.577-1.144.93-1.886 1.025l.235 1.189c1.233-.186 2.338-.828 3.092-1.777.949-1.196 1.326-2.736 1.119-4.068z" />
-      </svg>
-      <span>Buy me a coffee</span>
-    </button>
-  );
-}
 
 function maskServerUrl(url: string): string {
   if (!url || url.trim() === "") return "미설정";
@@ -301,7 +167,7 @@ function App() {
       if (update) {
         setAvailableUpdate(update);
       } else if (manual) {
-        alert("현재 최신 버전(v1.0.2)을 사용 중이에요! ✨");
+        alert("현재 최신 버전(v1.0.3)을 사용 중이에요! ✨");
       }
     } catch (err) {
       setIsCheckingUpdate(false);
@@ -1133,38 +999,6 @@ function App() {
             </div>
 
             <div className="sidebar-footer">
-              {/* 미니 서포트 바 */}
-              <div style={{ display: "flex", gap: "6px", marginBottom: "4px" }}>
-                <button
-                  className="btn-main"
-                  style={{ flex: 1, padding: "5px 2px", fontSize: "0.75rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", background: "#FFDD00", color: "#000000", border: "none", fontWeight: 700 }}
-                  onClick={() => openExternalLink(SUPPORT_LINKS.buyMeACoffee)}
-                  title="Buy Me a Coffee 공식 후원"
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M20.216 6.415l-.132-.666c-.119-.597-.388-1.156-1.01-1.378-.602-.217-1.385-.181-2.428-.181H4.636c-.954 0-1.74.032-2.348.243-.616.216-.902.776-1.026 1.381l-.872 4.417c-.366 1.849.208 3.731 1.545 5.051 1.258 1.242 3.018 1.838 4.887 1.838h8.556c1.869 0 3.629-.596 4.887-1.838 1.337-1.32 1.911-3.202 1.545-5.051l-.594-3.216zm-3.284 3.518h-2.133v-1.07h2.133v1.07zm0-2.14h-2.133V6.723h2.133v1.07zm-3.2 2.14h-2.133v-1.07h2.133v1.07zm0-2.14h-2.133V6.723h2.133v1.07zm-3.2 2.14H8.4v-1.07h2.132v1.07zm0-2.14H8.4V6.723h2.132v1.07zM23.99 8.21c-.044-.225-.13-.443-.263-.637-.216-.317-.557-.525-.951-.577l-1.082-.143.435 2.193c.196.993-.058 2.01-.699 2.788-.475.577-1.144.93-1.886 1.025l.235 1.189c1.233-.186 2.338-.828 3.092-1.777.949-1.196 1.326-2.736 1.119-4.068z" />
-                  </svg>
-                  <span>BMC</span>
-                </button>
-                <button
-                  className="btn-main"
-                  style={{ flex: 1, padding: "5px 2px", fontSize: "0.75rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "3px", background: "#0064FF", color: "white", border: "none", fontWeight: 700 }}
-                  onClick={() => openExternalLink(SUPPORT_LINKS.tossDonation)}
-                  title="토스(Toss) 간편 송금 후원"
-                >
-                  <span>토스</span>
-                </button>
-                <button
-                  className="btn-main btn-secondary-dark"
-                  style={{ flex: 1, padding: "5px 2px", fontSize: "0.75rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "3px" }}
-                  onClick={() => openExternalLink(`mailto:${SUPPORT_LINKS.contactEmail}?subject=[Yoonikon SyncLink 광고 및 파트너십 문의]`)}
-                  title="광고 및 제휴 문의"
-                >
-                  <Mail size={13} color="#34d399" />
-                  <span>문의</span>
-                </button>
-              </div>
-
               <div className="server-status">
                 <div className={`status-dot-sm ${isServerConnected ? "online" : "offline"}`} />
                 <span>{isServerConnected ? "시그널링 서버에 연결되었어요" : "서버가 오프라인이에요"}</span>
@@ -1728,27 +1562,27 @@ function App() {
                   </div>
                 </div>
 
-                {/* nexus 개발자 & 프로젝트 정보 카드 */}
+                {/* 앱 버전 및 소프트웨어 업데이트 카드 */}
                 <div className="glass-card" style={{ maxWidth: "600px", marginTop: "16px" }}>
-                  <h3 className="card-title" style={{ fontSize: "1rem", marginBottom: "8px" }}>
-                    <Shield size={18} color="#818cf8" />
-                    프로젝트 정보 (Project Info)
-                  </h3>
-                  <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: "8px" }}>
-                    <div>• <b>개발자</b>: nexus (개인 개발자 프로젝트)</div>
-                    <div>• <b>라이선스</b>: 100% 무료 & 오픈소스 (월 구독 / 과금 없음)</div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: "4px" }}>
-                      <span>• <b>버전</b>: Yoonikon SyncLink v1.0.2 (Native Desktop)</span>
-                      <button
-                        className="btn-main btn-secondary-dark"
-                        style={{ padding: "4px 10px", fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "5px" }}
-                        onClick={() => handleCheckForUpdate(true)}
-                        disabled={isCheckingUpdate}
-                      >
-                        <RefreshCw size={12} className={isCheckingUpdate ? "spin" : ""} />
-                        <span>{isCheckingUpdate ? "확인 중..." : "업데이트 확인"}</span>
-                      </button>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div>
+                      <h3 className="card-title" style={{ fontSize: "1rem", marginBottom: "4px" }}>
+                        <Shield size={18} color="#818cf8" />
+                        버전 및 업데이트
+                      </h3>
+                      <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                        Yoonikon SyncLink <b>v1.0.3</b> (Native Desktop)
+                      </div>
                     </div>
+                    <button
+                      className="btn-main btn-secondary-dark"
+                      style={{ padding: "6px 12px", fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "6px" }}
+                      onClick={() => handleCheckForUpdate(true)}
+                      disabled={isCheckingUpdate}
+                    >
+                      <RefreshCw size={13} className={isCheckingUpdate ? "spin" : ""} />
+                      <span>{isCheckingUpdate ? "확인 중..." : "업데이트 확인"}</span>
+                    </button>
                   </div>
 
                   {/* 신규 버전 발견 시 업데이트 배너 */}
@@ -1773,11 +1607,11 @@ function App() {
                 {/* Self-Hosted 시그널링 서버 안내 카드 */}
                 <div className="glass-card" style={{ maxWidth: "600px", marginTop: "16px" }}>
                   <h3 className="card-title" style={{ fontSize: "1rem", marginBottom: "8px" }}>
-                    <Shield size={18} color="#34d399" />
+                    <Server size={18} color="#34d399" />
                     나만의 시그널링 서버 셀프 호스팅 (Self-Hosted)
                   </h3>
                   <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: 1.5, margin: "0 0 12px 0" }}>
-                    외부 공용 서버에 의존하지 않고 개인 VPS 또는 홈 서버에 직접 시그널링 서버를 띄워 100% 독립적이고 안전한 사설 원격망을 운영할 수 있어요.
+                    외부 공용 서버에 의존하지 않고 개인 VPS 또는 홈 서버에 직접 시그널링 서버를 띄워 독립적인 사설 원격망을 운영할 수 있어요.
                   </p>
                   <div style={{ background: "rgba(0,0,0,0.4)", padding: "10px 14px", borderRadius: "8px", fontFamily: "monospace", fontSize: "0.8rem", color: "#60a5fa", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span>cd signaling-server && npm install && npm start</span>
@@ -1788,74 +1622,6 @@ function App() {
                     >
                       {copiedNotification ? <Check size={14} color="#34d399" /> : <Copy size={14} />}
                     </button>
-                  </div>
-                </div>
-
-                {/* 프로젝트 후원 & 파트너십 (Support & Partnership) 카드 */}
-                <div className="glass-card" style={{ maxWidth: "600px", marginTop: "16px" }}>
-                  <h3 className="card-title" style={{ fontSize: "1rem", marginBottom: "12px" }}>
-                    <Heart size={18} color="#f43f5e" />
-                    프로젝트 후원 & 파트너십 (Support & Partnership)
-                  </h3>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                    {/* Buy Me a Coffee (공식 브랜드 스타일) */}
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(255, 221, 0, 0.06)", border: "1px solid rgba(255, 221, 0, 0.25)", borderRadius: "12px", padding: "12px 16px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                        <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#FFDD00", display: "flex", alignItems: "center", justifyContent: "center", color: "#000", flexShrink: 0 }}>
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M20.216 6.415l-.132-.666c-.119-.597-.388-1.156-1.01-1.378-.602-.217-1.385-.181-2.428-.181H4.636c-.954 0-1.74.032-2.348.243-.616.216-.902.776-1.026 1.381l-.872 4.417c-.366 1.849.208 3.731 1.545 5.051 1.258 1.242 3.018 1.838 4.887 1.838h8.556c1.869 0 3.629-.596 4.887-1.838 1.337-1.32 1.911-3.202 1.545-5.051l-.594-3.216zm-3.284 3.518h-2.133v-1.07h2.133v1.07zm0-2.14h-2.133V6.723h2.133v1.07zm-3.2 2.14h-2.133v-1.07h2.133v1.07zm0-2.14h-2.133V6.723h2.133v1.07zm-3.2 2.14H8.4v-1.07h2.132v1.07zm0-2.14H8.4V6.723h2.132v1.07zM23.99 8.21c-.044-.225-.13-.443-.263-.637-.216-.317-.557-.525-.951-.577l-1.082-.143.435 2.193c.196.993-.058 2.01-.699 2.788-.475.577-1.144.93-1.886 1.025l.235 1.189c1.233-.186 2.338-.828 3.092-1.777.949-1.196 1.326-2.736 1.119-4.068z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-main)" }}>개발자 커피 한 잔 선물하기 (Buy Me a Coffee)</div>
-                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Yoonikon SyncLink의 100% 무료 운영과 지속적인 개발을 따뜻하게 응원해 주세요</div>
-                        </div>
-                      </div>
-                      <BuyMeACoffeeOfficialButton url={SUPPORT_LINKS.buyMeACoffee} />
-                    </div>
-
-                    {/* 토스(Toss) 간편 송금 (국내 사용자 맞춤) */}
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(0, 100, 255, 0.08)", border: "1px solid rgba(0, 100, 255, 0.28)", borderRadius: "10px", padding: "10px 14px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                        <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#0064FF", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: 900, fontSize: "0.85rem", flexShrink: 0, boxShadow: "0 2px 8px rgba(0, 100, 255, 0.4)" }}>
-                          toss
-                        </div>
-                        <div>
-                          <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-main)" }}>토스(Toss)로 간편 응원하기 (국내 계좌/간편송금)</div>
-                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>해외 카드나 가입 없이 토스 익명 송금으로 따뜻한 커피 한 잔 선물해 주세요</div>
-                        </div>
-                      </div>
-                      <button
-                        className="btn-main"
-                        style={{ padding: "6px 14px", fontSize: "0.8rem", background: "#0064FF", color: "white", border: "none", display: "flex", alignItems: "center", gap: "4px", fontWeight: 700 }}
-                        onClick={() => openExternalLink(SUPPORT_LINKS.tossDonation)}
-                      >
-                        <span>토스 응원</span>
-                        <ExternalLink size={12} />
-                      </button>
-                    </div>
-
-                    {/* Carbon Ads / 테크 스폰서십 배너 */}
-                    <CarbonAdsBanner contactEmail={SUPPORT_LINKS.contactEmail} />
-
-                    {/* 광고 및 제휴 문의 */}
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(52, 211, 153, 0.08)", border: "1px solid rgba(52, 211, 153, 0.25)", borderRadius: "10px", padding: "10px 14px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                        <Mail size={20} color="#34d399" />
-                        <div>
-                          <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-main)" }}>광고 게재 & 비즈니스 파트너십 제안</div>
-                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>앱 내 스폰서십 광고 게재 문의: {SUPPORT_LINKS.contactEmail}</div>
-                        </div>
-                      </div>
-                      <button
-                        className="btn-main"
-                        style={{ padding: "6px 14px", fontSize: "0.8rem", background: "linear-gradient(135deg, #059669 0%, #10b981 100%)", color: "white", border: "none", display: "flex", alignItems: "center", gap: "4px" }}
-                        onClick={() => openExternalLink(`mailto:${SUPPORT_LINKS.contactEmail}?subject=[Yoonikon SyncLink 광고 및 파트너십 문의]`)}
-                      >
-                        <span>문의 메일</span>
-                        <ExternalLink size={12} />
-                      </button>
-                    </div>
                   </div>
                 </div>
               </div>
