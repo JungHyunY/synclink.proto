@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "SyncLink",
+  "productName": "Yoonikon SyncLink",
   "version": "1.0.0",
-  "identifier": "com.nexus.synclink",
+  "identifier": "com.yoonikon.synclink",
 
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -13,7 +13,7 @@
   "app": {
     "windows": [
       {
-        "title": "SyncLink",
+        "title": "Yoonikon SyncLink",
         "width": 1000,
         "height": 680,
         "minWidth": 1000,
@@ -37,5 +37,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQ2RUIyNDNGNkUzNzVGMzEKUldReFh6ZHVQeVRyMW93STQwbWxHTTRIczlsSjZ6WEtxaXBoR0g2K3JvL1k4SnNqMThhL3Y3MVgK",
+      "endpoints": [
+        "https://github.com/JungHyunY/synclink.proto/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

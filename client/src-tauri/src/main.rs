@@ -451,6 +451,7 @@ async fn set_privacy_mode(enabled: bool) {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|_app| { Ok(()) })
         .invoke_handler(tauri::generate_handler![
             get_machine_id,

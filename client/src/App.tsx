@@ -27,14 +27,78 @@ import {
   Square,
   Eye,
   EyeOff,
+  Cloud,
+  Mail,
+  Heart,
+  ExternalLink,
+  RefreshCw,
+  Server,
 } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { check } from "@tauri-apps/plugin-updater";
 import "./App.css";
 
-const DEFAULT_SERVER_URL = "http://127.0.0.1:3001";
+const DEFAULT_SERVER_URL = "";
 const ICE_SERVERS = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
+// ─── 서포트 & 파트너십 링크 (언제든 본인의 주소로 쉽게 변경 가능) ───
+const SUPPORT_LINKS = {
+  buyMeACoffee: "https://buymeacoffee.com/junghyuny", // Buy Me a Coffee 후원 링크
+  digitalOcean: "https://m.do.co/c/synclink",     // DigitalOcean $200 무료 크레딧 추천인 링크
+  contactEmail: "tpp6347@gmail.com",       // 광고 & 제휴 문의 수신 Gmail
+};
+
+const openExternalLink = async (url: string) => {
+  try {
+    await openUrl(url);
+  } catch {
+    window.open(url, "_blank");
+  }
+};
+
+function BuyMeACoffeeOfficialButton({ url }: { url: string }) {
+  return (
+    <button
+      onClick={() => openExternalLink(url)}
+      title="Buy Me a Coffee 공식 후원 페이지 열기"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "8px",
+        background: "#FFDD00",
+        color: "#000000",
+        border: "none",
+        borderRadius: "8px",
+        padding: "8px 16px",
+        fontFamily: "'Cookie', cursive, var(--bds-font-sans)",
+        fontSize: "1.15rem",
+        fontWeight: 700,
+        letterSpacing: "0.2px",
+        cursor: "pointer",
+        boxShadow: "0 4px 14px rgba(255, 221, 0, 0.35)",
+        transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = "translateY(-1px) scale(1.02)";
+        e.currentTarget.style.boxShadow = "0 6px 20px rgba(255, 221, 0, 0.5)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "translateY(0) scale(1)";
+        e.currentTarget.style.boxShadow = "0 4px 14px rgba(255, 221, 0, 0.35)";
+      }}
+    >
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M20.216 6.415l-.132-.666c-.119-.597-.388-1.156-1.01-1.378-.602-.217-1.385-.181-2.428-.181H4.636c-.954 0-1.74.032-2.348.243-.616.216-.902.776-1.026 1.381l-.872 4.417c-.366 1.849.208 3.731 1.545 5.051 1.258 1.242 3.018 1.838 4.887 1.838h8.556c1.869 0 3.629-.596 4.887-1.838 1.337-1.32 1.911-3.202 1.545-5.051l-.594-3.216zm-3.284 3.518h-2.133v-1.07h2.133v1.07zm0-2.14h-2.133V6.723h2.133v1.07zm-3.2 2.14h-2.133v-1.07h2.133v1.07zm0-2.14h-2.133V6.723h2.133v1.07zm-3.2 2.14H8.4v-1.07h2.132v1.07zm0-2.14H8.4V6.723h2.132v1.07zM23.99 8.21c-.044-.225-.13-.443-.263-.637-.216-.317-.557-.525-.951-.577l-1.082-.143.435 2.193c.196.993-.058 2.01-.699 2.788-.475.577-1.144.93-1.886 1.025l.235 1.189c1.233-.186 2.338-.828 3.092-1.777.949-1.196 1.326-2.736 1.119-4.068z" />
+      </svg>
+      <span>Buy me a coffee</span>
+    </button>
+  );
+}
+
 function maskServerUrl(url: string): string {
-  return url.replace(/183\.111\.\d+\.\d+/, "183.111.***.***");
+  if (!url || url.trim() === "") return "미설정";
+  return url.replace(/(\d{1,3}\.\d{1,3}\.)\d{1,3}\.\d{1,3}/, "$1***.***");
 }
 
 interface SavedDevice {
@@ -132,6 +196,43 @@ function App() {
   const [newDeviceId, setNewDeviceId] = useState("");
   const [newDevicePin, setNewDevicePin] = useState("");
   const [newDeviceMemo, setNewDeviceMemo] = useState("");
+
+  // Auto-Updater State
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [availableUpdate, setAvailableUpdate] = useState<any>(null);
+  const [isInstallingUpdate, setIsInstallingUpdate] = useState(false);
+
+  const handleCheckForUpdate = async (manual = false) => {
+    try {
+      setIsCheckingUpdate(true);
+      const update = await check();
+      setIsCheckingUpdate(false);
+      if (update) {
+        setAvailableUpdate(update);
+      } else if (manual) {
+        alert("현재 최신 버전(v1.0.0)을 사용 중이에요! ✨");
+      }
+    } catch (err) {
+      setIsCheckingUpdate(false);
+      if (manual) {
+        console.warn("Update check notice:", err);
+        alert("현재 최신 버전이거나 업데이트 서버를 조회 중이에요.");
+      }
+    }
+  };
+
+  const handleInstallUpdate = async () => {
+    if (!availableUpdate) return;
+    try {
+      setIsInstallingUpdate(true);
+      await availableUpdate.downloadAndInstall();
+      alert("최신 버전 다운로드가 완료되었어요! 앱을 자동으로 재실행합니다.");
+    } catch (err) {
+      alert("업데이트 설치 중 오류가 발생했어요: " + err);
+    } finally {
+      setIsInstallingUpdate(false);
+    }
+  };
 
   // Refs
   const socketRef = useRef<Socket | null>(null);
@@ -259,6 +360,11 @@ function App() {
   useEffect(() => {
     if (socketRef.current) {
       socketRef.current.disconnect();
+    }
+
+    if (!serverUrl || serverUrl.trim() === "") {
+      setIsServerConnected(false);
+      return;
     }
 
     const socket = io(serverUrl, {
@@ -802,7 +908,7 @@ function App() {
             <div className="brand-section">
               <img
                 src="/app-icon.png"
-                alt="SyncLink Logo"
+                alt="Yoonikon SyncLink Logo"
                 style={{
                   width: "40px",
                   height: "40px",
@@ -812,7 +918,7 @@ function App() {
                 }}
               />
               <div>
-                <h2 className="brand-title">SyncLink</h2>
+                <h2 className="brand-title">Yoonikon SyncLink</h2>
                 <span className="brand-badge" style={{ background: "rgba(0, 102, 255, 0.15)", color: "#38bdf8", border: "1px solid rgba(0, 194, 255, 0.3)" }}>
                   by nexus
                 </span>
@@ -839,6 +945,39 @@ function App() {
             </div>
 
             <div className="sidebar-footer">
+              {/* 미니 서포트 바 */}
+              <div style={{ display: "flex", gap: "6px", marginBottom: "4px" }}>
+                <button
+                  className="btn-main"
+                  style={{ flex: 1, padding: "5px 2px", fontSize: "0.75rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", background: "#FFDD00", color: "#000000", border: "none", fontWeight: 700 }}
+                  onClick={() => openExternalLink(SUPPORT_LINKS.buyMeACoffee)}
+                  title="Buy Me a Coffee 공식 후원"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M20.216 6.415l-.132-.666c-.119-.597-.388-1.156-1.01-1.378-.602-.217-1.385-.181-2.428-.181H4.636c-.954 0-1.74.032-2.348.243-.616.216-.902.776-1.026 1.381l-.872 4.417c-.366 1.849.208 3.731 1.545 5.051 1.258 1.242 3.018 1.838 4.887 1.838h8.556c1.869 0 3.629-.596 4.887-1.838 1.337-1.32 1.911-3.202 1.545-5.051l-.594-3.216zm-3.284 3.518h-2.133v-1.07h2.133v1.07zm0-2.14h-2.133V6.723h2.133v1.07zm-3.2 2.14h-2.133v-1.07h2.133v1.07zm0-2.14h-2.133V6.723h2.133v1.07zm-3.2 2.14H8.4v-1.07h2.132v1.07zm0-2.14H8.4V6.723h2.132v1.07zM23.99 8.21c-.044-.225-.13-.443-.263-.637-.216-.317-.557-.525-.951-.577l-1.082-.143.435 2.193c.196.993-.058 2.01-.699 2.788-.475.577-1.144.93-1.886 1.025l.235 1.189c1.233-.186 2.338-.828 3.092-1.777.949-1.196 1.326-2.736 1.119-4.068z" />
+                  </svg>
+                  <span>BMC</span>
+                </button>
+                <button
+                  className="btn-main btn-secondary-dark"
+                  style={{ flex: 1, padding: "5px 2px", fontSize: "0.75rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "3px" }}
+                  onClick={() => openExternalLink(SUPPORT_LINKS.digitalOcean)}
+                  title="DigitalOcean $200 무료 크레딧"
+                >
+                  <Cloud size={13} color="#00C2FF" />
+                  <span>DO 서버</span>
+                </button>
+                <button
+                  className="btn-main btn-secondary-dark"
+                  style={{ flex: 1, padding: "5px 2px", fontSize: "0.75rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "3px" }}
+                  onClick={() => openExternalLink(`mailto:${SUPPORT_LINKS.contactEmail}?subject=[Yoonikon SyncLink 광고 및 파트너십 문의]`)}
+                  title="광고 및 제휴 문의"
+                >
+                  <Mail size={13} color="#34d399" />
+                  <span>문의</span>
+                </button>
+              </div>
+
               <div className="server-status">
                 <div className={`status-dot-sm ${isServerConnected ? "online" : "offline"}`} />
                 <span>{isServerConnected ? "시그널링 서버에 연결되었어요" : "서버가 오프라인이에요"}</span>
@@ -1181,11 +1320,19 @@ function App() {
                       </button>
                     </div>
                     <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
-                      <button className="btn-main btn-secondary-dark" style={{ padding: "6px 12px", fontSize: "0.8rem" }} onClick={() => setServerUrl(DEFAULT_SERVER_URL)}>
-                        기본 공용 서버
+                      <button className="btn-main btn-secondary-dark" style={{ padding: "6px 12px", fontSize: "0.8rem" }} onClick={() => setServerUrl("http://localhost:5963")}>
+                        로컬호스트 (5963)
                       </button>
-                      <button className="btn-main btn-secondary-dark" style={{ padding: "6px 12px", fontSize: "0.8rem" }} onClick={() => setServerUrl("http://localhost:3001")}>
-                        로컬호스트 (3001)
+                      <button
+                        className="btn-main btn-secondary-dark"
+                        style={{ padding: "6px 12px", fontSize: "0.8rem", color: "#fca5a5" }}
+                        onClick={() => {
+                          setServerUrl("");
+                          localStorage.removeItem("synclink_server_url");
+                        }}
+                        title="서버 주소를 초기화하고 초기 설정 화면으로 돌아가요"
+                      >
+                        서버 설정 초기화
                       </button>
                     </div>
                   </div>
@@ -1213,11 +1360,40 @@ function App() {
                     <Shield size={18} color="#818cf8" />
                     프로젝트 정보 (Project Info)
                   </h3>
-                  <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: "8px" }}>
                     <div>• <b>개발자</b>: nexus (개인 개발자 프로젝트)</div>
                     <div>• <b>라이선스</b>: 100% 무료 & 오픈소스 (월 구독 / 과금 없음)</div>
-                    <div>• <b>버전</b>: SyncLink v1.1.0 (Native Desktop)</div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: "4px" }}>
+                      <span>• <b>버전</b>: Yoonikon SyncLink v1.0.0 (Native Desktop)</span>
+                      <button
+                        className="btn-main btn-secondary-dark"
+                        style={{ padding: "4px 10px", fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "5px" }}
+                        onClick={() => handleCheckForUpdate(true)}
+                        disabled={isCheckingUpdate}
+                      >
+                        <RefreshCw size={12} className={isCheckingUpdate ? "spin" : ""} />
+                        <span>{isCheckingUpdate ? "확인 중..." : "업데이트 확인"}</span>
+                      </button>
+                    </div>
                   </div>
+
+                  {/* 신규 버전 발견 시 업데이트 배너 */}
+                  {availableUpdate && (
+                    <div style={{ marginTop: "12px", background: "rgba(0, 194, 255, 0.1)", border: "1px solid rgba(0, 194, 255, 0.35)", borderRadius: "10px", padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#38bdf8" }}>🎉 새로운 버전이 있어요! ({availableUpdate.version})</div>
+                        <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>원클릭으로 최신 패치를 다운로드하고 자동 설치해요.</div>
+                      </div>
+                      <button
+                        className="btn-main"
+                        style={{ padding: "6px 14px", fontSize: "0.8rem", background: "linear-gradient(135deg, #0066FF 0%, #00C2FF 100%)", color: "white", border: "none" }}
+                        onClick={handleInstallUpdate}
+                        disabled={isInstallingUpdate}
+                      >
+                        {isInstallingUpdate ? "설치 중..." : "지금 업데이트"}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Self-Hosted 시그널링 서버 안내 카드 */}
@@ -1238,6 +1414,69 @@ function App() {
                     >
                       {copiedNotification ? <Check size={14} color="#34d399" /> : <Copy size={14} />}
                     </button>
+                  </div>
+                </div>
+
+                {/* 프로젝트 후원 & 파트너십 (Support & Partnership) 카드 */}
+                <div className="glass-card" style={{ maxWidth: "600px", marginTop: "16px" }}>
+                  <h3 className="card-title" style={{ fontSize: "1rem", marginBottom: "12px" }}>
+                    <Heart size={18} color="#f43f5e" />
+                    프로젝트 후원 & 파트너십 (Support & Partnership)
+                  </h3>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    {/* Buy Me a Coffee (공식 브랜드 스타일) */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(255, 221, 0, 0.06)", border: "1px solid rgba(255, 221, 0, 0.25)", borderRadius: "12px", padding: "12px 16px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#FFDD00", display: "flex", alignItems: "center", justifyContent: "center", color: "#000", flexShrink: 0 }}>
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M20.216 6.415l-.132-.666c-.119-.597-.388-1.156-1.01-1.378-.602-.217-1.385-.181-2.428-.181H4.636c-.954 0-1.74.032-2.348.243-.616.216-.902.776-1.026 1.381l-.872 4.417c-.366 1.849.208 3.731 1.545 5.051 1.258 1.242 3.018 1.838 4.887 1.838h8.556c1.869 0 3.629-.596 4.887-1.838 1.337-1.32 1.911-3.202 1.545-5.051l-.594-3.216zm-3.284 3.518h-2.133v-1.07h2.133v1.07zm0-2.14h-2.133V6.723h2.133v1.07zm-3.2 2.14h-2.133v-1.07h2.133v1.07zm0-2.14h-2.133V6.723h2.133v1.07zm-3.2 2.14H8.4v-1.07h2.132v1.07zm0-2.14H8.4V6.723h2.132v1.07zM23.99 8.21c-.044-.225-.13-.443-.263-.637-.216-.317-.557-.525-.951-.577l-1.082-.143.435 2.193c.196.993-.058 2.01-.699 2.788-.475.577-1.144.93-1.886 1.025l.235 1.189c1.233-.186 2.338-.828 3.092-1.777.949-1.196 1.326-2.736 1.119-4.068z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-main)" }}>개발자 커피 한 잔 선물하기 (Buy Me a Coffee)</div>
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Yoonikon SyncLink의 100% 무료 운영과 지속적인 개발을 따뜻하게 응원해 주세요</div>
+                        </div>
+                      </div>
+                      <BuyMeACoffeeOfficialButton url={SUPPORT_LINKS.buyMeACoffee} />
+                    </div>
+
+                    {/* DigitalOcean 레퍼럴 */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(0, 194, 255, 0.08)", border: "1px solid rgba(0, 194, 255, 0.25)", borderRadius: "10px", padding: "10px 14px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <Cloud size={20} color="#00C2FF" />
+                        <div>
+                          <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-main)" }}>DigitalOcean 클라우드 $200 무료 크레딧</div>
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>추천 링크로 가입하고 나만의 시그널링 서버를 60일간 무료로 구축해 보세요</div>
+                        </div>
+                      </div>
+                      <button
+                        className="btn-main"
+                        style={{ padding: "6px 14px", fontSize: "0.8rem", background: "linear-gradient(135deg, #0066FF 0%, #00C2FF 100%)", color: "white", border: "none", display: "flex", alignItems: "center", gap: "4px" }}
+                        onClick={() => openExternalLink(SUPPORT_LINKS.digitalOcean)}
+                      >
+                        <span>$200 받기</span>
+                        <ExternalLink size={12} />
+                      </button>
+                    </div>
+
+                    {/* 광고 및 제휴 문의 */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(52, 211, 153, 0.08)", border: "1px solid rgba(52, 211, 153, 0.25)", borderRadius: "10px", padding: "10px 14px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <Mail size={20} color="#34d399" />
+                        <div>
+                          <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-main)" }}>광고 게재 & 비즈니스 파트너십 제안</div>
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>앱 내 스폰서십 광고 게재 문의: {SUPPORT_LINKS.contactEmail}</div>
+                        </div>
+                      </div>
+                      <button
+                        className="btn-main"
+                        style={{ padding: "6px 14px", fontSize: "0.8rem", background: "linear-gradient(135deg, #059669 0%, #10b981 100%)", color: "white", border: "none", display: "flex", alignItems: "center", gap: "4px" }}
+                        onClick={() => openExternalLink(`mailto:${SUPPORT_LINKS.contactEmail}?subject=[Yoonikon SyncLink 광고 및 파트너십 문의]`)}
+                      >
+                        <span>문의 메일</span>
+                        <ExternalLink size={12} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1460,6 +1699,126 @@ function App() {
                 저장
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────── 초기 시그널링 서버 설정 화면 (서버 주소 미설정 시) ─────────────────── */}
+      {(!serverUrl || serverUrl.trim() === "") && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(6, 11, 24, 0.92)",
+            backdropFilter: "blur(24px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+        >
+          <div
+            className="glass-card"
+            style={{
+              width: "480px",
+              maxWidth: "92vw",
+              padding: "36px 32px",
+              background: "#0B132B",
+              border: "1px solid rgba(0, 194, 255, 0.35)",
+              boxShadow: "0 24px 60px rgba(0, 0, 0, 0.9), 0 0 35px rgba(0, 102, 255, 0.2)",
+              borderRadius: "20px",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "14px", marginBottom: "16px" }}>
+              <div
+                style={{
+                  width: "46px",
+                  height: "46px",
+                  borderRadius: "14px",
+                  background: "linear-gradient(135deg, #0066FF 0%, #00C2FF 100%)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "white",
+                  boxShadow: "0 0 20px rgba(0, 194, 255, 0.4)",
+                  flexShrink: 0,
+                }}
+              >
+                <Server size={24} />
+              </div>
+              <div>
+                <h2 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 800, color: "var(--text-main)" }}>Yoonikon SyncLink 서버 설정</h2>
+                <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--text-muted)" }}>사설 통신망을 위한 시그널링 서버 주소를 지정해 주세요</p>
+              </div>
+            </div>
+
+            <p style={{ fontSize: "0.85rem", color: "#94a3b8", lineHeight: 1.5, margin: "0 0 18px 0" }}>
+              Yoonikon SyncLink는 보안과 독립성을 위해 공용 중앙 서버에 의존하지 않는 <b>100% 사설 P2P 원격 제어</b> 프로그램이에요. 통신 신호를 중계할 시그널링 서버 주소를 입력해 주세요.
+            </p>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.currentTarget;
+                const input = form.elements.namedItem("initialServerInput") as HTMLInputElement;
+                if (input && input.value.trim()) {
+                  let formatted = input.value.trim();
+                  if (!formatted.startsWith("http://") && !formatted.startsWith("https://")) {
+                    formatted = "http://" + formatted;
+                  }
+                  setServerUrl(formatted);
+                  localStorage.setItem("synclink_server_url", formatted);
+                }
+              }}
+            >
+              <div className="input-field-group" style={{ marginBottom: "14px" }}>
+                <label className="input-label" style={{ fontWeight: 600 }}>시그널링 서버 주소 (URL / IP)</label>
+                <input
+                  name="initialServerInput"
+                  className="input-text mono"
+                  placeholder="예: http://192.168.0.10:5963 또는 http://내서버:5963"
+                  defaultValue=""
+                  autoFocus
+                  required
+                  style={{ fontSize: "0.9rem", padding: "12px 14px", borderColor: "rgba(0, 194, 255, 0.4)" }}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: "8px", marginBottom: "18px" }}>
+                <button
+                  type="button"
+                  className="btn-main btn-secondary-dark"
+                  style={{ flex: 1, padding: "8px 10px", fontSize: "0.8rem" }}
+                  onClick={() => {
+                    setServerUrl("http://localhost:5963");
+                    localStorage.setItem("synclink_server_url", "http://localhost:5963");
+                  }}
+                >
+                  로컬호스트 (localhost:5963)
+                </button>
+              </div>
+
+              <div style={{ background: "rgba(0, 0, 0, 0.35)", borderRadius: "10px", padding: "12px", marginBottom: "22px", border: "1px solid rgba(255, 255, 255, 0.08)" }}>
+                <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#60a5fa", marginBottom: "4px" }}>💡 아직 시그널링 서버가 없으신가요?</div>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", lineHeight: 1.4 }}>
+                  개인 PC나 VPS 터미널에서 아래 명령어로 10초 만에 띄울 수 있어요:
+                </div>
+                <div style={{ marginTop: "6px", fontFamily: "monospace", fontSize: "0.75rem", color: "#34d399", background: "rgba(0,0,0,0.5)", padding: "6px 8px", borderRadius: "6px" }}>
+                  cd signaling-server && npm install && npm start
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="btn-main btn-primary"
+                style={{ width: "100%", padding: "12px", fontSize: "0.95rem", fontWeight: 700, borderRadius: "10px" }}
+              >
+                <span>서버 저장 및 시작하기</span>
+              </button>
+            </form>
           </div>
         </div>
       )}

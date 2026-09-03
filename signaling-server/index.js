@@ -1,10 +1,40 @@
 const { Server } = require("socket.io");
+const { exec } = require("child_process");
+const os = require("os");
 
-const io = new Server(3001, {
+const PORT = process.env.PORT || 5963;
+
+// ─── OS 방화벽 인바운드 포트 자동 개방 (Linux UFW / firewalld / Windows netsh) ───
+function autoOpenFirewallPort(port) {
+  const platform = os.platform();
+  let cmd = "";
+
+  if (platform === "linux") {
+    // Ubuntu/Debian UFW 또는 CentOS/RHEL firewalld 자동 감지 및 개방
+    cmd = `(command -v ufw >/dev/null 2>&1 && ufw allow ${port}/tcp) || (command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --zone=public --add-port=${port}/tcp --permanent && firewall-cmd --reload) || (command -v iptables >/dev/null 2>&1 && iptables -I INPUT -p tcp --dport ${port} -j ACCEPT)`;
+  } else if (platform === "win32") {
+    // Windows 고급 방화벽 인바운드 규칙 등록 (관리자 권한 시 자동 등록)
+    cmd = `netsh advfirewall firewall add rule name="SyncLink_Signaling_${port}" dir=in action=allow protocol=TCP localport=${port}`;
+  }
+
+  if (cmd) {
+    exec(cmd, (err) => {
+      if (err) {
+        console.log(`ℹ️ [Firewall] 자동 방화벽 개방 건너뜀 (수동 설정 또는 root/관리자 권한 필요)`);
+      } else {
+        console.log(`🔓 [Firewall] OS 방화벽 포트 ${port}/TCP 인바운드 허용 완료`);
+      }
+    });
+  }
+}
+
+autoOpenFirewallPort(PORT);
+
+const io = new Server(PORT, {
   cors: { origin: "*" },
 });
 
-console.log("📡 Signaling Server running on port 3001");
+console.log(`📡 Signaling Server running on port ${PORT}`);
 
 // Map<roomId, { hostSocketId, password, deviceName, online }>
 const rooms = new Map();

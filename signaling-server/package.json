@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "start": "node index.js",
+    "open-port": "sudo ufw allow 5963/tcp 2>/dev/null || sudo firewall-cmd --add-port=5963/tcp --permanent 2>/dev/null || netsh advfirewall firewall add rule name=\"SyncLink_Signaling_5963\" dir=in action=allow protocol=TCP localport=5963",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
