@@ -9,11 +9,17 @@
 
 ---
 
-## 1. 개요 (Overview)
+## 📥 클라이언트 다운로드 (Client Downloads)
 
-**Yoonikon SyncLink**는 **Tauri v2 (Rust 네이티브 코어)**와 **React 19 (TypeScript + Blueward Design System)**를 결합하여 제작된 초경량 고성능 **WebRTC P2P 원격 데스크톱 제어 솔루션**입니다.
+별도의 개발 환경이나 빌드 없이, 아래 링크에서 **운영체제별 최신 설치 파일**을 즉시 다운로드하여 사용하실 수 있습니다.
 
-Yoonikon AIOps 생태계의 **Yoonikon Sentinel**과 유기적으로 연계되어, 관제 시스템에서 감지된 원격 서버나 단말에 **클릭 한 번으로 60fps 초저지연 화면 스트리밍과 정밀 마우스/키보드 원격 제어를 수행**할 수 있습니다.
+| 운영체제 (OS) | 파일 형식 | 바로 다운로드 |
+| :--- | :---: | :--- |
+| **Windows 10 / 11** (64-bit) | `.exe` | [**⬇️ Windows 설치 파일 (.exe) 다운로드**](https://github.com/JungHyunY/synclink.proto/releases/latest) |
+| **Windows 10 / 11** (MSI 패키지) | `.msi` | [**⬇️ Windows 패키지 (.msi) 다운로드**](https://github.com/JungHyunY/synclink.proto/releases/latest) |
+| **macOS** (Apple Silicon M1/M2/M3/M4) | `.dmg` | [**⬇️ Mac 설치 파일 (.dmg) 다운로드**](https://github.com/JungHyunY/synclink.proto/releases/latest) |
+
+> 📌 **안내**: [**📦 전체 릴리즈 및 이전 버전 다운로드 페이지 (GitHub Releases)**](https://github.com/JungHyunY/synclink.proto/releases)에서 모든 파일 목록과 패치 내역을 확인하실 수 있습니다.
 
 ---
 
