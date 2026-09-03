@@ -106,7 +106,13 @@ io.on("connection", (socket) => {
     }
   });
 
-  // 9. 연결 해제 처리
+  // 9. 게스트 명시적 세션 종료 처리
+  socket.on("guest-disconnect", ({ roomId }) => {
+    console.log(`👋 Guest (${socket.id}) ended session for Room: ${roomId}`);
+    socket.to(roomId).emit("guest-disconnected", { guestId: socket.id });
+  });
+
+  // 10. 소켓 연결 해제 처리 (Host 또는 Guest 종료)
   socket.on("disconnect", () => {
     console.log(`❌ Client disconnected: ${socket.id}`);
     for (const [roomId, room] of rooms.entries()) {
@@ -115,6 +121,9 @@ io.on("connection", (socket) => {
         socket.to(roomId).emit("host-offline", { roomId });
         rooms.delete(roomId);
         console.log(`🛑 Host disconnected, Room closed: ${roomId}`);
+      } else {
+        // 게스트 비정상 종료 시 호스트에게 알림
+        socket.to(roomId).emit("guest-disconnected", { guestId: socket.id });
       }
     }
   });

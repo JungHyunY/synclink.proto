@@ -495,24 +495,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "client"
-version = "0.1.0"
-dependencies = [
- "arboard",
- "base64 0.21.7",
- "image 0.24.9",
- "macos-accessibility-client",
- "rdev",
- "screenshots",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-opener",
- "tokio",
-]
-
-[[package]]
 name = "clipboard-win"
 version = "5.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4046,6 +4028,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0bf256ce5efdfa370213c1dabab5935a12e49f2c58d15e9eac2870d3b4f27263"
 dependencies = [
  "futures-core",
+]
+
+[[package]]
+name = "synclink"
+version = "1.0.0"
+dependencies = [
+ "arboard",
+ "base64 0.21.7",
+ "image 0.24.9",
+ "macos-accessibility-client",
+ "rdev",
+ "screenshots",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-opener",
+ "tokio",
 ]
 
 [[package]]

@@ -27,9 +27,8 @@ import {
   Square,
   Eye,
   EyeOff,
-  ExternalLink,
 } from "lucide-react";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { BdsBadge } from "blueward-design-system";
 import "./App.css";
 
 const DEFAULT_SERVER_URL = "http://127.0.0.1:3001";
@@ -127,10 +126,6 @@ function App() {
   const [permissionGranted, setPermissionGranted] = useState(true);
   const [isBlackScreen, setIsBlackScreen] = useState(false);
   const [isPrivacyCover, setIsPrivacyCover] = useState(false);
-  const [showSponsorAd, setShowSponsorAd] = useState(() => {
-    const saved = localStorage.getItem("synclink_show_sponsor_ad");
-    return saved === null ? true : saved === "true";
-  });
 
   // New Device Modal State
   const [showAddModal, setShowAddModal] = useState(false);
@@ -149,6 +144,7 @@ function App() {
   const activeMonitorRef = useRef(0);
   const lastClipboardTextRef = useRef("");
   const videoContainerRef = useRef<HTMLDivElement>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
 
   // Sync state to LocalStorage
   useEffect(() => {
@@ -205,6 +201,55 @@ function App() {
     }, 3000);
     return () => clearInterval(interval);
   }, []);
+
+  // WebRTC Peer Connection Factory
+  const createPeerConnection = (targetId: string) => {
+    const peer = new RTCPeerConnection(ICE_SERVERS);
+    peer.onicecandidate = (e) => {
+      if (e.candidate) {
+        socketRef.current?.emit("ice-candidate", { target: targetId, candidate: e.candidate });
+      }
+    };
+    peer.ontrack = (e) => {
+      console.log("🎥 Video track received from host!", e.streams[0]);
+      setStatus("Connected");
+      remoteStreamRef.current = e.streams[0];
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = e.streams[0];
+        remoteVideoRef.current.play().catch((err) => console.error("Play error:", err));
+      }
+    };
+    peer.onconnectionstatechange = () => {
+      console.log("📡 WebRTC Connection State:", peer.connectionState);
+      if (peer.connectionState === "connected") {
+        setStatus("Connected");
+        setIsConnected(true);
+      } else if (
+        peer.connectionState === "disconnected" ||
+        peer.connectionState === "failed" ||
+        peer.connectionState === "closed"
+      ) {
+        if (isHostRef.current) {
+          console.log("👋 Guest WebRTC disconnected");
+          peerRef.current?.close();
+          peerRef.current = null;
+          setIsConnected(false);
+          setIsPrivacyCover(false);
+          setStatus("Hosting Active");
+        } else {
+          endSession();
+        }
+      }
+    };
+    return peer;
+  };
+
+  const processCandidateQueue = async (peer: RTCPeerConnection) => {
+    while (candidateQueue.current.length > 0) {
+      const c = candidateQueue.current.shift();
+      if (c) peer.addIceCandidate(c);
+    }
+  };
 
   // Initialize Socket.io Connection
   useEffect(() => {
@@ -273,11 +318,22 @@ function App() {
 
     // WebRTC Signaling
     socket.on("user-connected", async (userId: string) => {
-      if (!isHostRef.current || !peerRef.current) return;
+      if (!isHostRef.current) return;
+      console.log(`🔌 Guest (${userId}) connected. Creating fresh WebRTC Offer...`);
       setStatus("Guest connected. Negotiating...");
+
+      peerRef.current?.close();
+      const peer = createPeerConnection(userId);
+      if (captureCanvasRef.current) {
+        const canvas = captureCanvasRef.current as any;
+        const stream = canvas.captureStream(hostFps);
+        stream.getTracks().forEach((track: any) => peer.addTrack(track, stream));
+      }
+      peerRef.current = peer;
+
       try {
-        const offer = await peerRef.current.createOffer();
-        await peerRef.current.setLocalDescription(offer);
+        const offer = await peer.createOffer();
+        await peer.setLocalDescription(offer);
         socket.emit("offer", { target: userId, caller: socket.id, sdp: offer });
       } catch (e) {
         console.error("Offer error:", e);
@@ -398,6 +454,18 @@ function App() {
       }
     });
 
+    // Guest Disconnected Notification (Host receives this)
+    socket.on("guest-disconnected", () => {
+      if (isHostRef.current) {
+        console.log("👋 Guest disconnected via signaling");
+        peerRef.current?.close();
+        peerRef.current = null;
+        setIsConnected(false);
+        setIsPrivacyCover(false);
+        setStatus("Hosting Active");
+      }
+    });
+
     return () => {
       socket.disconnect();
     };
@@ -461,31 +529,6 @@ function App() {
     return () => clearInterval(interval);
   }, [isConnected]);
 
-  // WebRTC Helper
-  const createPeerConnection = (targetId: string) => {
-    const peer = new RTCPeerConnection(ICE_SERVERS);
-    peer.onicecandidate = (e) => {
-      if (e.candidate) {
-        socketRef.current?.emit("ice-candidate", { target: targetId, candidate: e.candidate });
-      }
-    };
-    peer.ontrack = (e) => {
-      setStatus("Connected");
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = e.streams[0];
-        remoteVideoRef.current.play().catch((err) => console.error("Play error:", err));
-      }
-    };
-    return peer;
-  };
-
-  const processCandidateQueue = async (peer: RTCPeerConnection) => {
-    while (candidateQueue.current.length > 0) {
-      const c = candidateQueue.current.shift();
-      if (c) peer.addIceCandidate(c);
-    }
-  };
-
   // Start Hosting
   const startHosting = async () => {
     if (!myPin) return alert("무인 접속을 위한 PIN 비밀번호를 설정해 주세요.");
@@ -502,20 +545,17 @@ function App() {
       deviceName: myDeviceName,
     });
 
+    if (captureCanvasRef.current) {
+      captureCanvasRef.current.width = 1920;
+      captureCanvasRef.current.height = 1080;
+    }
+
     try {
       await invoke("start_screen_capture", {
         monitorIndex: hostMonitorIndex,
         fps: hostFps,
         quality: hostQuality,
       });
-
-      if (captureCanvasRef.current) {
-        const canvas = captureCanvasRef.current as any;
-        const stream = canvas.captureStream(hostFps);
-        const peer = createPeerConnection("guest");
-        stream.getTracks().forEach((track: any) => peer.addTrack(track, stream));
-        peerRef.current = peer;
-      }
     } catch (err) {
       console.error("Start host error:", err);
       setIsHostingActive(false);
@@ -570,8 +610,12 @@ function App() {
 
   // End Current Session
   const endSession = () => {
+    if (!isHostRef.current && sessionRoomId) {
+      socketRef.current?.emit("guest-disconnect", { roomId: sessionRoomId });
+    }
     peerRef.current?.close();
     peerRef.current = null;
+    remoteStreamRef.current = null;
     setIsConnected(false);
     setIsBlackScreen(false);
     setIsPrivacyCover(false);
@@ -585,6 +629,14 @@ function App() {
     // Reset window back to fixed dashboard size
     invoke("set_window_session_mode", { isSession: false }).catch(() => {});
   };
+
+  // Immediate Video Stream Attach
+  useEffect(() => {
+    if (isConnected && !isHostMode && remoteVideoRef.current && remoteStreamRef.current) {
+      remoteVideoRef.current.srcObject = remoteStreamRef.current;
+      remoteVideoRef.current.play().catch(() => {});
+    }
+  }, [isConnected, isHostMode]);
 
   // Guest Input Handlers
   const handleRemoteInput = (e: React.MouseEvent, type: string) => {
@@ -677,21 +729,6 @@ function App() {
     setTimeout(() => setCopiedNotification(false), 2000);
   };
 
-  // External Link Opener (Opens in default OS browser via plugin-opener)
-  const handleOpenExternal = async (url: string) => {
-    try {
-      await openUrl(url);
-    } catch {
-      window.open(url, "_blank");
-    }
-  };
-
-  // Toggle Sponsor Ad in Sidebar
-  const handleToggleSponsorAd = (enabled: boolean) => {
-    setShowSponsorAd(enabled);
-    localStorage.setItem("synclink_show_sponsor_ad", String(enabled));
-  };
-
   return (
     <div className="container">
       {/* 프라이버시 블랙스크린 (호스트 커튼 모드) 오버레이 */}
@@ -735,12 +772,25 @@ function App() {
           {/* 사이드바 네비게이션 */}
           <div className="sidebar">
             <div className="brand-section">
-              <div className="brand-logo">
-                <Zap size={22} />
-              </div>
+              <img
+                src="/app-icon.png"
+                alt="SyncLink Logo"
+                style={{
+                  width: "40px",
+                  height: "40px",
+                  borderRadius: "10px",
+                  boxShadow: "0 0 20px rgba(59, 130, 246, 0.4)",
+                  objectFit: "cover",
+                }}
+              />
               <div>
                 <h2 className="brand-title">SyncLink</h2>
-                <span className="brand-badge">FOSS Edition</span>
+                <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "2px" }}>
+                  <span className="brand-badge" style={{ background: "rgba(0, 102, 255, 0.15)", color: "#38bdf8", border: "1px solid rgba(0, 194, 255, 0.3)" }}>
+                    by nexus
+                  </span>
+                  <BdsBadge variant="primary" size="sm" dot>BDS</BdsBadge>
+                </div>
               </div>
             </div>
 
@@ -764,28 +814,6 @@ function App() {
             </div>
 
             <div className="sidebar-footer">
-              {/* Carbon Ads / Open Source Sponsor Card */}
-              {showSponsorAd && (
-                <div
-                  className="carbon-ad-box"
-                  onClick={() => handleOpenExternal("https://www.carbonads.net")}
-                  title="스폰서 링크 열기 (새 브라우저 창)"
-                >
-                  <div className="carbon-ad-content">
-                    <div className="carbon-ad-img">
-                      <Zap size={20} />
-                    </div>
-                    <p className="carbon-ad-text">
-                      <b>Cloud VPS High Performance</b> — 오픈소스 서버를 위한 초고속 NVMe 인스턴스
-                    </p>
-                  </div>
-                  <div className="carbon-ad-footer">
-                    <span className="carbon-ad-tag">ads via Carbon • 서버 후원</span>
-                    <ExternalLink size={12} className="carbon-ad-ext" />
-                  </div>
-                </div>
-              )}
-
               <div className="server-status">
                 <div className={`status-dot-sm ${isServerConnected ? "online" : "offline"}`} />
                 <span>{isServerConnected ? "시그널링 서버에 연결되었어요" : "서버가 오프라인이에요"}</span>
@@ -1152,21 +1180,19 @@ function App() {
                       </label>
                     </div>
                   </div>
+                </div>
 
-                  <div className="input-field-group" style={{ marginTop: "16px" }}>
-                    <label className="input-label">오픈소스 프로젝트 후원 및 스폰서</label>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                      <input
-                        type="checkbox"
-                        id="sponsorAdToggle"
-                        checked={showSponsorAd}
-                        onChange={(e) => handleToggleSponsorAd(e.target.checked)}
-                        style={{ accentColor: "var(--primary)" }}
-                      />
-                      <label htmlFor="sponsorAdToggle" style={{ fontSize: "0.9rem", color: "var(--text-main)", cursor: "pointer" }}>
-                        사이드바에 스폰서 광고 표시하기 (오픈소스 서버 유지비 후원에 큰 힘이 돼요)
-                      </label>
-                    </div>
+                {/* nexus 개발자 & 프로젝트 정보 카드 */}
+                <div className="glass-card" style={{ maxWidth: "600px", marginTop: "16px" }}>
+                  <h3 className="card-title" style={{ fontSize: "1rem", marginBottom: "8px" }}>
+                    <Shield size={18} color="#818cf8" />
+                    프로젝트 정보 (Project Info)
+                  </h3>
+                  <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <div>• <b>개발자</b>: nexus (개인 개발자 프로젝트)</div>
+                    <div>• <b>디자인 시스템</b>: blueward-design-system (BDS v1.0.2)</div>
+                    <div>• <b>라이선스</b>: 100% 무료 & 오픈소스 (월 구독 / 과금 없음)</div>
+                    <div>• <b>버전</b>: SyncLink v1.1.0 (Native Desktop)</div>
                   </div>
                 </div>
 
