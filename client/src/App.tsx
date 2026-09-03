@@ -34,6 +34,7 @@ import {
   Server,
   Edit2,
   X,
+  MousePointer,
 } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { check } from "@tauri-apps/plugin-updater";
@@ -265,6 +266,15 @@ function App() {
   const [permissionGranted, setPermissionGranted] = useState(true);
   const [isBlackScreen, setIsBlackScreen] = useState(false);
   const [isPrivacyCover, setIsPrivacyCover] = useState(false);
+
+  // Virtual Remote Cursor State
+  const [showVirtualCursor, setShowVirtualCursor] = useState(true);
+  const [guestCursor, setGuestCursor] = useState<{ x: number; y: number; visible: boolean; clicking: boolean }>({
+    x: 0,
+    y: 0,
+    visible: false,
+    clicking: false,
+  });
 
   // New Device Modal State
   const [showAddModal, setShowAddModal] = useState(false);
@@ -863,15 +873,16 @@ function App() {
   // Guest Input Handlers
   const handleRemoteInput = (e: React.MouseEvent, type: string) => {
     if (isHostRef.current) return;
-    const video = e.currentTarget as HTMLVideoElement;
+    const video = (e.currentTarget.tagName === "VIDEO" ? e.currentTarget : remoteVideoRef.current) as HTMLVideoElement;
+    if (!video) return;
     if (type === "click") {
       const wrapper = video.parentElement;
       if (wrapper) wrapper.focus();
     }
     const rect = video.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
+    const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
 
     if (type === "mousemove") {
       socketRef.current?.emit("control-event", {
@@ -1753,6 +1764,16 @@ function App() {
                   <span>{isBlackScreen ? "화면 가림 On" : "프라이버시"}</span>
                 </button>
 
+                {/* 원격 마우스 커서 표시 토글 */}
+                <button
+                  className={`toolbar-btn ${showVirtualCursor ? "active" : ""}`}
+                  onClick={() => setShowVirtualCursor(!showVirtualCursor)}
+                  title="원격 마우스 포인터 표시 On/Off"
+                >
+                  <MousePointer size={14} color={showVirtualCursor ? "#38bdf8" : "#94a3b8"} />
+                  <span>{showVirtualCursor ? "커서 On" : "커서 Off"}</span>
+                </button>
+
                 <div className="toolbar-divider" />
 
                 {/* 전체화면 */}
@@ -1791,6 +1812,20 @@ function App() {
                 onKeyDown={(e) => handleKeyInput(e, "keydown")}
                 onKeyUp={(e) => handleKeyInput(e, "keyup")}
                 onContextMenu={(e) => e.preventDefault()}
+                onMouseEnter={() => setGuestCursor((prev) => ({ ...prev, visible: true }))}
+                onMouseLeave={() => setGuestCursor((prev) => ({ ...prev, visible: false, clicking: false }))}
+                onMouseDown={() => setGuestCursor((prev) => ({ ...prev, clicking: true }))}
+                onMouseUp={() => setGuestCursor((prev) => ({ ...prev, clicking: false }))}
+                onMouseMove={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setGuestCursor({
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top,
+                    visible: true,
+                    clicking: e.buttons > 0,
+                  });
+                }}
+                style={{ cursor: showVirtualCursor ? "none" : "default" }}
               >
                 <video
                   ref={remoteVideoRef}
@@ -1799,7 +1834,49 @@ function App() {
                   muted
                   onClick={(e) => handleRemoteInput(e, "click")}
                   onMouseMove={(e) => handleRemoteInput(e, "mousemove")}
+                  style={{ cursor: showVirtualCursor ? "none" : "default" }}
                 />
+
+                {/* 🎯 선명한 원격 마우스 커서 오버레이 (Virtual Remote Cursor) */}
+                {showVirtualCursor && guestCursor.visible && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: `${guestCursor.x}px`,
+                      top: `${guestCursor.y}px`,
+                      pointerEvents: "none",
+                      zIndex: 9999,
+                      transform: guestCursor.clicking ? "scale(0.88)" : "scale(1)",
+                      transition: "transform 0.05s ease",
+                      filter: "drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8))",
+                    }}
+                  >
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                      <path
+                        d="M3 3l7.5 19 2.8-7.2L20.5 12 3 3z"
+                        fill="#ffffff"
+                        stroke="#0f172a"
+                        strokeWidth="2"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    {guestCursor.clicking && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "-3px",
+                          top: "-3px",
+                          width: "14px",
+                          height: "14px",
+                          borderRadius: "50%",
+                          background: "rgba(56, 189, 248, 0.4)",
+                          border: "2px solid #38bdf8",
+                          pointerEvents: "none",
+                        }}
+                      />
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
