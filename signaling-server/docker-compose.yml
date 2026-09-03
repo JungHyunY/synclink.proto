@@ -1,0 +1,9 @@
+services:
+  signaling-server:
+    build: .
+    container_name: synclink-signaling
+    restart: always
+    ports:
+      - "5963:5963"
+    environment:
+      - PORT=5963

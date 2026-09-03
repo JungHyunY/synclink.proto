@@ -34,7 +34,21 @@
 
 ## 3. 실행 방법
 
-### 시그널링 서버 실행
+### 시그널링 서버 설치 및 실행 (Signaling Server)
+
+#### 방법 1: 리눅스 원클릭 자동 설치 (추천: Ubuntu / Debian / CentOS / Rocky)
+리눅스 터미널에서 아래 명령어 한 줄을 실행하면 Node.js 환경 감지, 방화벽 포트 개방(5963/TCP), systemd 상시 백그라운드 서비스 등록 및 자동 시작이 완료됩니다:
+```bash
+curl -fsSL https://raw.githubusercontent.com/JungHyunY/synclink.proto/main/signaling-server/install.sh | sudo bash
+```
+
+#### 방법 2: Docker 컨테이너 실행
+```bash
+cd signaling-server
+docker compose up -d
+```
+
+#### 방법 3: 수동 실행
 ```bash
 cd signaling-server
 npm install
