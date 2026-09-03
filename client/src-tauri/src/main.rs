@@ -326,6 +326,30 @@ async fn set_window_session_mode(window: Window, is_session: bool) {
     }
 }
 
+#[command]
+async fn set_privacy_mode(enabled: bool) {
+    #[cfg(target_os = "macos")]
+    {
+        let script = if enabled {
+            "tell application \"System Events\" to repeat 16 times\nkey code 145\nend repeat"
+        } else {
+            "tell application \"System Events\" to repeat 10 times\nkey code 144\nend repeat"
+        };
+        let _ = std::process::Command::new("osascript")
+            .arg("-e")
+            .arg(script)
+            .spawn();
+    }
+    #[cfg(target_os = "windows")]
+    {
+        if enabled {
+            let _ = std::process::Command::new("powershell")
+                .args(&["-Command", "(Add-Type -MemberDefinition '[DllImport(\"user32.dll\")]public static extern int SendMessage(int hWnd, int hMsg, int wParam, int lParam);' -Name a -Passthru)::SendMessage(-1, 0x0112, 0xF170, 2)"])
+                .spawn();
+        }
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .setup(|_app| { Ok(()) })
@@ -341,7 +365,8 @@ fn main() {
             set_clipboard_text,
             check_permissions,
             open_permission_settings,
-            set_window_session_mode
+            set_window_session_mode,
+            set_privacy_mode
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

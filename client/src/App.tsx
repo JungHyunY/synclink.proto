@@ -234,6 +234,7 @@ function App() {
           peerRef.current = null;
           setIsConnected(false);
           setIsPrivacyCover(false);
+          invoke("set_privacy_mode", { enabled: false }).catch(() => {});
           setStatus("Hosting Active");
         } else {
           endSession();
@@ -340,7 +341,9 @@ function App() {
     });
 
     socket.on("offer", async (payload) => {
+      peerRef.current?.close();
       const peer = createPeerConnection(payload.caller);
+      peerRef.current = peer;
       try {
         await peer.setRemoteDescription(payload.sdp);
         processCandidateQueue(peer);
@@ -364,9 +367,10 @@ function App() {
 
     socket.on("ice-candidate", async (payload) => {
       const peer = peerRef.current;
-      if (peer) {
-        if (!peer.remoteDescription) candidateQueue.current.push(payload.candidate);
-        else await peer.addIceCandidate(payload.candidate).catch((e) => console.error(e));
+      if (peer && peer.remoteDescription) {
+        await peer.addIceCandidate(payload.candidate).catch((e) => console.error(e));
+      } else {
+        candidateQueue.current.push(payload.candidate);
       }
     });
 
@@ -409,6 +413,7 @@ function App() {
             });
           } else if (payload.type === "toggle-blackscreen") {
             setIsPrivacyCover(payload.enabled);
+            invoke("set_privacy_mode", { enabled: payload.enabled }).catch(() => {});
           }
         } catch (err) {
           console.error("Control handler error:", err);
@@ -461,6 +466,7 @@ function App() {
         peerRef.current = null;
         setIsConnected(false);
         setIsPrivacyCover(false);
+        invoke("set_privacy_mode", { enabled: false }).catch(() => {});
         setStatus("Hosting Active");
       }
     });
@@ -623,6 +629,7 @@ function App() {
     if (isHostRef.current) {
       setIsHostingActive(false);
       isHostRef.current = false;
+      invoke("set_privacy_mode", { enabled: false }).catch(() => {});
     }
 
     // Reset window back to fixed dashboard size
@@ -762,8 +769,20 @@ function App() {
         </div>
       )}
 
-      {/* Background Frame Capture Canvas */}
-      <canvas ref={captureCanvasRef} style={{ position: "absolute", top: -9999, left: -9999, visibility: "hidden" }} />
+      {/* Background Frame Capture Canvas - visually active to prevent macOS WebKit from throttling captureStream */}
+      <canvas
+        ref={captureCanvasRef}
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          pointerEvents: "none",
+          opacity: 0.001,
+          zIndex: -999,
+        }}
+      />
 
       {/* ─────────────────── MAIN DASHBOARD ─────────────────── */}
       {!isConnected ? (
