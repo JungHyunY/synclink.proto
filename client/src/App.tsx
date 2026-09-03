@@ -223,6 +223,9 @@ function App() {
       if (peer.connectionState === "connected") {
         setStatus("Connected");
         setIsConnected(true);
+        if (isHostRef.current) {
+          invoke("minimize_host_window").catch(() => {});
+        }
       } else if (
         peer.connectionState === "disconnected" ||
         peer.connectionState === "failed" ||
@@ -235,6 +238,7 @@ function App() {
           setIsConnected(false);
           setIsPrivacyCover(false);
           invoke("set_privacy_mode", { enabled: false }).catch(() => {});
+          invoke("restore_host_window").catch(() => {});
           setStatus("Hosting Active");
         } else {
           endSession();
@@ -467,6 +471,7 @@ function App() {
         setIsConnected(false);
         setIsPrivacyCover(false);
         invoke("set_privacy_mode", { enabled: false }).catch(() => {});
+        invoke("restore_host_window").catch(() => {});
         setStatus("Hosting Active");
       }
     });
@@ -630,6 +635,7 @@ function App() {
       setIsHostingActive(false);
       isHostRef.current = false;
       invoke("set_privacy_mode", { enabled: false }).catch(() => {});
+      invoke("restore_host_window").catch(() => {});
     }
 
     // Reset window back to fixed dashboard size
@@ -679,10 +685,14 @@ function App() {
 
   const handleKeyInput = (e: React.KeyboardEvent, type: "keydown" | "keyup") => {
     if (isHostRef.current) return;
+    if ([" ", "Space", "Tab", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Backspace"].includes(e.key)) {
+      e.preventDefault();
+    }
+    const keyToSend = e.key === " " ? "space" : e.key;
     socketRef.current?.emit("control-event", {
       targetRoom: sessionRoomId,
       type,
-      key: e.key,
+      key: keyToSend,
     });
   };
 

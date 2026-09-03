@@ -21,16 +21,23 @@ fn str_to_key(key_str: &str) -> Option<Key> {
     match key_str.to_lowercase().as_str() {
         "enter" => Some(Key::Return),
         "backspace" => Some(Key::Backspace),
-        "control" => Some(Key::ControlLeft),
+        "control" | "ctrl" => Some(Key::ControlLeft),
         "shift" => Some(Key::ShiftLeft),
         "alt" => Some(Key::Alt),
-        "escape" => Some(Key::Escape),
+        "meta" | "command" | "cmd" => Some(Key::MetaLeft),
+        "escape" | "esc" => Some(Key::Escape),
         "tab" => Some(Key::Tab),
-        "space" => Some(Key::Space),
-        "arrowup" => Some(Key::UpArrow),
-        "arrowdown" => Some(Key::DownArrow),
-        "arrowleft" => Some(Key::LeftArrow),
-        "arrowright" => Some(Key::RightArrow),
+        " " | "space" | "spacebar" => Some(Key::Space),
+        "arrowup" | "up" => Some(Key::UpArrow),
+        "arrowdown" | "down" => Some(Key::DownArrow),
+        "arrowleft" | "left" => Some(Key::LeftArrow),
+        "arrowright" | "right" => Some(Key::RightArrow),
+        "delete" | "del" => Some(Key::Delete),
+        "home" => Some(Key::Home),
+        "end" => Some(Key::End),
+        "pageup" => Some(Key::PageUp),
+        "pagedown" => Some(Key::PageDown),
+        "capslock" => Some(Key::CapsLock),
         "a" => Some(Key::KeyA), "b" => Some(Key::KeyB), "c" => Some(Key::KeyC),
         "d" => Some(Key::KeyD), "e" => Some(Key::KeyE), "f" => Some(Key::KeyF),
         "g" => Some(Key::KeyG), "h" => Some(Key::KeyH), "i" => Some(Key::KeyI),
@@ -44,6 +51,17 @@ fn str_to_key(key_str: &str) -> Option<Key> {
         "4" => Some(Key::Num4), "5" => Some(Key::Num5), "6" => Some(Key::Num6),
         "7" => Some(Key::Num7), "8" => Some(Key::Num8), "9" => Some(Key::Num9),
         "0" => Some(Key::Num0),
+        "." => Some(Key::Dot),
+        "," => Some(Key::Comma),
+        "-" => Some(Key::Minus),
+        "=" => Some(Key::Equal),
+        "/" => Some(Key::Slash),
+        "\\" => Some(Key::BackSlash),
+        ";" => Some(Key::SemiColon),
+        "'" => Some(Key::Quote),
+        "[" => Some(Key::LeftBracket),
+        "]" => Some(Key::RightBracket),
+        "`" => Some(Key::BackQuote),
         _ => None,
     }
 }
@@ -335,10 +353,22 @@ async fn set_window_session_mode(window: Window, is_session: bool) {
     } else {
         let _ = window.set_resizable(false);
         let _ = window.set_maximizable(false);
-        let _ = window.set_min_size(Some(tauri::Size::Logical(tauri::LogicalSize { width: 980.0, height: 640.0 })));
-        let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize { width: 980.0, height: 640.0 }));
+        let _ = window.set_min_size(Some(tauri::Size::Logical(tauri::LogicalSize { width: 1000.0, height: 680.0 })));
+        let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize { width: 1000.0, height: 680.0 }));
         let _ = window.center();
     }
+}
+
+#[command]
+async fn minimize_host_window(window: Window) {
+    let _ = window.minimize();
+}
+
+#[command]
+async fn restore_host_window(window: Window) {
+    let _ = window.unminimize();
+    let _ = window.show();
+    let _ = window.set_focus();
 }
 
 #[cfg(target_os = "macos")]
@@ -435,7 +465,9 @@ fn main() {
             check_permissions,
             open_permission_settings,
             set_window_session_mode,
-            set_privacy_mode
+            set_privacy_mode,
+            minimize_host_window,
+            restore_host_window
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
