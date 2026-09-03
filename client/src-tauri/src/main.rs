@@ -9,6 +9,8 @@ use std::thread;
 use std::time::Duration;
 use image::ColorType;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 static CAPTURE_SESSION_ID: AtomicUsize = AtomicUsize::new(0);
 static CAPTURE_FPS: AtomicUsize = AtomicUsize::new(30);
@@ -47,6 +49,88 @@ fn str_to_key(key_str: &str) -> Option<Key> {
 }
 
 #[command]
+fn get_machine_id() -> String {
+    let raw_uid = {
+        #[cfg(target_os = "windows")]
+        {
+            let output = std::process::Command::new("reg")
+                .args(["query", "HKLM\\SOFTWARE\\Microsoft\\Cryptography", "/v", "MachineGuid"])
+                .output()
+                .ok();
+            
+            if let Some(out) = output {
+                let text = String::from_utf8_lossy(&out.stdout);
+                text.lines()
+                    .find(|line| line.contains("MachineGuid"))
+                    .and_then(|line| line.split_whitespace().last())
+                    .map(|s| s.to_string())
+                    .unwrap_or_default()
+            } else {
+                String::new()
+            }
+        }
+        #[cfg(target_os = "macos")]
+        {
+            let output = std::process::Command::new("ioreg")
+                .args(["-rd1", "-c", "IOPlatformExpertDevice"])
+                .output()
+                .ok();
+            if let Some(out) = output {
+                let text = String::from_utf8_lossy(&out.stdout);
+                text.lines()
+                    .find(|line| line.contains("IOPlatformUUID"))
+                    .and_then(|line| line.split('"').nth(3))
+                    .map(|s| s.to_string())
+                    .unwrap_or_default()
+            } else {
+                String::new()
+            }
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+        {
+            String::new()
+        }
+    };
+
+    let seed_string = if !raw_uid.trim().is_empty() {
+        raw_uid
+    } else {
+        let user = std::env::var("USERNAME").or_else(|_| std::env::var("USER")).unwrap_or_else(|_| "user".to_string());
+        let host = std::env::var("COMPUTERNAME").or_else(|_| std::env::var("HOSTNAME")).unwrap_or_else(|_| "host".to_string());
+        format!("{}-{}", host, user)
+    };
+
+    let mut hasher = DefaultHasher::new();
+    seed_string.hash(&mut hasher);
+    let hash_val = hasher.finish();
+    let nine_digit_id = 100_000_000 + (hash_val % 900_000_000);
+    nine_digit_id.to_string()
+}
+
+#[derive(serde::Serialize)]
+struct MonitorInfo {
+    index: usize,
+    name: String,
+    width: u32,
+    height: u32,
+    is_primary: bool,
+}
+
+#[command]
+fn get_monitors() -> Vec<MonitorInfo> {
+    let screens = Screen::all().unwrap_or_default();
+    screens.iter().enumerate().map(|(idx, s)| {
+        MonitorInfo {
+            index: idx,
+            name: format!("Display {}", idx + 1),
+            width: s.display_info.width,
+            height: s.display_info.height,
+            is_primary: s.display_info.is_primary,
+        }
+    }).collect()
+}
+
+#[command]
 fn remote_mouse_move(x: f64, y: f64, monitor_index: usize) {
     let screens = Screen::all().unwrap_or_default();
     let screen = screens.get(monitor_index).or(screens.first());
@@ -62,21 +146,20 @@ fn remote_mouse_move(x: f64, y: f64, monitor_index: usize) {
         let target_x = offset_x + (x * width);
         let target_y = offset_y + (y * height);
 
-        #[cfg(target_os = "macos")]
-        let (final_x, final_y) = {
-            let scale = info.scale_factor as f64;
-            (target_x / scale, target_y / scale)
-        };
-        
-        #[cfg(not(target_os = "macos"))]
-        let (final_x, final_y) = (target_x, target_y);
-
-        let _ = simulate(&EventType::MouseMove { x: final_x, y: final_y });
+        let res = simulate(&EventType::MouseMove { x: target_x, y: target_y });
+        if let Err(e) = res {
+            eprintln!("⚠️ rdev MouseMove error ({:.1}, {:.1}): {:?}", target_x, target_y, e);
+        }
     }
 }
 
 #[command]
-fn remote_mouse_click(button: String) {
+fn remote_mouse_click(button: String, x: Option<f64>, y: Option<f64>, monitor_index: Option<usize>) {
+    if let (Some(px), Some(py)) = (x, y) {
+        remote_mouse_move(px, py, monitor_index.unwrap_or(0));
+        thread::sleep(Duration::from_millis(20));
+    }
+
     let btn = match button.as_str() {
         "right" => Button::Right,
         "middle" => Button::Middle,
@@ -84,13 +167,17 @@ fn remote_mouse_click(button: String) {
     };
     
     // 1. 누른다
-    let _ = simulate(&EventType::ButtonPress(btn));
+    if let Err(e) = simulate(&EventType::ButtonPress(btn)) {
+        eprintln!("⚠️ rdev ButtonPress error: {:?}", e);
+    }
     
     // 2. 0.05초 대기 (OS가 인식할 시간을 줌)
     thread::sleep(Duration::from_millis(50));
     
     // 3. 뗀다
-    let _ = simulate(&EventType::ButtonRelease(btn));
+    if let Err(e) = simulate(&EventType::ButtonRelease(btn)) {
+        eprintln!("⚠️ rdev ButtonRelease error: {:?}", e);
+    }
 }
 
 #[command]
@@ -224,10 +311,27 @@ fn open_permission_settings(permission_type: String) {
     }
 }
 
+#[command]
+async fn set_window_session_mode(window: Window, is_session: bool) {
+    if is_session {
+        let _ = window.set_resizable(true);
+        let _ = window.set_min_size(Some(tauri::Size::Logical(tauri::LogicalSize { width: 800.0, height: 500.0 })));
+        let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize { width: 1280.0, height: 800.0 }));
+        let _ = window.center();
+    } else {
+        let _ = window.set_resizable(false);
+        let _ = window.set_min_size(Some(tauri::Size::Logical(tauri::LogicalSize { width: 980.0, height: 640.0 })));
+        let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize { width: 980.0, height: 640.0 }));
+        let _ = window.center();
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .setup(|_app| { Ok(()) })
         .invoke_handler(tauri::generate_handler![
+            get_machine_id,
+            get_monitors,
             remote_mouse_move, 
             remote_mouse_click,
             remote_keyboard_event,
@@ -236,7 +340,8 @@ fn main() {
             get_clipboard_text,
             set_clipboard_text,
             check_permissions,
-            open_permission_settings
+            open_permission_settings,
+            set_window_session_mode
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

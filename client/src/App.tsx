@@ -25,11 +25,19 @@ import {
   Zap,
   Play,
   Square,
+  Eye,
+  EyeOff,
+  ExternalLink,
 } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import "./App.css";
 
 const DEFAULT_SERVER_URL = "http://127.0.0.1:3001";
 const ICE_SERVERS = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+
+function maskServerUrl(url: string): string {
+  return url.replace(/183\.111\.\d+\.\d+/, "183.111.***.***");
+}
 
 interface SavedDevice {
   id: string;
@@ -66,16 +74,13 @@ function App() {
 
   // Server & Connectivity
   const [serverUrl, setServerUrl] = useState(() => localStorage.getItem("synclink_server_url") || DEFAULT_SERVER_URL);
+  const [showServerUrl, setShowServerUrl] = useState(false);
   const [isServerConnected, setIsServerConnected] = useState(false);
   const [ping, setPing] = useState<number | null>(null);
 
-  // Host Configuration (LocalStorage)
-  const [myDeviceId] = useState(() => {
-    const saved = localStorage.getItem("synclink_device_id");
-    if (saved) return saved;
-    const generated = generateRandomDeviceId();
-    localStorage.setItem("synclink_device_id", generated);
-    return generated;
+  // Host Configuration (Hardware Machine ID + LocalStorage)
+  const [myDeviceId, setMyDeviceId] = useState(() => {
+    return localStorage.getItem("synclink_device_id") || "100000000";
   });
   const [myPin, setMyPin] = useState(() => localStorage.getItem("synclink_pin") || "1234");
   const [myDeviceName, setMyDeviceName] = useState(() => localStorage.getItem("synclink_devicename") || "My Workstation");
@@ -120,6 +125,12 @@ function App() {
   const [copiedNotification, setCopiedNotification] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [permissionGranted, setPermissionGranted] = useState(true);
+  const [isBlackScreen, setIsBlackScreen] = useState(false);
+  const [isPrivacyCover, setIsPrivacyCover] = useState(false);
+  const [showSponsorAd, setShowSponsorAd] = useState(() => {
+    const saved = localStorage.getItem("synclink_show_sponsor_ad");
+    return saved === null ? true : saved === "true";
+  });
 
   // New Device Modal State
   const [showAddModal, setShowAddModal] = useState(false);
@@ -160,18 +171,38 @@ function App() {
     localStorage.setItem("synclink_recent_devices", JSON.stringify(recentDevices));
   }, [recentDevices]);
 
-  // Check OS permissions on launch
+  // Check OS permissions & Fetch Hardware Machine ID on launch
   useEffect(() => {
-    const check = async () => {
+    const init = async () => {
       try {
         const granted = await invoke<boolean>("check_permissions");
         setPermissionGranted(granted);
       } catch (err) {
         console.error("Permission check error:", err);
       }
+
+      try {
+        const hardwareId = await invoke<string>("get_machine_id");
+        if (hardwareId) {
+          setMyDeviceId(hardwareId);
+          localStorage.setItem("synclink_device_id", hardwareId);
+        }
+      } catch (err) {
+        console.warn("Hardware ID fallback:", err);
+        if (!localStorage.getItem("synclink_device_id")) {
+          const generated = generateRandomDeviceId();
+          setMyDeviceId(generated);
+          localStorage.setItem("synclink_device_id", generated);
+        }
+      }
     };
-    check();
-    const interval = setInterval(check, 3000);
+    init();
+    const interval = setInterval(async () => {
+      try {
+        const granted = await invoke<boolean>("check_permissions");
+        setPermissionGranted(granted);
+      } catch {}
+    }, 3000);
     return () => clearInterval(interval);
   }, []);
 
@@ -221,6 +252,13 @@ function App() {
         isHostRef.current = false;
         setStatus("Connecting WebRTC...");
 
+        // Expand window to resizable remote desktop view
+        try {
+          await invoke("set_window_session_mode", { isSession: true });
+        } catch (e) {
+          console.warn("Failed to set window session mode:", e);
+        }
+
         // Save to recent devices
         addRecentDevice(res.roomId, res.deviceName, targetPin);
 
@@ -228,7 +266,7 @@ function App() {
           addSavedDevice(res.roomId, res.deviceName || `PC ${res.roomId}`, targetPin, "");
         }
       } else {
-        setAuthError(res.error || "인증에 실패했습니다.");
+        setAuthError(res.error || "인증에 실패했어요.");
         setIsConnected(false);
       }
     });
@@ -297,7 +335,12 @@ function App() {
               monitorIndex: activeMonitorRef.current,
             });
           } else if (payload.type === "click") {
-            await invoke("remote_mouse_click", { button: payload.button || "left" });
+            await invoke("remote_mouse_click", {
+              button: payload.button || "left",
+              x: payload.x,
+              y: payload.y,
+              monitorIndex: activeMonitorRef.current,
+            });
           } else if (payload.type === "keydown" || payload.type === "keyup") {
             const state = payload.type === "keydown" ? "down" : "up";
             await invoke("remote_keyboard_event", { state, key: payload.key });
@@ -309,6 +352,8 @@ function App() {
               fps: hostFps,
               quality: hostQuality,
             });
+          } else if (payload.type === "toggle-blackscreen") {
+            setIsPrivacyCover(payload.enabled);
           }
         } catch (err) {
           console.error("Control handler error:", err);
@@ -348,7 +393,7 @@ function App() {
     // Host Offline Notification
     socket.on("host-offline", () => {
       if (!isHostRef.current) {
-        alert("호스트와의 연결이 종료되었습니다.");
+        alert("호스트와의 연결이 종료되었어요.");
         endSession();
       }
     });
@@ -443,7 +488,7 @@ function App() {
 
   // Start Hosting
   const startHosting = async () => {
-    if (!myPin) return alert("무인 접속을 위한 PIN 비밀번호를 설정해주세요.");
+    if (!myPin) return alert("무인 접속을 위한 PIN 비밀번호를 설정해 주세요.");
     isHostRef.current = true;
     setIsHostingActive(true);
     setIsHostMode(true);
@@ -491,7 +536,7 @@ function App() {
   // Connect as Guest
   const connectToDevice = (target: string, pin: string) => {
     const cleanId = target.replace(/\s+/g, "");
-    if (!cleanId) return alert("접속할 기기 ID를 입력해주세요.");
+    if (!cleanId) return alert("접속할 기기 ID를 입력해 주세요.");
     setIsConnecting(true);
     setAuthError(null);
 
@@ -528,12 +573,17 @@ function App() {
     peerRef.current?.close();
     peerRef.current = null;
     setIsConnected(false);
+    setIsBlackScreen(false);
+    setIsPrivacyCover(false);
     setStatus("Ready");
     setPing(null);
     if (isHostRef.current) {
       setIsHostingActive(false);
       isHostRef.current = false;
     }
+
+    // Reset window back to fixed dashboard size
+    invoke("set_window_session_mode", { isSession: false }).catch(() => {});
   };
 
   // Guest Input Handlers
@@ -550,20 +600,21 @@ function App() {
     const y = (e.clientY - rect.top) / rect.height;
 
     if (type === "mousemove") {
-      if (e.movementX * e.movementX + e.movementY * e.movementY > 8) {
-        socketRef.current?.emit("control-event", {
-          targetRoom: sessionRoomId,
-          type: "mousemove",
-          x,
-          y,
-          monitorIndex: sessionMonitor,
-        });
-      }
+      socketRef.current?.emit("control-event", {
+        targetRoom: sessionRoomId,
+        type: "mousemove",
+        x,
+        y,
+        monitorIndex: sessionMonitor,
+      });
     } else if (type === "click") {
       socketRef.current?.emit("control-event", {
         targetRoom: sessionRoomId,
         type: "click",
         button: e.button === 2 ? "right" : e.button === 1 ? "middle" : "left",
+        x,
+        y,
+        monitorIndex: sessionMonitor,
       });
     }
   };
@@ -598,6 +649,16 @@ function App() {
     });
   };
 
+  // Toggle Host Privacy Black Screen (Curtain Mode)
+  const toggleBlackScreen = (enable: boolean) => {
+    setIsBlackScreen(enable);
+    socketRef.current?.emit("control-event", {
+      targetRoom: sessionRoomId,
+      type: "toggle-blackscreen",
+      enabled: enable,
+    });
+  };
+
   // Fullscreen Toggle
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -616,12 +677,38 @@ function App() {
     setTimeout(() => setCopiedNotification(false), 2000);
   };
 
+  // External Link Opener (Opens in default OS browser via plugin-opener)
+  const handleOpenExternal = async (url: string) => {
+    try {
+      await openUrl(url);
+    } catch {
+      window.open(url, "_blank");
+    }
+  };
+
+  // Toggle Sponsor Ad in Sidebar
+  const handleToggleSponsorAd = (enabled: boolean) => {
+    setShowSponsorAd(enabled);
+    localStorage.setItem("synclink_show_sponsor_ad", String(enabled));
+  };
+
   return (
     <div className="container">
+      {/* 프라이버시 블랙스크린 (호스트 커튼 모드) 오버레이 */}
+      {isPrivacyCover && isHostMode && (
+        <div className="privacy-cover-overlay">
+          <Shield size={64} color="#10b981" />
+          <h2 style={{ fontSize: "1.6rem", margin: 0, fontWeight: 700 }}>🔒 프라이버시 보호 모드 동작 중</h2>
+          <p style={{ color: "#94a3b8", margin: 0, fontSize: "1rem" }}>
+            원격 사용자가 접속하여 현장 모니터 화면을 안전하게 보호하고 있어요.
+          </p>
+        </div>
+      )}
+
       {/* macOS 권한 경고 배너 */}
       {!permissionGranted && (
         <div className="alert-banner">
-          <span>⚠️ 원격 제어 및 화면 캡처를 위해 macOS 시스템 권한이 필요합니다.</span>
+          <span>⚠️ 원격 제어와 화면 캡처를 위해 macOS 시스템 권한이 필요해요.</span>
           <div style={{ display: "flex", gap: "8px" }}>
             <button
               onClick={() => invoke("open_permission_settings", { permissionType: "accessibility" })}
@@ -653,7 +740,7 @@ function App() {
               </div>
               <div>
                 <h2 className="brand-title">SyncLink</h2>
-                <span className="brand-badge">Enterprise v1.1</span>
+                <span className="brand-badge">FOSS Edition</span>
               </div>
             </div>
 
@@ -677,9 +764,31 @@ function App() {
             </div>
 
             <div className="sidebar-footer">
+              {/* Carbon Ads / Open Source Sponsor Card */}
+              {showSponsorAd && (
+                <div
+                  className="carbon-ad-box"
+                  onClick={() => handleOpenExternal("https://www.carbonads.net")}
+                  title="스폰서 링크 열기 (새 브라우저 창)"
+                >
+                  <div className="carbon-ad-content">
+                    <div className="carbon-ad-img">
+                      <Zap size={20} />
+                    </div>
+                    <p className="carbon-ad-text">
+                      <b>Cloud VPS High Performance</b> — 오픈소스 서버를 위한 초고속 NVMe 인스턴스
+                    </p>
+                  </div>
+                  <div className="carbon-ad-footer">
+                    <span className="carbon-ad-tag">ads via Carbon • 서버 후원</span>
+                    <ExternalLink size={12} className="carbon-ad-ext" />
+                  </div>
+                </div>
+              )}
+
               <div className="server-status">
                 <div className={`status-dot-sm ${isServerConnected ? "online" : "offline"}`} />
-                <span>{isServerConnected ? "시그널링 서버 연결됨" : "서버 오프라인"}</span>
+                <span>{isServerConnected ? "시그널링 서버에 연결되었어요" : "서버가 오프라인이에요"}</span>
               </div>
             </div>
           </div>
@@ -691,7 +800,7 @@ function App() {
               <div>
                 <div className="content-header">
                   <h1 className="content-title">원격 데스크톱 접속</h1>
-                  <p className="content-subtitle">접속할 컴퓨터의 9자리 기기 ID와 PIN 비밀번호를 입력하세요.</p>
+                  <p className="content-subtitle">접속할 컴퓨터의 9자리 기기 ID와 PIN 비밀번호를 입력해 주세요.</p>
                 </div>
 
                 <div className="card-grid">
@@ -700,7 +809,7 @@ function App() {
                     <div className="card-title-row">
                       <h3 className="card-title">
                         <Monitor size={20} color="#60a5fa" />
-                        새 세션 연결
+                        새 세션 연결하기
                       </h3>
                     </div>
 
@@ -747,7 +856,7 @@ function App() {
                         style={{ accentColor: "var(--primary)" }}
                       />
                       <label htmlFor="saveDevice" style={{ fontSize: "0.85rem", color: "var(--text-muted)", cursor: "pointer" }}>
-                        접속 성공 시 주소록에 자동 저장
+                        접속 성공 시 주소록에 자동으로 저장해요
                       </label>
                     </div>
 
@@ -759,12 +868,12 @@ function App() {
                       {isConnecting ? (
                         <>
                           <Activity className="animate-spin" size={18} />
-                          <span>연결 중...</span>
+                          <span>연결하는 중이에요...</span>
                         </>
                       ) : (
                         <>
                           <Play size={18} />
-                          <span>원격 접속 시작</span>
+                          <span>원격 접속 시작하기</span>
                         </>
                       )}
                     </button>
@@ -781,7 +890,7 @@ function App() {
 
                     {recentDevices.length === 0 ? (
                       <div style={{ color: "var(--text-dim)", textAlign: "center", padding: "40px 0", fontSize: "0.9rem" }}>
-                        최근 접속한 기기 기록이 없습니다.
+                        최근 접속한 기기 기록이 없어요.
                       </div>
                     ) : (
                       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -821,7 +930,7 @@ function App() {
               <div>
                 <div className="content-header">
                   <h1 className="content-title">내 PC 호스팅 및 무인 접속 설정</h1>
-                  <p className="content-subtitle">이 PC를 원격에서 접속할 수 있도록 고정 ID와 비밀번호를 설정하세요.</p>
+                  <p className="content-subtitle">이 PC를 외부에서 원격 제어할 수 있도록 고정 ID와 PIN을 설정해요.</p>
                 </div>
 
                 <div className="card-grid">
@@ -833,7 +942,7 @@ function App() {
                       </h3>
                       {isHostingActive && (
                         <span style={{ fontSize: "0.75rem", background: "rgba(16, 185, 129, 0.2)", color: "#34d399", padding: "4px 8px", borderRadius: "6px", fontWeight: "bold" }}>
-                          ● 호스팅 서비스 동작 중
+                          ● 호스팅 서비스 동작 중이에요
                         </span>
                       )}
                     </div>
@@ -880,30 +989,20 @@ function App() {
                       </div>
                     </div>
 
-                    <div className="input-field-group">
-                      <label className="input-label">기본 공유 모니터</label>
-                      <div className="custom-input-wrapper">
-                        <Monitor className="input-icon-left" size={18} />
-                        <select
-                          className="custom-select"
-                          value={hostMonitorIndex}
-                          onChange={(e) => setHostMonitorIndex(Number(e.target.value))}
-                        >
-                          <option value={0}>디스플레이 1 (주 모니터)</option>
-                          <option value={1}>디스플레이 2 (보조 모니터)</option>
-                        </select>
-                      </div>
+                    <div style={{ padding: "12px 14px", background: "rgba(255, 255, 255, 0.03)", borderRadius: "10px", border: "1px solid var(--card-border)", fontSize: "0.85rem", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "10px" }}>
+                      <Monitor size={18} color="#60a5fa" />
+                      <span>원격 접속 시 주 모니터가 자동으로 공유되고, 게스트가 세션 중에 모니터를 자유롭게 바꿀 수 있어요.</span>
                     </div>
 
                     {!isHostingActive ? (
                       <button className="btn-main btn-primary-glow" onClick={startHosting} disabled={!isServerConnected}>
                         <Play size={18} />
-                        <span>호스팅 서비스 시작</span>
+                        <span>호스팅 서비스 시작하기</span>
                       </button>
                     ) : (
                       <button className="btn-main btn-danger-soft" onClick={stopHosting}>
                         <Square size={18} />
-                        <span>호스팅 중지</span>
+                        <span>호스팅 중지하기</span>
                       </button>
                     )}
                   </div>
@@ -919,16 +1018,16 @@ function App() {
                           </div>
                         </div>
                         <div style={{ textAlign: "center" }}>
-                          <h3 style={{ margin: "0 0 6px 0", fontSize: "1.3rem" }}>호스팅 서비스 활성화됨</h3>
+                          <h3 style={{ margin: "0 0 6px 0", fontSize: "1.3rem" }}>호스팅 서비스가 활성화되었어요</h3>
                           <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", margin: 0 }}>
-                            외부에서 ID <b>{formatDeviceId(myDeviceId)}</b> 로 언제든 원격 제어할 수 있습니다.
+                            외부에서 ID <b>{formatDeviceId(myDeviceId)}</b> 로 언제든 원격 제어할 수 있어요.
                           </p>
                         </div>
                       </div>
                     ) : (
                       <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-dim)" }}>
                         <Laptop size={48} style={{ opacity: 0.3, marginBottom: "12px" }} />
-                        <p style={{ margin: 0 }}>호스팅 서비스를 시작하면 원격 접속 요청을 수신합니다.</p>
+                        <p style={{ margin: 0 }}>호스팅 서비스를 시작하면 원격 접속 요청을 기다려요.</p>
                       </div>
                     )}
                   </div>
@@ -942,7 +1041,7 @@ function App() {
                 <div className="content-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
                     <h1 className="content-title">기기 주소록</h1>
-                    <p className="content-subtitle">자주 접속하는 원격 컴퓨터를 등록하고 원클릭으로 연결하세요.</p>
+                    <p className="content-subtitle">자주 접속하는 원격 컴퓨터를 등록하고 한 번에 연결해 보세요.</p>
                   </div>
                   <button className="btn-main btn-primary-glow" style={{ padding: "10px 16px" }} onClick={() => setShowAddModal(true)}>
                     <Plus size={18} />
@@ -953,7 +1052,7 @@ function App() {
                 {savedDevices.length === 0 ? (
                   <div className="glass-card" style={{ textAlign: "center", padding: "60px 20px" }}>
                     <BookOpen size={48} style={{ opacity: 0.2, margin: "0 auto 16px auto" }} />
-                    <h3 style={{ margin: "0 0 8px 0" }}>등록된 기기가 없습니다</h3>
+                    <h3 style={{ margin: "0 0 8px 0" }}>등록된 기기가 없어요</h3>
                     <p style={{ color: "var(--text-muted)", margin: 0, fontSize: "0.9rem" }}>
                       [새 기기 추가] 버튼을 눌러 자주 쓰는 컴퓨터를 등록해 보세요.
                     </p>
@@ -1003,7 +1102,7 @@ function App() {
               <div>
                 <div className="content-header">
                   <h1 className="content-title">시스템 설정</h1>
-                  <p className="content-subtitle">시그널링 서버 주소 및 클립보드 동기화 옵션을 관리합니다.</p>
+                  <p className="content-subtitle">시그널링 서버 주소와 클립보드 동기화 옵션을 관리해요.</p>
                 </div>
 
                 <div className="glass-card" style={{ maxWidth: "600px" }}>
@@ -1011,7 +1110,22 @@ function App() {
                     <label className="input-label">시그널링 서버 주소 (Signaling Server URL)</label>
                     <div className="custom-input-wrapper">
                       <Wifi className="input-icon-left" size={18} />
-                      <input className="custom-input mono" value={serverUrl} onChange={(e) => setServerUrl(e.target.value)} />
+                      <input
+                        className="custom-input mono"
+                        value={showServerUrl ? serverUrl : maskServerUrl(serverUrl)}
+                        onChange={(e) => setServerUrl(e.target.value)}
+                        onFocus={() => setShowServerUrl(true)}
+                        onBlur={() => setShowServerUrl(false)}
+                      />
+                      <button
+                        type="button"
+                        className="btn-icon-only"
+                        style={{ position: "absolute", right: "8px" }}
+                        onClick={() => setShowServerUrl(!showServerUrl)}
+                        title={showServerUrl ? "IP 주소 마스킹하기" : "실제 IP 주소 보기"}
+                      >
+                        {showServerUrl ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
                     </div>
                     <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
                       <button className="btn-main btn-secondary-dark" style={{ padding: "6px 12px", fontSize: "0.8rem" }} onClick={() => setServerUrl(DEFAULT_SERVER_URL)}>
@@ -1034,9 +1148,46 @@ function App() {
                         style={{ accentColor: "var(--primary)" }}
                       />
                       <label htmlFor="autoClip" style={{ fontSize: "0.9rem", color: "var(--text-main)", cursor: "pointer" }}>
-                        세션 연결 중 텍스트 복사(`Ctrl+C` / `Ctrl+V`) 자동 양방향 동기화
+                        세션 연결 중 텍스트 복사(`Ctrl+C` / `Ctrl+V`)를 자동으로 양방향 동기화해요
                       </label>
                     </div>
+                  </div>
+
+                  <div className="input-field-group" style={{ marginTop: "16px" }}>
+                    <label className="input-label">오픈소스 프로젝트 후원 및 스폰서</label>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <input
+                        type="checkbox"
+                        id="sponsorAdToggle"
+                        checked={showSponsorAd}
+                        onChange={(e) => handleToggleSponsorAd(e.target.checked)}
+                        style={{ accentColor: "var(--primary)" }}
+                      />
+                      <label htmlFor="sponsorAdToggle" style={{ fontSize: "0.9rem", color: "var(--text-main)", cursor: "pointer" }}>
+                        사이드바에 스폰서 광고 표시하기 (오픈소스 서버 유지비 후원에 큰 힘이 돼요)
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Self-Hosted 시그널링 서버 안내 카드 */}
+                <div className="glass-card" style={{ maxWidth: "600px", marginTop: "16px" }}>
+                  <h3 className="card-title" style={{ fontSize: "1rem", marginBottom: "8px" }}>
+                    <Shield size={18} color="#34d399" />
+                    나만의 시그널링 서버 셀프 호스팅 (Self-Hosted)
+                  </h3>
+                  <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: 1.5, margin: "0 0 12px 0" }}>
+                    외부 공용 서버에 의존하지 않고 개인 VPS 또는 홈 서버에 직접 시그널링 서버를 띄워 100% 독립적이고 안전한 사설 원격망을 운영할 수 있어요.
+                  </p>
+                  <div style={{ background: "rgba(0,0,0,0.4)", padding: "10px 14px", borderRadius: "8px", fontFamily: "monospace", fontSize: "0.8rem", color: "#60a5fa", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span>cd signaling-server && npm install && npm start</span>
+                    <button
+                      className="btn-icon-only"
+                      onClick={() => copyToClipboard("cd signaling-server && npm install && npm start")}
+                      title="실행 명령어 복사"
+                    >
+                      {copiedNotification ? <Check size={14} color="#34d399" /> : <Copy size={14} />}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1105,6 +1256,16 @@ function App() {
                   <span>클립보드</span>
                 </button>
 
+                {/* 프라이버시 블랙스크린 (커튼 모드) */}
+                <button
+                  className={`toolbar-btn ${isBlackScreen ? "active" : ""}`}
+                  onClick={() => toggleBlackScreen(!isBlackScreen)}
+                  title="호스트 현장 모니터 화면 가리기 (프라이버시 모드)"
+                >
+                  <EyeOff size={14} color={isBlackScreen ? "#34d399" : "#94a3b8"} />
+                  <span>{isBlackScreen ? "화면 가림 On" : "프라이버시"}</span>
+                </button>
+
                 <div className="toolbar-divider" />
 
                 {/* 전체화면 */}
@@ -1133,7 +1294,7 @@ function App() {
                 </div>
                 <div style={{ textAlign: "center" }}>
                   <h2 style={{ margin: "0 0 8px 0" }}>ON AIR</h2>
-                  <p style={{ color: "var(--text-muted)", margin: 0 }}>게스트가 현재 PC를 원격 제어 중입니다.</p>
+                  <p style={{ color: "var(--text-muted)", margin: 0 }}>게스트가 현재 PC를 원격 제어하고 있어요.</p>
                 </div>
               </div>
             ) : (
@@ -1151,7 +1312,6 @@ function App() {
                   muted
                   onClick={(e) => handleRemoteInput(e, "click")}
                   onMouseMove={(e) => handleRemoteInput(e, "mousemove")}
-                  onMouseDown={(e) => handleRemoteInput(e, "click")}
                 />
               </div>
             )}
@@ -1238,7 +1398,7 @@ function App() {
                 className="btn-main btn-primary-glow"
                 style={{ flex: 1 }}
                 onClick={() => {
-                  if (!newDeviceId || !newDeviceName) return alert("기기 이름과 ID를 입력해주세요.");
+                  if (!newDeviceId || !newDeviceName) return alert("기기 이름과 ID를 입력해 주세요.");
                   addSavedDevice(newDeviceId, newDeviceName, newDevicePin, newDeviceMemo);
                   setShowAddModal(false);
                   setNewDeviceName("");

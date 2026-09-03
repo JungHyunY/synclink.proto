@@ -32,7 +32,7 @@ io.on("connection", (socket) => {
       console.log(`❌ Auth Failed (Room not found or offline): ${roomId}`);
       socket.emit("auth-response", { 
         success: false, 
-        error: "호스트가 오프라인이거나 기기 ID가 존재하지 않습니다." 
+        error: "호스트가 오프라인이거나 기기 ID를 찾을 수 없어요." 
       });
       return;
     }
@@ -41,7 +41,7 @@ io.on("connection", (socket) => {
       console.log(`❌ Auth Failed (Wrong password) for Room: ${roomId}`);
       socket.emit("auth-response", { 
         success: false, 
-        error: "비밀번호(PIN)가 일치하지 않습니다." 
+        error: "비밀번호(PIN)가 일치하지 않아요." 
       });
       return;
     }
@@ -83,6 +83,7 @@ io.on("connection", (socket) => {
 
   // 5. 마우스 / 키보드 제어 신호 중계
   socket.on("control-event", (payload) => {
+    console.log(`🎮 Control: ${payload.type} (x:${payload.x?.toFixed(2)}, y:${payload.y?.toFixed(2)}) -> Room: ${payload.targetRoom}`);
     socket.to(payload.targetRoom).emit("control-event", payload);
   });
 
