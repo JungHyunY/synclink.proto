@@ -224,6 +224,7 @@ function App() {
   const [myPin, setMyPin] = useState(() => localStorage.getItem("synclink_pin") || "1234");
   const [myDeviceName, setMyDeviceName] = useState(() => localStorage.getItem("synclink_devicename") || "");
   const [isHostingActive, setIsHostingActive] = useState(false);
+  const [autoHostStandby, setAutoHostStandby] = useState<boolean>(() => localStorage.getItem("synclink_auto_standby") !== "false");
   const [hostMonitorIndex, setHostMonitorIndex] = useState(0);
   const [hostFps, setHostFps] = useState<number>(30);
   const [hostQuality, setHostQuality] = useState<number>(65);
@@ -300,7 +301,7 @@ function App() {
       if (update) {
         setAvailableUpdate(update);
       } else if (manual) {
-        alert("현재 최신 버전(v1.0.0)을 사용 중이에요! ✨");
+        alert("현재 최신 버전(v1.0.2)을 사용 중이에요! ✨");
       }
     } catch (err) {
       setIsCheckingUpdate(false);
@@ -330,11 +331,18 @@ function App() {
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const captureCanvasRef = useRef<HTMLCanvasElement>(null);
   const isHostRef = useRef(false);
+  const isScreenCapturingRef = useRef(false);
+  const autoHostStandbyRef = useRef(autoHostStandby);
   const candidateQueue = useRef<RTCIceCandidate[]>([]);
   const activeMonitorRef = useRef(0);
   const lastClipboardTextRef = useRef("");
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
+
+  useEffect(() => {
+    autoHostStandbyRef.current = autoHostStandby;
+    localStorage.setItem("synclink_auto_standby", autoHostStandby ? "true" : "false");
+  }, [autoHostStandby]);
 
   // Sync state to LocalStorage
   useEffect(() => {
@@ -404,6 +412,34 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Handle Guest Disconnection (For Host: release capture and maintain standby)
+  const handleHostGuestDisconnected = async () => {
+    console.log("👋 Guest disconnected (cleaning up WebRTC & screen capture)");
+    peerRef.current?.close();
+    peerRef.current = null;
+    setIsConnected(false);
+    setIsPrivacyCover(false);
+    invoke("set_privacy_mode", { enabled: false }).catch(() => {});
+    invoke("restore_host_window").catch(() => {});
+
+    // Stop screen capture to conserve CPU/GPU
+    if (isScreenCapturingRef.current) {
+      await invoke("stop_screen_capture").catch(() => {});
+      isScreenCapturingRef.current = false;
+      setIsHostingActive(false);
+    }
+
+    if (autoHostStandbyRef.current) {
+      isHostRef.current = true;
+      setIsHostMode(false);
+      setStatus("Standby");
+    } else {
+      isHostRef.current = false;
+      setIsHostMode(false);
+      setStatus("Ready");
+    }
+  };
+
   // WebRTC Peer Connection Factory
   const createPeerConnection = (targetId: string) => {
     const peer = new RTCPeerConnection(ICE_SERVERS);
@@ -435,14 +471,7 @@ function App() {
         peer.connectionState === "closed"
       ) {
         if (isHostRef.current) {
-          console.log("👋 Guest WebRTC disconnected");
-          peerRef.current?.close();
-          peerRef.current = null;
-          setIsConnected(false);
-          setIsPrivacyCover(false);
-          invoke("set_privacy_mode", { enabled: false }).catch(() => {});
-          invoke("restore_host_window").catch(() => {});
-          setStatus("Hosting Active");
+          handleHostGuestDisconnected();
         } else {
           endSession();
         }
@@ -478,13 +507,18 @@ function App() {
     socket.on("connect", () => {
       console.log("✅ Connected to signaling server:", socket.id);
       setIsServerConnected(true);
-      // Auto-register host if hosting was active
-      if (isHostRef.current) {
-        socket.emit("register-host", {
-          roomId: myDeviceId,
-          password: myPin,
-          deviceName: myDeviceName,
-        });
+      // Auto-register host if hosting was active or autoHostStandby is enabled
+      if (isHostRef.current || autoHostStandbyRef.current) {
+        if (myDeviceId && myPin) {
+          socket.emit("register-host", {
+            roomId: myDeviceId,
+            password: myPin,
+            deviceName: myDeviceName,
+          });
+          isHostRef.current = true;
+          setStatus(autoHostStandbyRef.current ? "Standby" : "Ready");
+          console.log("🖥️ Auto registered host standby for Room:", myDeviceId);
+        }
       }
     });
 
@@ -531,8 +565,27 @@ function App() {
     // WebRTC Signaling
     socket.on("user-connected", async (userId: string) => {
       if (!isHostRef.current) return;
-      console.log(`🔌 Guest (${userId}) connected. Creating fresh WebRTC Offer...`);
+      console.log(`🔌 Guest (${userId}) connected. Starting capture & WebRTC Offer...`);
       setStatus("Guest connected. Negotiating...");
+
+      // Start screen capture on demand if not capturing yet
+      if (!isScreenCapturingRef.current) {
+        if (captureCanvasRef.current) {
+          captureCanvasRef.current.width = 1920;
+          captureCanvasRef.current.height = 1080;
+        }
+        try {
+          await invoke("start_screen_capture", {
+            monitorIndex: hostMonitorIndex,
+            fps: hostFps,
+            quality: hostQuality,
+          });
+          isScreenCapturingRef.current = true;
+          setIsHostingActive(true);
+        } catch (err) {
+          console.error("Screen capture start error on guest connect:", err);
+        }
+      }
 
       peerRef.current?.close();
       const peer = createPeerConnection(userId);
@@ -673,14 +726,7 @@ function App() {
     // Guest Disconnected Notification (Host receives this)
     socket.on("guest-disconnected", () => {
       if (isHostRef.current) {
-        console.log("👋 Guest disconnected via signaling");
-        peerRef.current?.close();
-        peerRef.current = null;
-        setIsConnected(false);
-        setIsPrivacyCover(false);
-        invoke("set_privacy_mode", { enabled: false }).catch(() => {});
-        invoke("restore_host_window").catch(() => {});
-        setStatus("Hosting Active");
+        handleHostGuestDisconnected();
       }
     });
 
@@ -688,6 +734,21 @@ function App() {
       socket.disconnect();
     };
   }, [serverUrl, myDeviceId, myPin, myDeviceName]);
+
+  // Keep auto-standby registration active when credentials or connection change
+  useEffect(() => {
+    if (!socketRef.current || !isServerConnected) return;
+    if (autoHostStandby && myDeviceId && myPin) {
+      socketRef.current.emit("register-host", {
+        roomId: myDeviceId,
+        password: myPin,
+        deviceName: myDeviceName,
+      });
+      isHostRef.current = true;
+      setStatus("Standby");
+      console.log("⚡ Auto Unattended Standby registered for Room:", myDeviceId);
+    }
+  }, [autoHostStandby, isServerConnected, myDeviceId, myPin, myDeviceName]);
 
   // Video Frame Listener from Rust
   useEffect(() => {
@@ -747,7 +808,7 @@ function App() {
     return () => clearInterval(interval);
   }, [isConnected]);
 
-  // Start Hosting
+  // Start Hosting (Manual immediate start)
   const startHosting = async () => {
     if (!myPin) return alert("무인 접속을 위한 PIN 비밀번호를 설정해 주세요.");
     isHostRef.current = true;
@@ -774,21 +835,33 @@ function App() {
         fps: hostFps,
         quality: hostQuality,
       });
+      isScreenCapturingRef.current = true;
     } catch (err) {
       console.error("Start host error:", err);
       setIsHostingActive(false);
       isHostRef.current = false;
+      isScreenCapturingRef.current = false;
     }
   };
 
-  // Stop Hosting
-  const stopHosting = () => {
+  // Stop Hosting (Manual stop)
+  const stopHosting = async () => {
     setIsHostingActive(false);
-    isHostRef.current = false;
+    setIsHostMode(false);
     setIsConnected(false);
     peerRef.current?.close();
     peerRef.current = null;
-    setStatus("Ready");
+    if (isScreenCapturingRef.current) {
+      await invoke("stop_screen_capture").catch(() => {});
+      isScreenCapturingRef.current = false;
+    }
+    if (autoHostStandby) {
+      isHostRef.current = true;
+      setStatus("Standby");
+    } else {
+      isHostRef.current = false;
+      setStatus("Ready");
+    }
   };
 
   // Connect as Guest
@@ -1246,11 +1319,74 @@ function App() {
                         <Shield size={20} color="#34d399" />
                         내 호스트 기기 정보
                       </h3>
-                      {isHostingActive && (
+                      {isHostingActive ? (
+                        <span style={{ fontSize: "0.75rem", background: "rgba(239, 68, 68, 0.2)", color: "#f87171", padding: "4px 8px", borderRadius: "6px", fontWeight: "bold" }}>
+                          ● 실시간 화면 송출 중
+                        </span>
+                      ) : autoHostStandby && isServerConnected ? (
                         <span style={{ fontSize: "0.75rem", background: "rgba(16, 185, 129, 0.2)", color: "#34d399", padding: "4px 8px", borderRadius: "6px", fontWeight: "bold" }}>
-                          ● 호스팅 서비스 동작 중이에요
+                          ● 무인 접속 대기 중
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: "0.75rem", background: "rgba(148, 163, 184, 0.2)", color: "#94a3b8", padding: "4px 8px", borderRadius: "6px", fontWeight: "bold" }}>
+                          ○ 수동 모드
                         </span>
                       )}
+                    </div>
+
+                    {/* 무인 자동 대기 설정 스위치 */}
+                    <div style={{
+                      background: autoHostStandby ? "rgba(16, 185, 129, 0.08)" : "rgba(255, 255, 255, 0.03)",
+                      border: autoHostStandby ? "1px solid rgba(16, 185, 129, 0.3)" : "1px solid var(--card-border)",
+                      borderRadius: "10px",
+                      padding: "12px 14px",
+                      marginBottom: "14px",
+                      display: "flex",
+                      alignItems: "flex-start",
+                      justifyContent: "space-between",
+                      gap: "12px",
+                      transition: "all 0.2s ease",
+                    }}>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                          <span style={{ fontSize: "0.9rem", fontWeight: 700, color: autoHostStandby ? "#34d399" : "var(--text-main)" }}>
+                            ⚡ 무인 원격 접속 상시 대기 (Auto Standby)
+                          </span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: "0.78rem", color: "var(--text-muted)", lineHeight: 1.4 }}>
+                          앱이 실행 중이면 [호스팅 시작] 버튼을 누르지 않아도 사전에 등록된 ID/PIN으로 외부에서 즉시 접속할 수 있어요.
+                          <br />
+                          <span style={{ color: "#38bdf8" }}>* 게스트가 접속하기 전까지 화면 캡처는 대기 상태로 유지되어 CPU와 배터리를 소모하지 않습니다.</span>
+                        </p>
+                      </div>
+                      <label style={{ position: "relative", display: "inline-block", width: "42px", height: "24px", flexShrink: 0, cursor: "pointer", marginTop: "2px" }}>
+                        <input
+                          type="checkbox"
+                          checked={autoHostStandby}
+                          onChange={(e) => setAutoHostStandby(e.target.checked)}
+                          style={{ opacity: 0, width: 0, height: 0 }}
+                        />
+                        <span style={{
+                          position: "absolute",
+                          cursor: "pointer",
+                          top: 0, left: 0, right: 0, bottom: 0,
+                          backgroundColor: autoHostStandby ? "#10b981" : "#475569",
+                          transition: ".3s",
+                          borderRadius: "24px",
+                        }}>
+                          <span style={{
+                            position: "absolute",
+                            content: '""',
+                            height: "18px",
+                            width: "18px",
+                            left: autoHostStandby ? "20px" : "3px",
+                            bottom: "3px",
+                            backgroundColor: "white",
+                            transition: ".3s",
+                            borderRadius: "50%",
+                          }} />
+                        </span>
+                      </label>
                     </div>
 
                     <div className="input-field-group">
@@ -1332,12 +1468,12 @@ function App() {
                     {!isHostingActive ? (
                       <button className="btn-main btn-primary-glow" onClick={startHosting} disabled={!isServerConnected}>
                         <Play size={18} />
-                        <span>호스팅 서비스 시작하기</span>
+                        <span>수동 화면 송출 즉시 시작</span>
                       </button>
                     ) : (
                       <button className="btn-main btn-danger-soft" onClick={stopHosting}>
                         <Square size={18} />
-                        <span>호스팅 중지하기</span>
+                        <span>화면 송출 중지하기</span>
                       </button>
                     )}
                   </div>
@@ -1353,16 +1489,34 @@ function App() {
                           </div>
                         </div>
                         <div style={{ textAlign: "center" }}>
-                          <h3 style={{ margin: "0 0 6px 0", fontSize: "1.3rem" }}>호스팅 서비스가 활성화되었어요</h3>
+                          <h3 style={{ margin: "0 0 6px 0", fontSize: "1.3rem", color: "#f87171" }}>실시간 화면 송출 중</h3>
                           <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", margin: 0 }}>
-                            외부에서 ID <b>{formatDeviceId(myDeviceId)}</b> 로 언제든 원격 제어할 수 있어요.
+                            게스트가 연결되어 화면과 마우스/키보드가 실시간 동기화되고 있어요.
                           </p>
+                        </div>
+                      </div>
+                    ) : autoHostStandby && isServerConnected ? (
+                      <div className="host-active-box" style={{ width: "100%" }}>
+                        <div className="radar-wrapper">
+                          <div className="radar-pulse" style={{ borderColor: "rgba(16, 185, 129, 0.5)" }} />
+                          <div className="radar-core" style={{ background: "linear-gradient(135deg, #059669 0%, #10b981 100%)", boxShadow: "0 0 25px rgba(16, 185, 129, 0.5)" }}>
+                            <Shield size={32} color="#ffffff" />
+                          </div>
+                        </div>
+                        <div style={{ textAlign: "center" }}>
+                          <h3 style={{ margin: "0 0 6px 0", fontSize: "1.3rem", color: "#34d399" }}>무인 접속 대기 중</h3>
+                          <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", margin: "0 0 8px 0" }}>
+                            외부에서 ID <b>{formatDeviceId(myDeviceId)}</b> 와 PIN으로 언제든 바로 접속할 수 있어요.
+                          </p>
+                          <span style={{ fontSize: "0.8rem", color: "var(--text-dim)" }}>
+                            (접속 전에는 화면 캡처가 정지되어 있어 CPU/배터리 소모 0%)
+                          </span>
                         </div>
                       </div>
                     ) : (
                       <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-dim)" }}>
                         <Laptop size={48} style={{ opacity: 0.3, marginBottom: "12px" }} />
-                        <p style={{ margin: 0 }}>호스팅 서비스를 시작하면 원격 접속 요청을 기다려요.</p>
+                        <p style={{ margin: 0 }}>무인 접속 대기를 켜거나 호스팅을 시작하면 외부 접속을 수신해요.</p>
                       </div>
                     )}
                   </div>
@@ -1556,6 +1710,22 @@ function App() {
                       </label>
                     </div>
                   </div>
+
+                  <div className="input-field-group" style={{ marginTop: "12px" }}>
+                    <label className="input-label">무인 원격 접속 상시 대기</label>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <input
+                        type="checkbox"
+                        id="autoStandbySetting"
+                        checked={autoHostStandby}
+                        onChange={(e) => setAutoHostStandby(e.target.checked)}
+                        style={{ accentColor: "var(--primary)" }}
+                      />
+                      <label htmlFor="autoStandbySetting" style={{ fontSize: "0.9rem", color: "var(--text-main)", cursor: "pointer" }}>
+                        앱 실행 시 백그라운드에서 자동으로 호스트 대기 상태를 유지해요 (수동 버튼 클릭 없이 외부 접속 허용)
+                      </label>
+                    </div>
+                  </div>
                 </div>
 
                 {/* nexus 개발자 & 프로젝트 정보 카드 */}
@@ -1568,7 +1738,7 @@ function App() {
                     <div>• <b>개발자</b>: nexus (개인 개발자 프로젝트)</div>
                     <div>• <b>라이선스</b>: 100% 무료 & 오픈소스 (월 구독 / 과금 없음)</div>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: "4px" }}>
-                      <span>• <b>버전</b>: Yoonikon SyncLink v1.0.1 (Native Desktop)</span>
+                      <span>• <b>버전</b>: Yoonikon SyncLink v1.0.2 (Native Desktop)</span>
                       <button
                         className="btn-main btn-secondary-dark"
                         style={{ padding: "4px 10px", fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "5px" }}

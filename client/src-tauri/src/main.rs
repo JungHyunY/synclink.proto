@@ -330,6 +330,12 @@ async fn start_screen_capture(window: Window, monitor_index: usize, fps: Option<
 }
 
 #[command]
+fn stop_screen_capture() {
+    CAPTURE_SESSION_ID.fetch_add(1, Ordering::SeqCst);
+    println!("🛑 Screen capture stopped via command");
+}
+
+#[command]
 fn get_clipboard_text() -> Result<String, String> {
     let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
     clipboard.get_text().map_err(|e| e.to_string())
@@ -513,7 +519,8 @@ fn main() {
             set_window_session_mode,
             set_privacy_mode,
             minimize_host_window,
-            restore_host_window
+            restore_host_window,
+            stop_screen_capture
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
