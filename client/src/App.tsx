@@ -134,6 +134,7 @@ function App() {
   const [isBlackScreen, setIsBlackScreen] = useState(false);
   const [isPrivacyCover, setIsPrivacyCover] = useState(false);
   const [showShortcutsMenu, setShowShortcutsMenu] = useState(false);
+  const [isAutoStartEnabled, setIsAutoStartEnabled] = useState(false);
 
   // Virtual Remote Cursor State
   const [showVirtualCursor, setShowVirtualCursor] = useState(true);
@@ -284,6 +285,14 @@ function App() {
       } catch (err) {
         console.warn("Device name fetch error:", err);
       }
+
+      // Check OS Autostart (Launch at startup) status
+      try {
+        const autostart = await invoke<boolean>("get_autostart_status");
+        setIsAutoStartEnabled(autostart);
+      } catch (err) {
+        console.warn("Autostart status fetch error:", err);
+      }
     };
     init();
     const interval = setInterval(async () => {
@@ -294,6 +303,16 @@ function App() {
     }, 3000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleToggleAutoStart = async (enabled: boolean) => {
+    try {
+      const res = await invoke<boolean>("set_autostart_status", { enabled });
+      setIsAutoStartEnabled(res);
+    } catch (err) {
+      console.error("Failed to toggle autostart:", err);
+      alert("자동 실행 설정 중 오류가 발생했어요: " + err);
+    }
+  };
 
   // Handle Guest Disconnection (For Host: release capture and maintain standby)
   const handleHostGuestDisconnected = async () => {
@@ -1751,6 +1770,22 @@ function App() {
                       />
                       <label htmlFor="autoStandbySetting" style={{ fontSize: "0.9rem", color: "var(--text-main)", cursor: "pointer" }}>
                         앱 실행 시 백그라운드에서 자동으로 호스트 대기 상태를 유지해요 (수동 버튼 클릭 없이 외부 접속 허용)
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="input-field-group" style={{ marginTop: "12px" }}>
+                    <label className="input-label">시스템 시작 시 자동 실행 (부팅 시 자동 시작)</label>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <input
+                        type="checkbox"
+                        id="autoStartSetting"
+                        checked={isAutoStartEnabled}
+                        onChange={(e) => handleToggleAutoStart(e.target.checked)}
+                        style={{ accentColor: "var(--primary)" }}
+                      />
+                      <label htmlFor="autoStartSetting" style={{ fontSize: "0.9rem", color: "var(--text-main)", cursor: "pointer" }}>
+                        컴퓨터를 켤 때 Synclink가 백그라운드에서 자동으로 시작되어 상시 원격 접속이 가능해요
                       </label>
                     </div>
                   </div>

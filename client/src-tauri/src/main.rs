@@ -689,6 +689,117 @@ async fn set_privacy_mode(enabled: bool) {
     }
 }
 
+#[command]
+fn get_autostart_status() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        let output = std::process::Command::new("reg")
+            .args(["query", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "/v", "SyncLink"])
+            .output();
+        if let Ok(out) = output {
+            return out.status.success();
+        }
+        false
+    }
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(home) = std::env::var_os("HOME") {
+            let plist_path = std::path::Path::new(&home).join("Library/LaunchAgents/com.yoonikon.synclink.plist");
+            return plist_path.exists();
+        }
+        false
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        false
+    }
+}
+
+#[command]
+fn set_autostart_status(enabled: bool) -> Result<bool, String> {
+    #[cfg(target_os = "windows")]
+    {
+        if enabled {
+            let exe_path = std::env::current_exe().map_err(|e| e.to_string())?;
+            let exe_str = exe_path.to_str().ok_or("Invalid exe path")?;
+            let output = std::process::Command::new("reg")
+                .args(&[
+                    "add",
+                    "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+                    "/v",
+                    "SyncLink",
+                    "/t",
+                    "REG_SZ",
+                    "/d",
+                    &format!("\"{}\"", exe_str),
+                    "/f"
+                ])
+                .output()
+                .map_err(|e| e.to_string())?;
+            if output.status.success() {
+                println!("🚀 Autostart registered for Windows: {}", exe_str);
+                Ok(true)
+            } else {
+                Err(String::from_utf8_lossy(&output.stderr).to_string())
+            }
+        } else {
+            let _ = std::process::Command::new("reg")
+                .args(&[
+                    "delete",
+                    "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+                    "/v",
+                    "SyncLink",
+                    "/f"
+                ])
+                .output();
+            println!("🛑 Autostart unregistered for Windows");
+            Ok(false)
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(home) = std::env::var_os("HOME") {
+            let agent_dir = std::path::Path::new(&home).join("Library/LaunchAgents");
+            let plist_path = agent_dir.join("com.yoonikon.synclink.plist");
+            if enabled {
+                let _ = std::fs::create_dir_all(&agent_dir);
+                let exe_path = std::env::current_exe().map_err(|e| e.to_string())?;
+                let plist_content = format!(
+                    r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.yoonikon.synclink</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{}</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>"#,
+                    exe_path.to_string_lossy()
+                );
+                std::fs::write(&plist_path, plist_content).map_err(|e| e.to_string())?;
+                println!("🚀 Autostart plist registered for macOS");
+                Ok(true)
+            } else {
+                let _ = std::fs::remove_file(&plist_path);
+                println!("🛑 Autostart plist removed for macOS");
+                Ok(false)
+            }
+        } else {
+            Err("HOME directory not found".to_string())
+        }
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let _ = enabled;
+        Ok(false)
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -713,7 +824,9 @@ fn main() {
             stop_screen_capture,
             remote_shortcut,
             remote_mouse_down,
-            remote_mouse_up
+            remote_mouse_up,
+            get_autostart_status,
+            set_autostart_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
