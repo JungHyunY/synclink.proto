@@ -1453,7 +1453,7 @@ function App() {
                   <div className="glass-card">
                     <div className="card-title-row">
                       <h3 className="card-title">
-                        <Monitor size={20} color="#60a5fa" />
+                        <Monitor size={20} color="#8a9a5b" />
                         새 세션 연결하기
                       </h3>
                     </div>
@@ -1678,7 +1678,7 @@ function App() {
                           type="button"
                           style={{
                             fontSize: "0.72rem",
-                            color: "#60a5fa",
+                            color: "#8a9a5b",
                             background: "none",
                             border: "none",
                             cursor: "pointer",
@@ -1727,7 +1727,7 @@ function App() {
                     </div>
 
                     <div style={{ padding: "12px 14px", background: "rgba(255, 255, 255, 0.03)", borderRadius: "10px", border: "1px solid var(--card-border)", fontSize: "0.85rem", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "10px" }}>
-                      <Monitor size={18} color="#60a5fa" />
+                      <Monitor size={18} color="#8a9a5b" />
                       <span>원격 접속 시 주 모니터가 자동으로 공유되고, 게스트가 세션 중에 모니터를 자유롭게 바꿀 수 있어요.</span>
                     </div>
 
@@ -1879,7 +1879,7 @@ function App() {
                                   }}
                                   title="기기 이름 변경하기"
                                 >
-                                  <Edit2 size={13} color="#60a5fa" />
+                                  <Edit2 size={13} color="#8a9a5b" />
                                 </button>
                               </div>
                             )}
@@ -2165,7 +2165,7 @@ function App() {
                       </div>
                       <button
                         className="btn-main"
-                        style={{ padding: "6px 14px", fontSize: "0.8rem", background: "linear-gradient(135deg, #0066FF 0%, #00C2FF 100%)", color: "white", border: "none" }}
+                        style={{ padding: "6px 14px", fontSize: "0.8rem", background: "linear-gradient(135deg, #6b7f42 0%, #8a9a5b 100%)", color: "white", border: "none" }}
                         onClick={handleInstallUpdate}
                         disabled={isInstallingUpdate}
                       >
@@ -2185,7 +2185,7 @@ function App() {
                     개인 VPS 또는 홈 서버에 직접 시그널링 서버를 띄워 독립적인 사설 원격망을 운영할 수 있어요.
                     리눅스 터미널에서 아래 명령어를 실행하면 <b>자동 설치 및 백그라운드 구동</b>이 완료됩니다.
                   </p>
-                  <div style={{ background: "rgba(0,0,0,0.4)", padding: "10px 14px", borderRadius: "8px", fontFamily: "monospace", fontSize: "0.75rem", color: "#60a5fa", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
+                  <div style={{ background: "rgba(0,0,0,0.4)", padding: "10px 14px", borderRadius: "8px", fontFamily: "monospace", fontSize: "0.75rem", color: "#8a9a5b", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
                     <span style={{ wordBreak: "break-all" }}>curl -fsSL https://raw.githubusercontent.com/JungHyunY/synclink.proto/main/signaling-server/install.sh | sudo bash</span>
                     <button
                       className="btn-icon-only"
@@ -2725,7 +2725,7 @@ function App() {
                   width: "46px",
                   height: "46px",
                   borderRadius: "14px",
-                  background: "linear-gradient(135deg, #0066FF 0%, #00C2FF 100%)",
+                  background: "linear-gradient(135deg, #6b7f42 0%, #8a9a5b 100%)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -2858,7 +2858,7 @@ function App() {
               )}
 
               <div style={{ background: "rgba(0, 0, 0, 0.35)", borderRadius: "10px", padding: "12px", marginBottom: "22px", border: "1px solid rgba(255, 255, 255, 0.08)" }}>
-                <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#60a5fa", marginBottom: "4px" }}>💡 아직 시그널링 서버가 없으신가요?</div>
+                <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#8a9a5b", marginBottom: "4px" }}>💡 아직 시그널링 서버가 없으신가요?</div>
                 <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", lineHeight: 1.4 }}>
                   개인 PC나 VPS 터미널에서 아래 명령어로 10초 만에 띄울 수 있어요:
                 </div>

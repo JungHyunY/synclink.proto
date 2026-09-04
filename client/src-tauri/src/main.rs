@@ -800,8 +800,39 @@ fn set_autostart_status(enabled: bool) -> Result<bool, String> {
     }
 }
 
+#[command]
+fn open_external_url(url: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = std::process::Command::new("cmd")
+            .args(["/c", "start", &url])
+            .spawn();
+        Ok(())
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open")
+            .arg(&url)
+            .spawn();
+        Ok(())
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let _ = std::process::Command::new("xdg-open")
+            .arg(&url)
+            .spawn();
+        Ok(())
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        let _ = url;
+        Ok(())
+    }
+}
+
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|_app| { Ok(()) })
         .invoke_handler(tauri::generate_handler![
@@ -826,7 +857,8 @@ fn main() {
             remote_mouse_down,
             remote_mouse_up,
             get_autostart_status,
-            set_autostart_status
+            set_autostart_status,
+            open_external_url
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
