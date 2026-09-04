@@ -175,7 +175,7 @@ function App() {
 
       if (!updateCheckFn) {
         setIsCheckingUpdate(false);
-        if (manual) alert("현재 최신 버전(v1.0.3)을 사용 중이에요! ✨");
+        if (manual) alert("현재 최신 버전(v1.0.4)을 사용 중이에요! ✨");
         return;
       }
 
@@ -184,7 +184,7 @@ function App() {
       if (update) {
         setAvailableUpdate(update);
       } else if (manual) {
-        alert("현재 최신 버전(v1.0.3)을 사용 중이에요! ✨");
+        alert("현재 최신 버전(v1.0.4)을 사용 중이에요! ✨");
       }
     } catch (err) {
       setIsCheckingUpdate(false);
@@ -1800,7 +1800,7 @@ function App() {
                         버전 및 업데이트
                       </h3>
                       <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
-                        Yoonikon SyncLink <b>v1.0.3</b> (Native Desktop)
+                        Yoonikon SyncLink <b>v1.0.4</b> (Native Desktop)
                       </div>
                     </div>
                     <button

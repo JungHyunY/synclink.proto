@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <!-- Titanium Metallic Gradients -->
+    <linearGradient id="titaniumBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#18181b" />
+      <stop offset="50%" stop-color="#121316" />
+      <stop offset="100%" stop-color="#0a0b0d" />
+    </linearGradient>
+
+    <linearGradient id="metalTitanium" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f4f4f5" />
+      <stop offset="30%" stop-color="#d4d4d8" />
+      <stop offset="70%" stop-color="#71717a" />
+      <stop offset="100%" stop-color="#a1a1aa" />
+    </linearGradient>
+
+    <!-- Tactical Olive Drab (국방색) Gradients -->
+    <linearGradient id="tacticalOlive" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8a9a5b" />
+      <stop offset="40%" stop-color="#6b7f42" />
+      <stop offset="100%" stop-color="#4b572a" />
+    </linearGradient>
+
+    <linearGradient id="tacticalShadow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#556832" />
+      <stop offset="100%" stop-color="#2d371b" />
+    </linearGradient>
+
+    <linearGradient id="tacticalGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+
+    <filter id="tacticalShadowFilter" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.6" />
+    </filter>
+  </defs>
+
+  <!-- Carbon Titanium Plate Background -->
+  <rect width="500" height="500" rx="80" fill="url(#titaniumBg)" />
+  <rect width="496" height="496" x="2" y="2" rx="78" fill="none" stroke="#27272a" stroke-width="2" />
+
+  <!-- Tactical Grid / Pinstripe Accents -->
+  <line x1="40" y1="40" x2="120" y2="40" stroke="#6b7f42" stroke-width="3" stroke-linecap="round" />
+  <line x1="40" y1="40" x2="40" y2="120" stroke="#6b7f42" stroke-width="3" stroke-linecap="round" />
+  <line x1="460" y1="460" x2="380" y2="460" stroke="#6b7f42" stroke-width="3" stroke-linecap="round" />
+  <line x1="460" y1="460" x2="460" y2="380" stroke="#6b7f42" stroke-width="3" stroke-linecap="round" />
+
+  <!-- Tactical Unicorn + 'Y' Emblem -->
+  <g transform="translate(10, -5)" filter="url(#tacticalShadowFilter)">
+    
+    <!-- Base 'Y' Stem in Matte Tactical Olive -->
+    <!-- Left Arm of 'Y' -->
+    <polygon points="170,205 215,205 240,265 195,265" fill="url(#tacticalOlive)" />
+    <polygon points="170,205 195,265 185,250" fill="url(#tacticalShadow)" opacity="0.8" />
+    <!-- Right Arm of 'Y' -->
+    <polygon points="310,215 265,215 240,265 285,265" fill="url(#tacticalOlive)" />
+    <!-- Stem of 'Y' -->
+    <polygon points="215,265 265,265 265,340 215,340" fill="url(#tacticalOlive)" />
+    <polygon points="215,265 240,340 215,340" fill="url(#tacticalShadow)" />
+    <polygon points="240,265 265,265 265,340" fill="#8a9a5b" opacity="0.4" />
+
+    <!-- Leaping Titanium Unicorn Crest -->
+    <!-- Unicorn Horn (Chiseled Metal Blade) -->
+    <polygon points="310,135 365,75 320,130" fill="url(#metalTitanium)" />
+    <!-- Horn Accent -->
+    <polygon points="318,125 350,85 325,120" fill="#ffffff" opacity="0.7" />
+
+    <!-- Unicorn Head & Mane (Brushed Titanium Facets) -->
+    <!-- Crest Mane -->
+    <polygon points="265,130 295,100 310,135 280,155" fill="url(#metalTitanium)" />
+    <polygon points="295,100 325,120 310,145" fill="#52525b" />
+    <polygon points="280,155 310,145 330,170 290,185" fill="url(#metalTitanium)" />
+
+    <!-- Head & Muzzle -->
+    <polygon points="310,145 355,160 360,195 325,200 305,175" fill="url(#metalTitanium)" />
+    <polygon points="325,200 360,195 350,215 320,210" fill="#3f3f46" />
+
+    <!-- Neck & Chest -->
+    <polygon points="240,220 290,185 320,210 270,220" fill="url(#metalTitanium)" />
+    <polygon points="240,220 270,220 250,245" fill="#71717a" />
+    <polygon points="220,190 260,170 290,185 240,220" fill="#e4e4e7" />
+  </g>
+
+  <!-- Typography: YOONIKON TACTICAL -->
+  <text x="250" y="415" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Arial Black', sans-serif" font-weight="900" font-size="46" letter-spacing="8" fill="#e4e4e7">
+    YOONIKON
+  </text>
+  <text x="250" y="445" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', monospace" font-weight="700" font-size="12" letter-spacing="6" fill="#8a9a5b">
+    TITANIUM // TACTICAL SUITE
+  </text>
+</svg>
