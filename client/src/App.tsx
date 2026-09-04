@@ -837,8 +837,12 @@ function App() {
   // Immediate Video Stream Attach
   useEffect(() => {
     if (isConnected && !isHostMode && remoteVideoRef.current && remoteStreamRef.current) {
-      remoteVideoRef.current.srcObject = remoteStreamRef.current;
-      remoteVideoRef.current.play().catch(() => {});
+      const v = remoteVideoRef.current;
+      v.srcObject = remoteStreamRef.current;
+      v.play().catch(() => {});
+      v.onloadedmetadata = () => {
+        v.play().catch(() => {});
+      };
     }
   }, [isConnected, isHostMode]);
 
@@ -855,8 +859,33 @@ function App() {
 
     const rect = video.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
-    const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+
+    // 비디오 원본 비율과 엘리먼트 크기를 기반으로 실제 영상 표시 영역(Content Box) 오차 정밀 보정
+    const vWidth = video.videoWidth > 0 ? video.videoWidth : 1920;
+    const vHeight = video.videoHeight > 0 ? video.videoHeight : 1080;
+    const videoRatio = vWidth / vHeight;
+    const elemRatio = rect.width / rect.height;
+
+    let renderWidth = rect.width;
+    let renderHeight = rect.height;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    if (elemRatio > videoRatio) {
+      // 좌우에 검은 여백(Pillarbox)이 생긴 경우
+      renderWidth = rect.height * videoRatio;
+      offsetX = (rect.width - renderWidth) / 2;
+    } else {
+      // 상하에 검은 여백(Letterbox)이 생긴 경우
+      renderHeight = rect.width / videoRatio;
+      offsetY = (rect.height - renderHeight) / 2;
+    }
+
+    const clickX = e.clientX - rect.left - offsetX;
+    const clickY = e.clientY - rect.top - offsetY;
+
+    const x = Math.max(0, Math.min(1, clickX / renderWidth));
+    const y = Math.max(0, Math.min(1, clickY / renderHeight));
 
     const buttonName = e.button === 2 ? "right" : e.button === 1 ? "middle" : "left";
 
