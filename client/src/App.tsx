@@ -1315,20 +1315,21 @@ function App() {
           <div className="sidebar">
             <div className="brand-section">
               <img
-                src="/app-icon.png"
+                src="/assets/yoonikon_tactical_logo.svg"
                 alt="Yoonikon SyncLink Logo"
                 style={{
                   width: "40px",
                   height: "40px",
                   borderRadius: "10px",
-                  boxShadow: "0 0 20px rgba(59, 130, 246, 0.4)",
+                  boxShadow: "0 0 15px rgba(107, 127, 66, 0.35)",
+                  border: "1px solid rgba(107, 127, 66, 0.4)",
                   objectFit: "cover",
                 }}
               />
               <div>
                 <h2 className="brand-title">Yoonikon SyncLink</h2>
-                <span className="brand-badge" style={{ background: "rgba(0, 102, 255, 0.15)", color: "#38bdf8", border: "1px solid rgba(0, 194, 255, 0.3)" }}>
-                  by nexus
+                <span className="brand-badge" style={{ background: "rgba(107, 127, 66, 0.15)", color: "#8a9a5b", border: "1px solid rgba(107, 127, 66, 0.4)" }}>
+                  TACTICAL SUITE
                 </span>
               </div>
             </div>
