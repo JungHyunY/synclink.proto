@@ -1794,7 +1794,47 @@ function App() {
                           )}
                         </div>
 
-                        <p className="flow-tip-text">
+                        <div className="flow-conditions-guide">
+                          <div className="guide-header">
+                            <Zap size={15} />
+                            <span>SyncLink Flow (가상 KVM) 동작 조건 및 안내</span>
+                          </div>
+                          <div className="guide-body">
+                            <div className="guide-item">
+                              <span className="guide-num">1</span>
+                              <div>
+                                <strong>물리적 모니터 나란히 배치</strong>
+                                <p>두 컴퓨터가 한 책상 위에 나란히 있을 때, 설정한 모니터 방향 끝으로 마우스를 밀면 커서가 상대 화면으로 즉시 넘어갑니다.</p>
+                              </div>
+                            </div>
+                            <div className="guide-item">
+                              <span className="guide-num">2</span>
+                              <div>
+                                <strong>권장 기기 역할 (현재 버전)</strong>
+                                <p>
+                                  <span className="guide-tag win">조작할 PC</span> <strong>Windows</strong> (마우스/키보드가 연결된 메인 PC)<br />
+                                  <span className="guide-tag remote">대상 PC</span> <strong>Windows 또는 macOS</strong> (원격 조작받는 PC)
+                                </p>
+                              </div>
+                            </div>
+                            <div className="guide-item">
+                              <span className="guide-num">3</span>
+                              <div>
+                                <strong>macOS 대상 PC 필수 권한</strong>
+                                <p>조작받는 PC가 Mac인 경우 <em>시스템 설정 &gt; 개인정보 보호 및 보안 &gt; 손쉬운 사용</em> 권한이 켜져 있어야 입력이 동작합니다.</p>
+                              </div>
+                            </div>
+                            <div className="guide-item">
+                              <span className="guide-num">4</span>
+                              <div>
+                                <strong>비상 탈출 핫키 (Fail-Safe)</strong>
+                                <p>상대 PC 조작 중 언제든 <strong>Esc 키</strong>를 누르면 즉시 내 PC로 제어권이 안전하게 복귀됩니다.</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <p className="flow-tip-text" style={{ marginTop: "10px" }}>
                           💡 화면 경계 끝으로 마우스를 밀면 상대 PC로 마우스와 키보드가 즉시 넘어갑니다. (비상 탈출: <strong>Esc 키</strong>)
                         </p>
                       </div>
