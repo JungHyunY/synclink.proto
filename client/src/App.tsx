@@ -207,6 +207,32 @@ function App() {
   const [availableUpdate, setAvailableUpdate] = useState<any>(null);
   const [isInstallingUpdate, setIsInstallingUpdate] = useState(false);
 
+  // SyncLink Flow (Virtual KVM Mode) State
+  const [flowMode, setFlowMode] = useState<"screen" | "flow">(() => {
+    return (localStorage.getItem("synclink_flow_mode") as "screen" | "flow") || "screen";
+  });
+  const [flowDirection, setFlowDirection] = useState<"right" | "left" | "top" | "bottom">(() => {
+    return (localStorage.getItem("synclink_flow_direction") as any) || "right";
+  });
+  const [isControllingFlowRemote, setIsControllingFlowRemote] = useState(false);
+  const flowChannelRef = useRef<RTCDataChannel | null>(null);
+  const flowModeRef = useRef<"screen" | "flow">(flowMode);
+  useEffect(() => {
+    flowModeRef.current = flowMode;
+  }, [flowMode]);
+
+  const [availableMonitors, setAvailableMonitors] = useState<any[]>([]);
+
+  const handleSetFlowMode = (m: "screen" | "flow") => {
+    setFlowMode(m);
+    localStorage.setItem("synclink_flow_mode", m);
+  };
+
+  const handleSetFlowDirection = (d: "right" | "left" | "top" | "bottom") => {
+    setFlowDirection(d);
+    localStorage.setItem("synclink_flow_direction", d);
+  };
+
   // Server Connection Test State
   const [serverTestResult, setServerTestResult] = useState<{
     status: "idle" | "testing" | "success" | "error";
@@ -467,6 +493,16 @@ function App() {
       } catch (err) {
         console.warn("Autostart status fetch error:", err);
       }
+
+      // Fetch Display Monitors for KVM Flow calculation
+      try {
+        const monList = await invoke<any[]>("get_monitors");
+        if (monList && monList.length > 0) {
+          setAvailableMonitors(monList);
+        }
+      } catch (err) {
+        console.warn("Monitors fetch error:", err);
+      }
     };
     init();
     const interval = setInterval(async () => {
@@ -516,9 +552,79 @@ function App() {
     }
   };
 
+  // Setup WebRTC Flow DataChannel
+  const setupFlowChannel = (channel: RTCDataChannel) => {
+    flowChannelRef.current = channel;
+    channel.onopen = () => {
+      console.log("🌊 WebRTC DataChannel (Flow) opened successfully!");
+    };
+    channel.onclose = () => {
+      console.log("🌊 WebRTC DataChannel (Flow) closed");
+      setIsControllingFlowRemote(false);
+    };
+    channel.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        handleRemoteFlowMessage(data);
+      } catch (err) {
+        console.error("Flow channel message parse error:", err);
+      }
+    };
+  };
+
+  const handleRemoteFlowMessage = (data: any) => {
+    try {
+      if (data.type === "enter") {
+        const sw = availableMonitors[0]?.width || 1920;
+        const sh = availableMonitors[0]?.height || 1080;
+        let x = sw / 2;
+        let y = (data.normY || 0.5) * sh;
+        if (data.direction === "right") { // Local moved right, remote enters left
+          x = 10;
+        } else if (data.direction === "left") { // Local moved left, remote enters right
+          x = sw - 10;
+        } else if (data.direction === "top") { // Local moved up, remote enters bottom
+          x = (data.normX || 0.5) * sw;
+          y = sh - 10;
+        } else if (data.direction === "bottom") { // Local moved down, remote enters top
+          x = (data.normX || 0.5) * sw;
+          y = 10;
+        }
+        invoke("remote_mouse_move", { x: x / sw, y: y / sh, monitorIndex: 0 }).catch(() => {});
+      } else if (data.type === "delta") {
+        invoke("remote_mouse_move_relative", { dx: data.dx, dy: data.dy }).catch(() => {});
+      } else if (data.type === "button") {
+        if (data.state === "down") {
+          invoke("remote_mouse_down", { button: data.button }).catch(() => {});
+        } else {
+          invoke("remote_mouse_up", { button: data.button }).catch(() => {});
+        }
+      } else if (data.type === "wheel") {
+        invoke("remote_mouse_wheel", { deltaY: Math.round(data.deltaY || 0) }).catch(() => {});
+      } else if (data.type === "key") {
+        invoke("remote_keyboard_event", { state: data.state, key: data.key }).catch(() => {});
+      } else if (data.type === "exit") {
+        // Remote released control
+      }
+    } catch (err) {
+      console.error("Error executing remote flow input:", err);
+    }
+  };
+
   // WebRTC Peer Connection Factory
   const createPeerConnection = (targetId: string) => {
     const peer = new RTCPeerConnection(ICE_SERVERS);
+
+    // Setup DataChannel for Flow Mode
+    const channel = peer.createDataChannel("synclink-flow", { ordered: false, maxRetransmits: 0 });
+    setupFlowChannel(channel);
+
+    peer.ondatachannel = (e) => {
+      if (e.channel.label === "synclink-flow") {
+        setupFlowChannel(e.channel);
+      }
+    };
+
     peer.onicecandidate = (e) => {
       if (e.candidate) {
         socketRef.current?.emit("ice-candidate", { target: targetId, candidate: e.candidate });
@@ -538,7 +644,7 @@ function App() {
       if (peer.connectionState === "connected") {
         setStatus("Connected");
         setIsConnected(true);
-        if (isHostRef.current) {
+        if (isHostRef.current && flowModeRef.current !== "flow") {
           invoke("minimize_host_window").catch(() => {});
         }
       } else if (
@@ -562,6 +668,118 @@ function App() {
       if (c) peer.addIceCandidate(c);
     }
   };
+
+  // Tauri KVM Flow Event Listeners
+  useEffect(() => {
+    let unlistenEntered: (() => void) | undefined;
+    let unlistenDelta: (() => void) | undefined;
+    let unlistenBtn: (() => void) | undefined;
+    let unlistenWheel: (() => void) | undefined;
+    let unlistenKey: (() => void) | undefined;
+    let unlistenExited: (() => void) | undefined;
+
+    const setupListeners = async () => {
+      unlistenEntered = await listen("kvm-entered", (e: any) => {
+        setIsControllingFlowRemote(true);
+        if (flowChannelRef.current?.readyState === "open") {
+          flowChannelRef.current.send(
+            JSON.stringify({
+              type: "enter",
+              direction: flowDirection,
+              normX: e.payload?.normalizedX,
+              normY: e.payload?.normalizedY,
+            })
+          );
+        }
+      });
+
+      unlistenDelta = await listen("kvm-mouse-delta", (e: any) => {
+        if (flowChannelRef.current?.readyState === "open") {
+          flowChannelRef.current.send(
+            JSON.stringify({
+              type: "delta",
+              dx: e.payload?.dx,
+              dy: e.payload?.dy,
+            })
+          );
+        }
+      });
+
+      unlistenBtn = await listen("kvm-mouse-button", (e: any) => {
+        if (flowChannelRef.current?.readyState === "open") {
+          flowChannelRef.current.send(
+            JSON.stringify({
+              type: "button",
+              button: e.payload?.button,
+              state: e.payload?.state,
+            })
+          );
+        }
+      });
+
+      unlistenWheel = await listen("kvm-mouse-wheel", (e: any) => {
+        if (flowChannelRef.current?.readyState === "open") {
+          flowChannelRef.current.send(
+            JSON.stringify({
+              type: "wheel",
+              deltaY: e.payload?.deltaY,
+            })
+          );
+        }
+      });
+
+      unlistenKey = await listen("kvm-key", (e: any) => {
+        if (flowChannelRef.current?.readyState === "open") {
+          flowChannelRef.current.send(
+            JSON.stringify({
+              type: "key",
+              key: e.payload?.key,
+              state: e.payload?.state,
+            })
+          );
+        }
+      });
+
+      unlistenExited = await listen("kvm-exited", () => {
+        setIsControllingFlowRemote(false);
+        if (flowChannelRef.current?.readyState === "open") {
+          flowChannelRef.current.send(JSON.stringify({ type: "exit" }));
+        }
+      });
+    };
+
+    setupListeners();
+
+    return () => {
+      if (unlistenEntered) unlistenEntered();
+      if (unlistenDelta) unlistenDelta();
+      if (unlistenBtn) unlistenBtn();
+      if (unlistenWheel) unlistenWheel();
+      if (unlistenKey) unlistenKey();
+      if (unlistenExited) unlistenExited();
+    };
+  }, [flowDirection]);
+
+  // Sync KVM Mode to Rust Backend
+  useEffect(() => {
+    if (isConnected && flowMode === "flow") {
+      invoke("enable_kvm_mode", {
+        enabled: true,
+        direction: flowDirection,
+        screenWidth: availableMonitors[0]?.width || 1920,
+        screenHeight: availableMonitors[0]?.height || 1080,
+      }).catch((e) => console.error("Failed to enable KVM mode:", e));
+    } else {
+      invoke("enable_kvm_mode", {
+        enabled: false,
+        direction: flowDirection,
+        screenWidth: 1920,
+        screenHeight: 1080,
+      }).catch(() => {});
+      invoke("release_kvm_control").catch(() => {});
+      setIsControllingFlowRemote(false);
+    }
+  }, [isConnected, flowMode, flowDirection, availableMonitors]);
 
   // Initialize Socket.io Connection
   useEffect(() => {
@@ -627,11 +845,13 @@ function App() {
         isHostRef.current = false;
         setStatus("Connecting WebRTC...");
 
-        // Expand window to resizable remote desktop view
-        try {
-          await invoke("set_window_session_mode", { isSession: true });
-        } catch (e) {
-          console.warn("Failed to set window session mode:", e);
+        // Expand window to resizable remote desktop view (only in screen mode)
+        if (flowModeRef.current !== "flow") {
+          try {
+            await invoke("set_window_session_mode", { isSession: true });
+          } catch (e) {
+            console.warn("Failed to set window session mode:", e);
+          }
         }
 
         // Save to recent devices
@@ -649,11 +869,11 @@ function App() {
     // WebRTC Signaling
     socket.on("user-connected", async (userId: string) => {
       if (!isHostRef.current) return;
-      console.log(`🔌 Guest (${userId}) connected. Starting capture & WebRTC Offer...`);
+      console.log(`🔌 Guest (${userId}) connected. Starting session in mode:`, flowModeRef.current);
       setStatus("Guest connected. Negotiating...");
 
-      // Start screen capture on demand if not capturing yet
-      if (!isScreenCapturingRef.current) {
+      // Start screen capture on demand only if NOT in Flow mode!
+      if (flowModeRef.current !== "flow" && !isScreenCapturingRef.current) {
         if (captureCanvasRef.current) {
           captureCanvasRef.current.width = 1920;
           captureCanvasRef.current.height = 1080;
@@ -673,7 +893,7 @@ function App() {
 
       peerRef.current?.close();
       const peer = createPeerConnection(userId);
-      if (captureCanvasRef.current) {
+      if (flowModeRef.current !== "flow" && captureCanvasRef.current) {
         const canvas = captureCanvasRef.current as any;
         const stream = canvas.captureStream(hostFps);
         stream.getTracks().forEach((track: any) => peer.addTrack(track, stream));
@@ -683,7 +903,7 @@ function App() {
       try {
         const offer = await peer.createOffer();
         await peer.setLocalDescription(offer);
-        socket.emit("offer", { target: userId, caller: socket.id, sdp: offer });
+        socket.emit("offer", { target: userId, caller: socket.id, sdp: offer, mode: flowModeRef.current });
       } catch (e) {
         console.error("Offer error:", e);
       }
@@ -691,6 +911,10 @@ function App() {
 
     socket.on("offer", async (payload) => {
       peerRef.current?.close();
+      if (payload.mode) {
+        setFlowMode(payload.mode);
+        flowModeRef.current = payload.mode;
+      }
       const peer = createPeerConnection(payload.caller);
       peerRef.current = peer;
       try {
@@ -1018,10 +1242,20 @@ function App() {
     }
     peerRef.current?.close();
     peerRef.current = null;
+    flowChannelRef.current?.close();
+    flowChannelRef.current = null;
     remoteStreamRef.current = null;
     setIsConnected(false);
     setIsBlackScreen(false);
     setIsPrivacyCover(false);
+    setIsControllingFlowRemote(false);
+    invoke("enable_kvm_mode", {
+      enabled: false,
+      direction: flowDirection,
+      screenWidth: 1920,
+      screenHeight: 1080,
+    }).catch(() => {});
+    invoke("release_kvm_control").catch(() => {});
     setStatus("Ready");
     setPing(null);
     if (isHostRef.current) {
@@ -1471,6 +1705,100 @@ function App() {
                         새 세션 연결하기
                       </h3>
                     </div>
+
+                    {/* 동작 모드 선택기 */}
+                    <div className="mode-selector-pill-group">
+                      <button
+                        type="button"
+                        className={`mode-pill ${flowMode === "screen" ? "active" : ""}`}
+                        onClick={() => handleSetFlowMode("screen")}
+                      >
+                        <Monitor size={16} />
+                        <span>화면 제어</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`mode-pill ${flowMode === "flow" ? "active" : ""}`}
+                        onClick={() => handleSetFlowMode("flow")}
+                      >
+                        <Activity size={16} />
+                        <span>SyncLink Flow (가상 KVM)</span>
+                      </button>
+                    </div>
+
+                    {/* Flow 모드 전용 모니터 배치 방향 설정 */}
+                    {flowMode === "flow" && (
+                      <div className="flow-settings-box">
+                        <div className="flow-settings-title">
+                          <span>상대 PC 모니터 위치 (마우스 넘길 방향)</span>
+                        </div>
+                        <div className="flow-direction-grid">
+                          <button
+                            type="button"
+                            className={`flow-dir-btn ${flowDirection === "left" ? "active" : ""}`}
+                            onClick={() => handleSetFlowDirection("left")}
+                          >
+                            ⬅️ 왼쪽
+                          </button>
+                          <button
+                            type="button"
+                            className={`flow-dir-btn ${flowDirection === "right" ? "active" : ""}`}
+                            onClick={() => handleSetFlowDirection("right")}
+                          >
+                            ➡️ 오른쪽
+                          </button>
+                          <button
+                            type="button"
+                            className={`flow-dir-btn ${flowDirection === "top" ? "active" : ""}`}
+                            onClick={() => handleSetFlowDirection("top")}
+                          >
+                            ⬆️ 위쪽
+                          </button>
+                          <button
+                            type="button"
+                            className={`flow-dir-btn ${flowDirection === "bottom" ? "active" : ""}`}
+                            onClick={() => handleSetFlowDirection("bottom")}
+                          >
+                            ⬇️ 아래쪽
+                          </button>
+                        </div>
+
+                        <div className="flow-visual-preview">
+                          {flowDirection === "left" && (
+                            <div className="preview-row">
+                              <div className="preview-screen remote">💻 상대 PC</div>
+                              <div className="preview-arrow">⬅️</div>
+                              <div className="preview-screen local">💻 내 PC</div>
+                            </div>
+                          )}
+                          {flowDirection === "right" && (
+                            <div className="preview-row">
+                              <div className="preview-screen local">💻 내 PC</div>
+                              <div className="preview-arrow">➡️</div>
+                              <div className="preview-screen remote">💻 상대 PC</div>
+                            </div>
+                          )}
+                          {flowDirection === "top" && (
+                            <div className="preview-col">
+                              <div className="preview-screen remote">💻 상대 PC</div>
+                              <div className="preview-arrow">⬆️</div>
+                              <div className="preview-screen local">💻 내 PC</div>
+                            </div>
+                          )}
+                          {flowDirection === "bottom" && (
+                            <div className="preview-col">
+                              <div className="preview-screen local">💻 내 PC</div>
+                              <div className="preview-arrow">⬇️</div>
+                              <div className="preview-screen remote">💻 상대 PC</div>
+                            </div>
+                          )}
+                        </div>
+
+                        <p className="flow-tip-text">
+                          💡 화면 경계 끝으로 마우스를 밀면 상대 PC로 마우스와 키보드가 즉시 넘어갑니다. (비상 탈출: <strong>Esc 키</strong>)
+                        </p>
+                      </div>
+                    )}
 
                     {authError && (
                       <div style={{ padding: "10px 14px", background: "rgba(239, 68, 68, 0.15)", border: "1px solid rgba(239, 68, 68, 0.3)", borderRadius: "10px", color: "#fca5a5", fontSize: "0.85rem" }}>
@@ -2313,10 +2641,15 @@ function App() {
               </div>
             )}
 
-            <div className="toolbar-divider" />
+            {flowMode === "flow" && (
+              <div className="toolbar-badge" style={{ background: "rgba(107, 127, 66, 0.2)", color: "#8a9a5b", border: "1px solid rgba(107, 127, 66, 0.4)" }}>
+                <Activity size={14} />
+                <span>SyncLink Flow (KVM)</span>
+              </div>
+            )}
 
-            {/* 게스트 제어 옵션들 */}
-            {!isHostMode && (
+            {/* 게스트 제어 옵션들 (화면 제어 모드일 때만 표시) */}
+            {!isHostMode && flowMode !== "flow" && (
               <>
                 {/* 화질 프리셋 */}
                 <button
@@ -2498,8 +2831,103 @@ function App() {
             </button>
           </div>
 
-          {/* 영상 스트리밍 뷰 */}
-          <div className="video-container">
+          {/* 영상 스트리밍 뷰 혹은 SyncLink Flow 대시보드 */}
+          {flowMode === "flow" ? (
+            <div className="flow-active-container">
+              <div className="flow-status-card">
+                <div className="radar-wrapper">
+                  <div className="radar-pulse" />
+                  <div className="radar-core" style={{ background: "rgba(107, 127, 66, 0.2)", color: "#8a9a5b" }}>
+                    <Activity size={36} />
+                  </div>
+                </div>
+
+                <div>
+                  <h2 style={{ margin: "0 0 8px 0" }}>SyncLink Flow 활성화됨</h2>
+                  <p style={{ color: "var(--text-muted)", margin: 0, fontSize: "0.9rem" }}>
+                    {sessionDeviceName || `PC ${formatDeviceId(sessionRoomId)}`}와 가상 KVM이 연결되어 있습니다.
+                  </p>
+                </div>
+
+                <div
+                  className={`flow-indicator-badge ${isControllingFlowRemote ? "controlling-remote" : "local-standby"}`}
+                >
+                  {isControllingFlowRemote ? (
+                    <>
+                      <MousePointer size={16} />
+                      <span>🎮 {sessionDeviceName || "상대 PC"} 제어 중</span>
+                    </>
+                  ) : (
+                    <>
+                      <Monitor size={16} />
+                      <span>💻 내 PC 사용 중</span>
+                    </>
+                  )}
+                </div>
+
+                <div className="flow-visual-preview" style={{ width: "100%" }}>
+                  {flowDirection === "left" && (
+                    <div className="preview-row">
+                      <div className={`preview-screen remote ${isControllingFlowRemote ? "active-border" : ""}`}>💻 상대 PC</div>
+                      <div className="preview-arrow">⬅️</div>
+                      <div className={`preview-screen local ${!isControllingFlowRemote ? "active-border" : ""}`}>💻 내 PC</div>
+                    </div>
+                  )}
+                  {flowDirection === "right" && (
+                    <div className="preview-row">
+                      <div className={`preview-screen local ${!isControllingFlowRemote ? "active-border" : ""}`}>💻 내 PC</div>
+                      <div className="preview-arrow">➡️</div>
+                      <div className={`preview-screen remote ${isControllingFlowRemote ? "active-border" : ""}`}>💻 상대 PC</div>
+                    </div>
+                  )}
+                  {flowDirection === "top" && (
+                    <div className="preview-col">
+                      <div className={`preview-screen remote ${isControllingFlowRemote ? "active-border" : ""}`}>💻 상대 PC</div>
+                      <div className="preview-arrow">⬆️</div>
+                      <div className={`preview-screen local ${!isControllingFlowRemote ? "active-border" : ""}`}>💻 내 PC</div>
+                    </div>
+                  )}
+                  {flowDirection === "bottom" && (
+                    <div className="preview-col">
+                      <div className={`preview-screen local ${!isControllingFlowRemote ? "active-border" : ""}`}>💻 내 PC</div>
+                      <div className="preview-arrow">⬇️</div>
+                      <div className={`preview-screen remote ${isControllingFlowRemote ? "active-border" : ""}`}>💻 상대 PC</div>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: "flex", gap: "10px", width: "100%", marginTop: "10px" }}>
+                  <button
+                    type="button"
+                    className="btn-main btn-secondary-dark"
+                    style={{ flex: 1, padding: "10px", fontSize: "0.85rem" }}
+                    onClick={() => {
+                      invoke("release_kvm_control").catch(() => {});
+                      setIsControllingFlowRemote(false);
+                    }}
+                  >
+                    내 PC로 커서 복귀 (Esc)
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-main btn-danger-soft"
+                    style={{ flex: 1, padding: "10px", fontSize: "0.85rem" }}
+                    onClick={endSession}
+                  >
+                    Flow 세션 종료
+                  </button>
+                </div>
+
+                <p className="flow-tip-text">
+                  💡 마우스를 화면 <strong>{flowDirection === "right" ? "오른쪽" : flowDirection === "left" ? "왼쪽" : flowDirection === "top" ? "위쪽" : "아래쪽"}</strong> 끝으로 밀면 상대 PC로 마우스와 키보드가 넘어갑니다.
+                  <br />
+                  언제든 <strong>Esc 키</strong>를 누르면 즉시 내 PC로 제어권이 복귀됩니다.
+                </p>
+              </div>
+            </div>
+          ) : (
+            /* 영상 스트리밍 뷰 */
+            <div className="video-container">
             {isHostMode ? (
               <div className="host-active-box">
                 <div className="radar-wrapper">
@@ -2606,6 +3034,7 @@ function App() {
               </div>
             )}
           </div>
+        )}
         </div>
       )}
 

@@ -835,11 +835,49 @@ fn open_external_url(url: String) -> Result<(), String> {
     }
 }
 
+mod kvm_manager;
+
+#[command]
+fn enable_kvm_mode(enabled: bool, direction: String, screen_width: usize, screen_height: usize) {
+    let guard = kvm_manager::KVM_STATE.lock().unwrap();
+    if let Some(ref state) = *guard {
+        state.is_enabled.store(enabled, std::sync::atomic::Ordering::SeqCst);
+        if !enabled {
+            state.is_controlling_remote.store(false, std::sync::atomic::Ordering::SeqCst);
+        }
+        *state.direction.lock().unwrap() = direction;
+        state.screen_width.store(screen_width, std::sync::atomic::Ordering::SeqCst);
+        state.screen_height.store(screen_height, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+#[command]
+fn release_kvm_control() {
+    kvm_manager::release_control();
+}
+
+#[command]
+fn remote_mouse_move_relative(dx: f64, dy: f64) {
+    if let Some((cur_x, cur_y)) = kvm_manager::get_os_cursor_pos() {
+        let new_x = cur_x + dx;
+        let new_y = cur_y + dy;
+        let _ = simulate(&EventType::MouseMove { x: new_x, y: new_y });
+    }
+}
+
+#[command]
+fn remote_mouse_wheel(delta_y: i64) {
+    let _ = simulate(&EventType::Wheel { delta_x: 0, delta_y });
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .setup(|_app| { Ok(()) })
+        .setup(|app| {
+            kvm_manager::init_kvm(app.handle().clone());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             get_machine_id,
             get_device_name,
@@ -863,7 +901,11 @@ fn main() {
             remote_mouse_up,
             get_autostart_status,
             set_autostart_status,
-            open_external_url
+            open_external_url,
+            enable_kvm_mode,
+            release_kvm_control,
+            remote_mouse_move_relative,
+            remote_mouse_wheel
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
