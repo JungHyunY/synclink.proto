@@ -490,6 +490,14 @@ fn open_permission_settings(permission_type: String) {
             let _ = std::process::Command::new("open")
                 .arg("x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension")
                 .spawn();
+        } else if permission_type == "network" {
+            // macOS 15 Sequoia Local Network Privacy
+            let _ = std::process::Command::new("open")
+                .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork")
+                .spawn();
+            let _ = std::process::Command::new("open")
+                .arg("x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension")
+                .spawn();
         } else {
             let _ = std::process::Command::new("open")
                 .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
@@ -503,6 +511,45 @@ fn open_permission_settings(permission_type: String) {
     {
         let _ = permission_type;
     }
+}
+
+#[command]
+fn test_server_connectivity(url: String) -> Result<String, String> {
+    let cleaned = url
+        .trim()
+        .trim_start_matches("http://")
+        .trim_start_matches("https://")
+        .trim_start_matches("ws://")
+        .trim_start_matches("wss://");
+    
+    let host_port = if let Some(idx) = cleaned.find('/') {
+        &cleaned[..idx]
+    } else {
+        cleaned
+    };
+
+    let target = if host_port.contains(':') {
+        host_port.to_string()
+    } else {
+        format!("{}:5963", host_port)
+    };
+
+    use std::net::ToSocketAddrs;
+    let addrs = target.to_socket_addrs().map_err(|e| format!("DNS/주소 변환 실패: {}", e))?;
+    
+    let mut last_err = String::new();
+    for addr in addrs {
+        match std::net::TcpStream::connect_timeout(&addr, Duration::from_millis(3500)) {
+            Ok(_) => return Ok(format!("TCP 연결 성공 ({})", addr)),
+            Err(e) => last_err = format!("{} ({})", e, addr),
+        }
+    }
+
+    Err(if last_err.is_empty() {
+        "서버에 연결할 수 없습니다".to_string()
+    } else {
+        format!("TCP 연결 실패: {}", last_err)
+    })
 }
 
 #[command]
@@ -905,7 +952,8 @@ fn main() {
             enable_kvm_mode,
             release_kvm_control,
             remote_mouse_move_relative,
-            remote_mouse_wheel
+            remote_mouse_wheel,
+            test_server_connectivity
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

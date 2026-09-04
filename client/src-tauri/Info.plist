@@ -7,9 +7,21 @@
     <dict>
         <key>NSAllowsArbitraryLoads</key>
         <true/>
+        <key>NSAllowsArbitraryLoadsInWebContent</key>
+        <true/>
         <key>NSAllowsLocalNetworking</key>
         <true/>
     </dict>
+
+    <!-- macOS 15 Sequoia Local Network Privacy Permission -->
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Yoonikon SyncLink requires local network access to connect to your signaling server and communicate with remote devices.</string>
+
+    <key>NSBonjourServices</key>
+    <array>
+        <string>_http._tcp</string>
+        <string>_webrtc._tcp</string>
+    </array>
 
     <!-- Screen Recording Permission Description -->
     <key>NSScreenCaptureUsageDescription</key>

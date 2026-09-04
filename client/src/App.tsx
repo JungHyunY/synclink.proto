@@ -287,7 +287,7 @@ function App() {
           status: "success",
           message: `시그널링 서버 연결 성공! (지연시간: ${latency}ms)`,
           latency,
-          details: `서버 버전: ${data.version || "1.0.6"} | 온라인 호스트 방: ${data.roomsOnline ?? 0}개`
+          details: `서버 버전: ${data.version || "1.0.7"} | 온라인 호스트 방: ${data.roomsOnline ?? 0}개`
         });
         return;
       }
@@ -332,11 +332,19 @@ function App() {
           details: "Socket.io 웹소켓 핸드셰이크가 정상적으로 완료되었습니다."
         });
       } else {
+        let nativeCheckMsg = "";
+        try {
+          const tcpResult = await invoke<string>("test_server_connectivity", { url: cleanUrl });
+          nativeCheckMsg = ` (OS 소켓 진단: ${tcpResult})`;
+        } catch (tcpErr: any) {
+          nativeCheckMsg = ` (OS 소켓 진단: ${tcpErr})`;
+        }
+
         let helpGuide = "서버가 켜져 있는지 확인해주세요.";
         if (isLocalhost) {
           helpGuide = "현재 주소가 'localhost'로 설정되어 있습니다! 다른 기기(Mac/다른 PC)에서 접속할 때는 서버가 실행 중인 PC의 '실제 로컬 IP(예: 192.168.0.x:5963)'나 공인 IP를 입력해야 합니다.";
         } else {
-          helpGuide = "서버 PC의 방화벽(5963 포트)이 차단되어 있거나, 같은 공유기(Wi-Fi) 네트워크에 연결되어 있지 않을 수 있습니다.";
+          helpGuide = `서버 PC 방화벽(5963 포트) 및 Mac 로컬 네트워크 접근 권한을 확인해주세요.${nativeCheckMsg}`;
         }
 
         setServerTestResult({
@@ -346,12 +354,20 @@ function App() {
         });
       }
     } catch (err: any) {
+      let nativeCheckMsg = "";
+      try {
+        const tcpResult = await invoke<string>("test_server_connectivity", { url: cleanUrl });
+        nativeCheckMsg = ` (OS 소켓 진단: ${tcpResult})`;
+      } catch (tcpErr: any) {
+        nativeCheckMsg = ` (OS 소켓 진단: ${tcpErr})`;
+      }
+
       setServerTestResult({
         status: "error",
         message: `연결 시도 중 에러 발생: ${err.message || err}`,
         details: isLocalhost
           ? "다른 PC/Mac에서는 localhost 대신 서버 PC의 실제 IP를 입력하세요."
-          : "IP 주소와 포트(5963) 번호, 방화벽 설정을 확인해주세요."
+          : `IP 주소와 포트(5963), macOS 로컬 네트워크 설정을 확인해주세요.${nativeCheckMsg}`
       });
     }
   };
@@ -370,7 +386,7 @@ function App() {
 
       if (!updateCheckFn) {
         setIsCheckingUpdate(false);
-        if (manual) alert("현재 최신 버전(v1.0.6)을 사용 중이에요! ✨");
+        if (manual) alert("현재 최신 버전(v1.0.7)을 사용 중이에요! ✨");
         return;
       }
 
@@ -379,7 +395,7 @@ function App() {
       if (update) {
         setAvailableUpdate(update);
       } else if (manual) {
-        alert("현재 최신 버전(v1.0.6)을 사용 중이에요! ✨");
+        alert("현재 최신 버전(v1.0.7)을 사용 중이에요! ✨");
       }
     } catch (err) {
       setIsCheckingUpdate(false);
@@ -1564,6 +1580,12 @@ function App() {
             >
               화면 기록 📷
             </button>
+            <button
+              onClick={() => invoke("open_permission_settings", { permissionType: "network" })}
+              style={{ padding: "6px 12px", borderRadius: "6px", border: "none", background: "white", color: "#ef4444", fontWeight: "bold", cursor: "pointer" }}
+            >
+              로컬 네트워크 🌐
+            </button>
           </div>
         </div>
       )}
@@ -2405,6 +2427,18 @@ function App() {
                             {serverTestResult.details}
                           </div>
                         )}
+                        {serverTestResult.status === "error" && (
+                          <div style={{ marginTop: "8px" }}>
+                            <button
+                              type="button"
+                              className="btn-main btn-secondary-dark"
+                              style={{ padding: "4px 10px", fontSize: "0.74rem" }}
+                              onClick={() => invoke("open_permission_settings", { permissionType: "network" })}
+                            >
+                              macOS 로컬 네트워크 권한 설정 열기 🌐
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -2524,7 +2558,7 @@ function App() {
                         버전 및 업데이트
                       </h3>
                       <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
-                        Yoonikon SyncLink <b>v1.0.6</b> (Native Desktop)
+                        Yoonikon SyncLink <b>v1.0.7</b> (Native Desktop)
                       </div>
                     </div>
                     <button
@@ -3335,6 +3369,18 @@ function App() {
                   {serverTestResult.details && (
                     <div style={{ marginTop: "4px", color: "var(--text-muted)", fontSize: "0.78rem", lineHeight: "1.4" }}>
                       {serverTestResult.details}
+                    </div>
+                  )}
+                  {serverTestResult.status === "error" && (
+                    <div style={{ marginTop: "8px" }}>
+                      <button
+                        type="button"
+                        className="btn-main btn-secondary-dark"
+                        style={{ padding: "4px 10px", fontSize: "0.74rem" }}
+                        onClick={() => invoke("open_permission_settings", { permissionType: "network" })}
+                      >
+                        macOS 로컬 네트워크 권한 설정 열기 🌐
+                      </button>
                     </div>
                   )}
                 </div>
