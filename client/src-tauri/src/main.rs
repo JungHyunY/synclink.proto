@@ -561,6 +561,92 @@ mod mac_brightness {
     }
 }
 
+#[cfg(target_os = "windows")]
+mod win_curtain {
+    use std::sync::Mutex;
+
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct Ramp {
+        pub red: [u16; 256],
+        pub green: [u16; 256],
+        pub blue: [u16; 256],
+    }
+
+    static SAVED_RAMP: Mutex<Option<Ramp>> = Mutex::new(None);
+
+    #[link(name = "user32")]
+    extern "system" {
+        fn GetDC(hWnd: *mut std::ffi::c_void) -> *mut std::ffi::c_void;
+        fn ReleaseDC(hWnd: *mut std::ffi::c_void, hDC: *mut std::ffi::c_void) -> i32;
+    }
+
+    #[link(name = "gdi32")]
+    extern "system" {
+        fn GetDeviceGammaRamp(hDC: *mut std::ffi::c_void, lpRamp: *mut std::ffi::c_void) -> i32;
+        fn SetDeviceGammaRamp(hDC: *mut std::ffi::c_void, lpRamp: *const std::ffi::c_void) -> i32;
+    }
+
+    pub fn set_display_blackout(blackout: bool) {
+        unsafe {
+            let hdc = GetDC(std::ptr::null_mut());
+            if hdc.is_null() {
+                eprintln!("⚠️ Failed to get Screen DC for privacy mode");
+                return;
+            }
+
+            if blackout {
+                let mut current_ramp = Ramp {
+                    red: [0; 256],
+                    green: [0; 256],
+                    blue: [0; 256],
+                };
+                if GetDeviceGammaRamp(hdc, &mut current_ramp as *mut _ as *mut std::ffi::c_void) != 0 {
+                    if let Ok(mut saved) = SAVED_RAMP.lock() {
+                        if saved.is_none() {
+                            *saved = Some(current_ramp);
+                        }
+                    }
+                }
+
+                let black_ramp = Ramp {
+                    red: [0; 256],
+                    green: [0; 256],
+                    blue: [0; 256],
+                };
+                let res = SetDeviceGammaRamp(hdc, &black_ramp as *const _ as *const std::ffi::c_void);
+                println!("🔒 Windows Display Curtain Mode (Blackout): {}", res != 0);
+            } else {
+                let mut restored = false;
+                if let Ok(mut saved) = SAVED_RAMP.lock() {
+                    if let Some(orig) = saved.take() {
+                        let res = SetDeviceGammaRamp(hdc, &orig as *const _ as *const std::ffi::c_void);
+                        println!("🔓 Windows Display Curtain Mode restored: {}", res != 0);
+                        restored = true;
+                    }
+                }
+                if !restored {
+                    let mut default_ramp = Ramp {
+                        red: [0; 256],
+                        green: [0; 256],
+                        blue: [0; 256],
+                    };
+                    for i in 0..256 {
+                        let val = ((i as u32 * 65535) / 255) as u16;
+                        default_ramp.red[i] = val;
+                        default_ramp.green[i] = val;
+                        default_ramp.blue[i] = val;
+                    }
+                    SetDeviceGammaRamp(hdc, &default_ramp as *const _ as *const std::ffi::c_void);
+                    println!("🔓 Windows Display Curtain Mode restored to default ramp");
+                }
+            }
+
+            ReleaseDC(std::ptr::null_mut(), hdc);
+        }
+    }
+}
+
 #[command]
 async fn set_privacy_mode(enabled: bool) {
     #[cfg(target_os = "macos")]
@@ -569,11 +655,7 @@ async fn set_privacy_mode(enabled: bool) {
     }
     #[cfg(target_os = "windows")]
     {
-        if enabled {
-            let _ = std::process::Command::new("powershell")
-                .args(&["-Command", "(Add-Type -MemberDefinition '[DllImport(\"user32.dll\")]public static extern int SendMessage(int hWnd, int hMsg, int wParam, int lParam);' -Name a -Passthru)::SendMessage(-1, 0x0112, 0xF170, 2)"])
-                .spawn();
-        }
+        win_curtain::set_display_blackout(enabled);
     }
 }
 
