@@ -1,5 +1,5 @@
 :root {
-  /* Yoonikon Design System (YDS) Tactical HUD Tokens */
+  /* Yoonikon Design System (YDS) Tactical HUD Tokens - Dark (Default) */
   --yds-olive-core: #6b7f42;
   --yds-olive-light: #8a9a5b;
   --yds-olive-hover: #556832;
@@ -10,10 +10,13 @@
   --yds-gold-accent: #dda15e;
 
   --bg-color: #0f1113;
+  --bg-radial: radial-gradient(circle at 50% 0%, #1e2024 0%, #0f1113 80%);
   --sidebar-bg: rgba(24, 24, 27, 0.95);
   --card-bg: rgba(30, 32, 36, 0.85);
   --card-border: #27272a;
   --card-hover: rgba(45, 51, 59, 0.95);
+  --input-bg: rgba(0, 0, 0, 0.35);
+  --input-focus-bg: rgba(0, 0, 0, 0.5);
   
   --primary: #6b7f42;
   --primary-gradient: linear-gradient(135deg, #6b7f42 0%, #8a9a5b 100%);
@@ -26,11 +29,51 @@
   --text-main: #f4f4f5;
   --text-muted: #a1a1aa;
   --text-dim: #71717a;
+  --brand-title-color: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
   
   --glass-bg: rgba(24, 24, 27, 0.92);
   --glass-border: rgba(107, 127, 66, 0.25);
   --shadow-lg: 0 20px 40px -15px rgba(15, 17, 19, 0.8);
   --shadow-glow: 0 0 24px rgba(107, 127, 66, 0.35);
+}
+
+[data-theme="light"] {
+  /* Yoonikon Design System (YDS) Tactical HUD Tokens - Light Clean */
+  --yds-olive-core: #556832;
+  --yds-olive-light: #6b7f42;
+  --yds-olive-hover: #3e4c24;
+  --yds-titanium-dark: #f8fafc;
+  --yds-titanium-surface: #ffffff;
+  --yds-titanium-card: #f1f5f9;
+  --yds-titanium-border: #e2e8f0;
+  --yds-gold-accent: #b45309;
+
+  --bg-color: #f8fafc;
+  --bg-radial: radial-gradient(circle at 50% 0%, #ffffff 0%, #edf2f7 85%);
+  --sidebar-bg: rgba(255, 255, 255, 0.96);
+  --card-bg: rgba(255, 255, 255, 0.92);
+  --card-border: #e2e8f0;
+  --card-hover: rgba(241, 245, 249, 0.98);
+  --input-bg: #f1f5f9;
+  --input-focus-bg: #ffffff;
+  
+  --primary: #556832;
+  --primary-gradient: linear-gradient(135deg, #556832 0%, #6b7f42 100%);
+  --primary-hover: #3e4c24;
+  --accent: #b45309;
+  --success: #16a34a;
+  --warning: #d97706;
+  --danger: #dc2626;
+  
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --text-dim: #94a3b8;
+  --brand-title-color: linear-gradient(135deg, #0f172a 0%, #334155 100%);
+  
+  --glass-bg: rgba(255, 255, 255, 0.95);
+  --glass-border: rgba(107, 127, 66, 0.3);
+  --shadow-lg: 0 10px 30px -10px rgba(0, 0, 0, 0.08);
+  --shadow-glow: 0 0 20px rgba(107, 127, 66, 0.2);
 }
 
 * {
@@ -46,6 +89,7 @@ body {
   overflow: hidden;
   user-select: none;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 .mono {
@@ -56,8 +100,9 @@ body {
   display: flex;
   height: 100vh;
   width: 100vw;
-  background: radial-gradient(circle at 50% 0%, #1e2024 0%, #0f1113 80%);
+  background: var(--bg-radial);
   overflow: hidden;
+  transition: background 0.25s ease;
 }
 
 /* --- Layout --- */
@@ -106,7 +151,7 @@ body {
   font-weight: 800;
   letter-spacing: -0.5px;
   margin: 0;
-  background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+  background: var(--brand-title-color);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -383,7 +428,7 @@ body {
 .custom-input {
   width: 100%;
   padding: 12px 14px 12px 42px;
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--input-bg);
   border: 1px solid var(--card-border);
   border-radius: 12px;
   color: var(--text-main);
@@ -394,8 +439,8 @@ body {
 
 .custom-input:focus {
   border-color: var(--primary);
-  background: rgba(0, 0, 0, 0.5);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  background: var(--input-focus-bg);
+  box-shadow: 0 0 0 3px rgba(107, 127, 66, 0.2);
 }
 
 .custom-input.large-id {
@@ -407,7 +452,7 @@ body {
 .custom-select {
   width: 100%;
   padding: 12px 14px 12px 42px;
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--input-bg);
   border: 1px solid var(--card-border);
   border-radius: 12px;
   color: var(--text-main);

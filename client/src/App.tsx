@@ -35,6 +35,8 @@ import {
   Keyboard,
   AlertCircle,
   ExternalLink,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import "./App.css";
@@ -160,6 +162,11 @@ function App() {
   const [isPrivacyCover, setIsPrivacyCover] = useState(false);
   const [showShortcutsMenu, setShowShortcutsMenu] = useState(false);
   const [isAutoStartEnabled, setIsAutoStartEnabled] = useState(false);
+
+  // Dark / Light Theme State
+  const [theme, setTheme] = useState<"dark" | "light">(() => {
+    return (localStorage.getItem("synclink_theme") as "dark" | "light") || "dark";
+  });
 
   // Virtual Remote Cursor State
   const [showVirtualCursor, setShowVirtualCursor] = useState(true);
@@ -396,6 +403,11 @@ function App() {
   useEffect(() => {
     localStorage.setItem("synclink_recent_devices", JSON.stringify(recentDevices));
   }, [recentDevices]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("synclink_theme", theme);
+  }, [theme]);
 
   // Check OS permissions & Fetch Hardware Machine ID on launch
   useEffect(() => {
@@ -1330,7 +1342,7 @@ function App() {
           <div className="sidebar">
             <div className="brand-section">
               <img
-                src="/assets/yoonikon_tactical_logo.svg"
+                src={theme === "light" ? "/assets/yoonikon_tactical_logo_light.svg" : "/assets/yoonikon_tactical_logo_dark.svg"}
                 alt="Yoonikon SyncLink Logo"
                 style={{
                   width: "40px",
@@ -2060,6 +2072,63 @@ function App() {
                       <label htmlFor="autoStartSetting" style={{ fontSize: "0.9rem", color: "var(--text-main)", cursor: "pointer" }}>
                         컴퓨터를 켤 때 Synclink가 백그라운드에서 자동으로 시작되어 상시 원격 접속이 가능해요
                       </label>
+                    </div>
+                  </div>
+
+                  {/* 테마 설정 (다크 모드 / 라이트 모드) */}
+                  <div className="input-field-group" style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid var(--card-border)" }}>
+                    <label className="input-label">화면 테마 (Dark / Light Theme)</label>
+                    <div style={{ display: "flex", gap: "10px", marginTop: "4px" }}>
+                      <button
+                        type="button"
+                        className="btn-main"
+                        style={{
+                          flex: 1,
+                          padding: "10px 14px",
+                          fontSize: "0.85rem",
+                          fontWeight: 600,
+                          borderRadius: "10px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "8px",
+                          cursor: "pointer",
+                          transition: "all 0.2s ease",
+                          background: theme === "dark" ? "var(--primary-gradient)" : "var(--input-bg)",
+                          color: theme === "dark" ? "#ffffff" : "var(--text-muted)",
+                          border: theme === "dark" ? "1px solid var(--primary)" : "1px solid var(--card-border)",
+                          boxShadow: theme === "dark" ? "var(--shadow-glow)" : "none",
+                        }}
+                        onClick={() => setTheme("dark")}
+                      >
+                        <Moon size={16} />
+                        <span>다크 모드 (Dark HUD)</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-main"
+                        style={{
+                          flex: 1,
+                          padding: "10px 14px",
+                          fontSize: "0.85rem",
+                          fontWeight: 600,
+                          borderRadius: "10px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "8px",
+                          cursor: "pointer",
+                          transition: "all 0.2s ease",
+                          background: theme === "light" ? "var(--primary-gradient)" : "var(--input-bg)",
+                          color: theme === "light" ? "#ffffff" : "var(--text-muted)",
+                          border: theme === "light" ? "1px solid var(--primary)" : "1px solid var(--card-border)",
+                          boxShadow: theme === "light" ? "var(--shadow-glow)" : "none",
+                        }}
+                        onClick={() => setTheme("light")}
+                      >
+                        <Sun size={16} />
+                        <span>라이트 모드 (Light Clean)</span>
+                      </button>
                     </div>
                   </div>
                 </div>

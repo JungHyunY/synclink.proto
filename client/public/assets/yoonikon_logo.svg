@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#090d16" />
+      <stop offset="100%" stop-color="#020408" />
+    </linearGradient>
+    
+    <!-- Neon Cyan to Violet Gradients -->
+    <linearGradient id="facetCyan" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#06b6d4" />
+    </linearGradient>
+    <linearGradient id="facetDeepCyan" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#0369a1" />
+    </linearGradient>
+    <linearGradient id="facetViolet" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818cf8" />
+      <stop offset="100%" stop-color="#4f46e5" />
+    </linearGradient>
+    <linearGradient id="facetDeepViolet" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1" />
+      <stop offset="100%" stop-color="#312e81" />
+    </linearGradient>
+    <linearGradient id="hornGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="50%" stop-color="#c084fc" />
+      <stop offset="100%" stop-color="#ffffff" />
+    </linearGradient>
+
+    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="500" height="500" rx="90" fill="url(#bgGrad)" />
+  <rect width="496" height="496" x="2" y="2" rx="88" fill="none" stroke="rgba(56, 189, 248, 0.15)" stroke-width="2" />
+
+  <!-- Logo Emblem Group -->
+  <g transform="translate(10, -10)" filter="url(#neonGlow)">
+    <!-- Left Branch of 'Y' (Crystalline Prismatic Pillar) -->
+    <polygon points="140,130 195,130 230,230 180,230" fill="url(#facetCyan)" opacity="0.95" />
+    <polygon points="140,130 180,230 160,200" fill="#0284c7" opacity="0.8" />
+    <polygon points="195,130 230,230 220,200" fill="#7dd3fc" opacity="0.9" />
+
+    <!-- Stem of 'Y' (Lower Pillar) -->
+    <polygon points="220,230 270,230 270,340 220,340" fill="url(#facetViolet)" opacity="0.95" />
+    <polygon points="220,230 250,340 220,340" fill="url(#facetDeepViolet)" opacity="0.8" />
+    <polygon points="250,230 270,230 270,340" fill="#a5b4fc" opacity="0.6" />
+
+    <!-- Right Branch of 'Y' morphing into Unicorn Silhouette -->
+    <!-- Unicorn Horn (Glowing Spiral Blade) -->
+    <polygon points="305,140 375,85 320,135" fill="url(#hornGrad)" />
+    
+    <!-- Unicorn Mane & Crest -->
+    <polygon points="260,140 290,110 305,140 275,165" fill="#38bdf8" opacity="0.9" />
+    <polygon points="290,110 320,135 305,155" fill="#c084fc" opacity="0.85" />
+    <polygon points="275,165 305,155 330,175 285,195" fill="url(#facetCyan)" opacity="0.9" />
+    
+    <!-- Unicorn Head & Muzzle -->
+    <polygon points="305,155 350,170 355,205 320,210 300,185" fill="#0ea5e9" opacity="0.95" />
+    <polygon points="320,210 355,205 345,225 315,220" fill="#0369a1" opacity="0.9" />
+    
+    <!-- Neck merging into the Stem of 'Y' -->
+    <polygon points="230,230 285,195 315,220 270,230" fill="url(#facetViolet)" opacity="0.95" />
+    <polygon points="260,190 285,195 270,230 245,210" fill="#6366f1" opacity="0.85" />
+  </g>
+
+  <!-- Typography: YOONIKON -->
+  <text x="250" y="415" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Montserrat', 'Segoe UI', sans-serif" font-weight="900" font-size="44" letter-spacing="8" fill="#f8fafc">
+    YOONIKON
+  </text>
+  <text x="250" y="445" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-weight="600" font-size="12" letter-spacing="4" fill="#38bdf8" opacity="0.85">
+    INTELLIGENT SUITE
+  </text>
+</svg>
