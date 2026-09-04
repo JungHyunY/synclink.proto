@@ -19,12 +19,16 @@ static CAPTURE_QUALITY: AtomicUsize = AtomicUsize::new(50);
 // --- 키보드 매핑 ---
 fn str_to_key(key_str: &str) -> Option<Key> {
     match key_str.to_lowercase().as_str() {
-        "enter" => Some(Key::Return),
+        "enter" | "return" | "numpadenter" => Some(Key::Return),
         "backspace" => Some(Key::Backspace),
-        "control" | "ctrl" => Some(Key::ControlLeft),
-        "shift" => Some(Key::ShiftLeft),
-        "alt" => Some(Key::Alt),
-        "meta" | "command" | "cmd" => Some(Key::MetaLeft),
+        "control" | "ctrl" | "controlleft" => Some(Key::ControlLeft),
+        "controlright" => Some(Key::ControlRight),
+        "shift" | "shiftleft" => Some(Key::ShiftLeft),
+        "shiftright" => Some(Key::ShiftRight),
+        "alt" | "altleft" => Some(Key::Alt),
+        "altright" | "altgraph" => Some(Key::AltGr),
+        "meta" | "metaleft" | "command" | "cmd" | "win" | "window" | "windows" | "os" => Some(Key::MetaLeft),
+        "metaright" => Some(Key::MetaRight),
         "escape" | "esc" => Some(Key::Escape),
         "tab" => Some(Key::Tab),
         " " | "space" | "spacebar" => Some(Key::Space),
@@ -33,35 +37,88 @@ fn str_to_key(key_str: &str) -> Option<Key> {
         "arrowleft" | "left" => Some(Key::LeftArrow),
         "arrowright" | "right" => Some(Key::RightArrow),
         "delete" | "del" => Some(Key::Delete),
+        "insert" | "ins" => Some(Key::Insert),
         "home" => Some(Key::Home),
         "end" => Some(Key::End),
         "pageup" => Some(Key::PageUp),
         "pagedown" => Some(Key::PageDown),
         "capslock" => Some(Key::CapsLock),
-        "a" => Some(Key::KeyA), "b" => Some(Key::KeyB), "c" => Some(Key::KeyC),
-        "d" => Some(Key::KeyD), "e" => Some(Key::KeyE), "f" => Some(Key::KeyF),
-        "g" => Some(Key::KeyG), "h" => Some(Key::KeyH), "i" => Some(Key::KeyI),
-        "j" => Some(Key::KeyJ), "k" => Some(Key::KeyK), "l" => Some(Key::KeyL),
-        "m" => Some(Key::KeyM), "n" => Some(Key::KeyN), "o" => Some(Key::KeyO),
-        "p" => Some(Key::KeyP), "q" => Some(Key::KeyQ), "r" => Some(Key::KeyR),
-        "s" => Some(Key::KeyS), "t" => Some(Key::KeyT), "u" => Some(Key::KeyU),
-        "v" => Some(Key::KeyV), "w" => Some(Key::KeyW), "x" => Some(Key::KeyX),
-        "y" => Some(Key::KeyY), "z" => Some(Key::KeyZ),
-        "1" => Some(Key::Num1), "2" => Some(Key::Num2), "3" => Some(Key::Num3),
-        "4" => Some(Key::Num4), "5" => Some(Key::Num5), "6" => Some(Key::Num6),
-        "7" => Some(Key::Num7), "8" => Some(Key::Num8), "9" => Some(Key::Num9),
-        "0" => Some(Key::Num0),
-        "." => Some(Key::Dot),
-        "," => Some(Key::Comma),
-        "-" => Some(Key::Minus),
-        "=" => Some(Key::Equal),
-        "/" => Some(Key::Slash),
-        "\\" => Some(Key::BackSlash),
-        ";" => Some(Key::SemiColon),
-        "'" => Some(Key::Quote),
-        "[" => Some(Key::LeftBracket),
-        "]" => Some(Key::RightBracket),
-        "`" => Some(Key::BackQuote),
+        "printscreen" | "prtscn" => Some(Key::PrintScreen),
+        "scrolllock" => Some(Key::ScrollLock),
+        "pause" => Some(Key::Pause),
+        "numlock" => Some(Key::NumLock),
+
+        // F1 - F12
+        "f1" => Some(Key::F1),
+        "f2" => Some(Key::F2),
+        "f3" => Some(Key::F3),
+        "f4" => Some(Key::F4),
+        "f5" => Some(Key::F5),
+        "f6" => Some(Key::F6),
+        "f7" => Some(Key::F7),
+        "f8" => Some(Key::F8),
+        "f9" => Some(Key::F9),
+        "f10" => Some(Key::F10),
+        "f11" => Some(Key::F11),
+        "f12" => Some(Key::F12),
+
+        // Letters
+        "a" | "keya" => Some(Key::KeyA),
+        "b" | "keyb" => Some(Key::KeyB),
+        "c" | "keyc" => Some(Key::KeyC),
+        "d" | "keyd" => Some(Key::KeyD),
+        "e" | "keye" => Some(Key::KeyE),
+        "f" | "keyf" => Some(Key::KeyF),
+        "g" | "keyg" => Some(Key::KeyG),
+        "h" | "keyh" => Some(Key::KeyH),
+        "i" | "keyi" => Some(Key::KeyI),
+        "j" | "keyj" => Some(Key::KeyJ),
+        "k" | "keyk" => Some(Key::KeyK),
+        "l" | "keyl" => Some(Key::KeyL),
+        "m" | "keym" => Some(Key::KeyM),
+        "n" | "keyn" => Some(Key::KeyN),
+        "o" | "keyo" => Some(Key::KeyO),
+        "p" | "keyp" => Some(Key::KeyP),
+        "q" | "keyq" => Some(Key::KeyQ),
+        "r" | "keyr" => Some(Key::KeyR),
+        "s" | "keys" => Some(Key::KeyS),
+        "t" | "keyt" => Some(Key::KeyT),
+        "u" | "keyu" => Some(Key::KeyU),
+        "v" | "keyv" => Some(Key::KeyV),
+        "w" | "keyw" => Some(Key::KeyW),
+        "x" | "keyx" => Some(Key::KeyX),
+        "y" | "keyy" => Some(Key::KeyY),
+        "z" | "keyz" => Some(Key::KeyZ),
+
+        // Digits
+        "1" | "digit1" | "numpad1" => Some(Key::Num1),
+        "2" | "digit2" | "numpad2" => Some(Key::Num2),
+        "3" | "digit3" | "numpad3" => Some(Key::Num3),
+        "4" | "digit4" | "numpad4" => Some(Key::Num4),
+        "5" | "digit5" | "numpad5" => Some(Key::Num5),
+        "6" | "digit6" | "numpad6" => Some(Key::Num6),
+        "7" | "digit7" | "numpad7" => Some(Key::Num7),
+        "8" | "digit8" | "numpad8" => Some(Key::Num8),
+        "9" | "digit9" | "numpad9" => Some(Key::Num9),
+        "0" | "digit0" | "numpad0" => Some(Key::Num0),
+
+        // Symbols & Punctuations
+        "." | "period" | "numpaddecimal" => Some(Key::Dot),
+        "," | "comma" => Some(Key::Comma),
+        "-" | "minus" | "numpadsubtract" | "_" => Some(Key::Minus),
+        "=" | "equal" | "numpadadd" | "+" => Some(Key::Equal),
+        "/" | "slash" | "numpaddivide" | "?" => Some(Key::Slash),
+        "\\" | "backslash" | "|" => Some(Key::BackSlash),
+        ";" | "semicolon" | ":" => Some(Key::SemiColon),
+        "'" | "quote" | "\"" => Some(Key::Quote),
+        "[" | "bracketleft" | "{" => Some(Key::LeftBracket),
+        "]" | "bracketright" | "}" => Some(Key::RightBracket),
+        "`" | "backquote" | "~" => Some(Key::BackQuote),
+
+        // Korean specific keys (한영, 한자)
+        "hangulmode" | "kana" => Some(Key::AltGr),
+        "hanjamode" => Some(Key::ControlRight),
+
         _ => None,
     }
 }
@@ -243,14 +300,35 @@ fn remote_mouse_click(button: String, x: Option<f64>, y: Option<f64>, monitor_in
 }
 
 #[command]
-fn remote_keyboard_event(state: String, key: String) {
-    if let Some(rdev_key) = str_to_key(&key) {
+fn remote_keyboard_event(state: String, key: String, code: Option<String>) {
+    let rdev_key = str_to_key(&key).or_else(|| {
+        code.as_deref().and_then(str_to_key)
+    });
+
+    if let Some(k) = rdev_key {
         let event = match state.as_str() {
-            "down" => EventType::KeyPress(rdev_key),
-            "up" => EventType::KeyRelease(rdev_key),
+            "down" => EventType::KeyPress(k),
+            "up" => EventType::KeyRelease(k),
             _ => return,
         };
         let _ = simulate(&event);
+    }
+}
+
+#[command]
+fn remote_shortcut(keys: Vec<String>) {
+    let mut pressed = Vec::new();
+    for k_str in &keys {
+        if let Some(k) = str_to_key(k_str) {
+            let _ = simulate(&EventType::KeyPress(k));
+            pressed.push(k);
+            thread::sleep(Duration::from_millis(20));
+        }
+    }
+    thread::sleep(Duration::from_millis(50));
+    for k in pressed.into_iter().rev() {
+        let _ = simulate(&EventType::KeyRelease(k));
+        thread::sleep(Duration::from_millis(20));
     }
 }
 
@@ -520,7 +598,8 @@ fn main() {
             set_privacy_mode,
             minimize_host_window,
             restore_host_window,
-            stop_screen_capture
+            stop_screen_capture,
+            remote_shortcut
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

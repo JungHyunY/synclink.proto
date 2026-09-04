@@ -32,6 +32,7 @@ import {
   Edit2,
   X,
   MousePointer,
+  Keyboard,
 } from "lucide-react";
 import "./App.css";
 
@@ -132,6 +133,7 @@ function App() {
   const [permissionGranted, setPermissionGranted] = useState(true);
   const [isBlackScreen, setIsBlackScreen] = useState(false);
   const [isPrivacyCover, setIsPrivacyCover] = useState(false);
+  const [showShortcutsMenu, setShowShortcutsMenu] = useState(false);
 
   // Virtual Remote Cursor State
   const [showVirtualCursor, setShowVirtualCursor] = useState(true);
@@ -218,6 +220,7 @@ function App() {
   const lastClipboardTextRef = useRef("");
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
+  const activeKeysRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     autoHostStandbyRef.current = autoHostStandby;
@@ -547,7 +550,9 @@ function App() {
             });
           } else if (payload.type === "keydown" || payload.type === "keyup") {
             const state = payload.type === "keydown" ? "down" : "up";
-            await invoke("remote_keyboard_event", { state, key: payload.key });
+            await invoke("remote_keyboard_event", { state, key: payload.key, code: payload.code || null });
+          } else if (payload.type === "shortcut") {
+            await invoke("remote_shortcut", { keys: payload.keys });
           } else if (payload.type === "switch-monitor") {
             activeMonitorRef.current = payload.monitorIndex;
             setHostMonitorIndex(payload.monitorIndex);
@@ -857,18 +862,110 @@ function App() {
     }
   };
 
-  const handleKeyInput = (e: React.KeyboardEvent, type: "keydown" | "keyup") => {
-    if (isHostRef.current) return;
-    if ([" ", "Space", "Tab", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Backspace"].includes(e.key)) {
-      e.preventDefault();
-    }
-    const keyToSend = e.key === " " ? "space" : e.key;
+  // Remote Key Event Dispatcher
+  const sendRemoteKeyEvent = (type: "keydown" | "keyup", key: string, code?: string) => {
+    if (isHostRef.current || !sessionRoomId) return;
+    const keyToSend = key === " " ? "space" : key;
     socketRef.current?.emit("control-event", {
       targetRoom: sessionRoomId,
       type,
       key: keyToSend,
+      code: code || undefined,
     });
   };
+
+  // Remote Preset Shortcut Dispatcher (e.g., Ctrl+Alt+Del, Win, Alt+Tab)
+  const sendRemoteShortcut = (keys: string[]) => {
+    if (isHostRef.current || !sessionRoomId) return;
+    socketRef.current?.emit("control-event", {
+      targetRoom: sessionRoomId,
+      type: "shortcut",
+      keys,
+    });
+  };
+
+  const handleKeyInput = (e: React.KeyboardEvent, type: "keydown" | "keyup") => {
+    if (isHostRef.current) return;
+    const isModifierCombo = e.ctrlKey || e.altKey || e.metaKey;
+    const isBrowserSpecial = [
+      " ", "Space", "Tab", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
+      "Backspace", "Delete", "Home", "End", "PageUp", "PageDown",
+      "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
+    ].includes(e.key);
+
+    if (isModifierCombo || isBrowserSpecial) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    sendRemoteKeyEvent(type, e.key, e.code);
+  };
+
+  // Global Key Listener for Remote Control Session (Prevents focus drop & browser shortcut interception)
+  useEffect(() => {
+    if (!isConnected || isHostMode || !sessionRoomId) return;
+
+    const onGlobalKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return;
+      }
+
+      const isModifierCombo = e.ctrlKey || e.altKey || e.metaKey;
+      const isBrowserSpecial = [
+        "Tab", "Escape", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
+        "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Backspace", "Delete", " ", "Home", "End", "PageUp", "PageDown"
+      ].includes(e.key);
+
+      if (isModifierCombo || isBrowserSpecial) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+
+      activeKeysRef.current.add(e.code || e.key);
+      sendRemoteKeyEvent("keydown", e.key, e.code);
+    };
+
+    const onGlobalKeyUp = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return;
+      }
+
+      const isModifierCombo = e.ctrlKey || e.altKey || e.metaKey;
+      const isBrowserSpecial = [
+        "Tab", "Escape", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
+        "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Backspace", "Delete", " ", "Home", "End", "PageUp", "PageDown"
+      ].includes(e.key);
+
+      if (isModifierCombo || isBrowserSpecial) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+
+      activeKeysRef.current.delete(e.code || e.key);
+      sendRemoteKeyEvent("keyup", e.key, e.code);
+    };
+
+    const onWindowBlur = () => {
+      // Release any currently held modifier/regular keys to prevent sticky keys on the host
+      if (activeKeysRef.current.size > 0) {
+        activeKeysRef.current.forEach((k) => {
+          sendRemoteKeyEvent("keyup", k, k);
+        });
+        activeKeysRef.current.clear();
+      }
+    };
+
+    window.addEventListener("keydown", onGlobalKeyDown, { capture: true });
+    window.addEventListener("keyup", onGlobalKeyUp, { capture: true });
+    window.addEventListener("blur", onWindowBlur);
+
+    return () => {
+      window.removeEventListener("keydown", onGlobalKeyDown, { capture: true });
+      window.removeEventListener("keyup", onGlobalKeyUp, { capture: true });
+      window.removeEventListener("blur", onWindowBlur);
+    };
+  }, [isConnected, isHostMode, sessionRoomId]);
 
   // Change Remote Quality Preset
   const applyQualityPreset = (quality: number, fps: number) => {
@@ -1725,6 +1822,112 @@ function App() {
                   <span>{showVirtualCursor ? "커서 On" : "커서 Off"}</span>
                 </button>
 
+                {/* 원격 단축키 퀵 전송 메뉴 */}
+                <div style={{ position: "relative" }}>
+                  <button
+                    className={`toolbar-btn ${showShortcutsMenu ? "active" : ""}`}
+                    onClick={() => setShowShortcutsMenu(!showShortcutsMenu)}
+                    title="단축키 퀵 전송 메뉴"
+                  >
+                    <Keyboard size={14} />
+                    <span>단축키</span>
+                  </button>
+
+                  {showShortcutsMenu && (
+                    <div
+                      className="glass-card"
+                      style={{
+                        position: "absolute",
+                        top: "100%",
+                        left: "50%",
+                        transform: "translateX(-50%)",
+                        marginTop: "8px",
+                        padding: "6px",
+                        width: "210px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "4px",
+                        zIndex: 10001,
+                        background: "rgba(15, 23, 42, 0.96)",
+                        border: "1px solid rgba(255, 255, 255, 0.15)",
+                        borderRadius: "10px",
+                        boxShadow: "0 10px 25px rgba(0,0,0,0.6)",
+                      }}
+                    >
+                      <button
+                        className="shortcut-item-btn"
+                        onClick={() => {
+                          sendRemoteShortcut(["control", "alt", "delete"]);
+                          setShowShortcutsMenu(false);
+                        }}
+                      >
+                        <span className="shortcut-key">Ctrl + Alt + Del</span>
+                        <span className="shortcut-desc">보안 화면</span>
+                      </button>
+                      <button
+                        className="shortcut-item-btn"
+                        onClick={() => {
+                          sendRemoteShortcut(["meta"]);
+                          setShowShortcutsMenu(false);
+                        }}
+                      >
+                        <span className="shortcut-key">Win (시작)</span>
+                        <span className="shortcut-desc">시작 메뉴</span>
+                      </button>
+                      <button
+                        className="shortcut-item-btn"
+                        onClick={() => {
+                          sendRemoteShortcut(["meta", "d"]);
+                          setShowShortcutsMenu(false);
+                        }}
+                      >
+                        <span className="shortcut-key">Win + D</span>
+                        <span className="shortcut-desc">바탕화면</span>
+                      </button>
+                      <button
+                        className="shortcut-item-btn"
+                        onClick={() => {
+                          sendRemoteShortcut(["alt", "tab"]);
+                          setShowShortcutsMenu(false);
+                        }}
+                      >
+                        <span className="shortcut-key">Alt + Tab</span>
+                        <span className="shortcut-desc">작업 전환</span>
+                      </button>
+                      <button
+                        className="shortcut-item-btn"
+                        onClick={() => {
+                          sendRemoteShortcut(["control", "shift", "escape"]);
+                          setShowShortcutsMenu(false);
+                        }}
+                      >
+                        <span className="shortcut-key">Ctrl+Shift+Esc</span>
+                        <span className="shortcut-desc">작업 관리자</span>
+                      </button>
+                      <button
+                        className="shortcut-item-btn"
+                        onClick={() => {
+                          sendRemoteShortcut(["alt", "f4"]);
+                          setShowShortcutsMenu(false);
+                        }}
+                      >
+                        <span className="shortcut-key">Alt + F4</span>
+                        <span className="shortcut-desc">창 닫기</span>
+                      </button>
+                      <button
+                        className="shortcut-item-btn"
+                        onClick={() => {
+                          sendRemoteShortcut(["hangulmode"]);
+                          setShowShortcutsMenu(false);
+                        }}
+                      >
+                        <span className="shortcut-key">한/영 전환</span>
+                        <span className="shortcut-desc">언어 변경</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 <div className="toolbar-divider" />
 
                 {/* 전체화면 */}
@@ -1797,30 +2000,32 @@ function App() {
                       top: `${guestCursor.y}px`,
                       pointerEvents: "none",
                       zIndex: 9999,
-                      transform: guestCursor.clicking ? "scale(0.88)" : "scale(1)",
-                      transition: "transform 0.05s ease",
-                      filter: "drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8))",
+                      transformOrigin: "0 0",
+                      transform: guestCursor.clicking ? "scale(0.85)" : "scale(1)",
+                      transition: "transform 0.05s cubic-bezier(0.2, 0, 0, 1)",
+                      filter: "drop-shadow(0 2px 5px rgba(0, 0, 0, 0.75))",
                     }}
                   >
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" style={{ display: "block" }}>
                       <path
-                        d="M3 3l7.5 19 2.8-7.2L20.5 12 3 3z"
+                        d="M0 0 L0 17 L4.5 13 L7.8 20.2 L10.6 18.9 L7.2 11.8 L12.8 11.8 Z"
                         fill="#ffffff"
-                        stroke="#0f172a"
-                        strokeWidth="2"
+                        stroke="#090d16"
+                        strokeWidth="1.6"
                         strokeLinejoin="round"
+                        strokeLinecap="round"
                       />
                     </svg>
                     {guestCursor.clicking && (
                       <div
                         style={{
                           position: "absolute",
-                          left: "-3px",
-                          top: "-3px",
-                          width: "14px",
-                          height: "14px",
+                          left: "-8px",
+                          top: "-8px",
+                          width: "16px",
+                          height: "16px",
                           borderRadius: "50%",
-                          background: "rgba(56, 189, 248, 0.4)",
+                          background: "rgba(56, 189, 248, 0.45)",
                           border: "2px solid #38bdf8",
                           pointerEvents: "none",
                         }}
