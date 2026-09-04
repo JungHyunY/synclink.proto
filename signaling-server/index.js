@@ -49,7 +49,7 @@ const server = http.createServer((req, res) => {
     res.end(JSON.stringify({
       status: "ok",
       service: "synclink-signaling",
-      version: "1.0.5",
+      version: "1.0.6",
       roomsOnline: rooms.size,
       timestamp: Date.now()
     }));

@@ -179,9 +179,14 @@ pub fn init_kvm(app_handle: AppHandle) {
     });
 
     // 2. Global Input Hook (Clicks & Keys) while controlling remote
-    let app_clone_input = app_handle.clone();
-    thread::spawn(move || {
-        let _ = rdev::listen(move |event| {
+    // NOTE: On macOS, rdev::listen() crashes with SIGABRT (__TSMCheckThread: TSM must be used on main thread)
+    // when invoked on background threads because it tries to translate keycodes via Carbon TSM APIs.
+    // Therefore, rdev::listen is restricted to Windows where SetWindowsHookEx is thread-safe.
+    #[cfg(target_os = "windows")]
+    {
+        let app_clone_input = app_handle.clone();
+        thread::spawn(move || {
+            let _ = rdev::listen(move |event| {
             let is_controlling = {
                 let guard = KVM_STATE.lock().unwrap();
                 if let Some(ref state) = *guard {
@@ -249,6 +254,7 @@ pub fn init_kvm(app_handle: AppHandle) {
             }
         });
     });
+    }
 }
 
 pub fn release_control() {
