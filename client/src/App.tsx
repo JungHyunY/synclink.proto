@@ -548,6 +548,20 @@ function App() {
               y: payload.y,
               monitorIndex: activeMonitorRef.current,
             });
+          } else if (payload.type === "mousedown") {
+            await invoke("remote_mouse_down", {
+              button: payload.button || "left",
+              x: payload.x,
+              y: payload.y,
+              monitorIndex: activeMonitorRef.current,
+            });
+          } else if (payload.type === "mouseup") {
+            await invoke("remote_mouse_up", {
+              button: payload.button || "left",
+              x: payload.x,
+              y: payload.y,
+              monitorIndex: activeMonitorRef.current,
+            });
           } else if (payload.type === "keydown" || payload.type === "keyup") {
             const state = payload.type === "keydown" ? "down" : "up";
             await invoke("remote_keyboard_event", { state, key: payload.key, code: payload.code || null });
@@ -828,19 +842,23 @@ function App() {
     }
   }, [isConnected, isHostMode]);
 
-  // Guest Input Handlers
+  // Guest Input Handlers (Full Mouse Down, Up, Drag, Right-click & Long-press Support)
   const handleRemoteInput = (e: React.MouseEvent, type: string) => {
     if (isHostRef.current) return;
     const video = (e.currentTarget.tagName === "VIDEO" ? e.currentTarget : remoteVideoRef.current) as HTMLVideoElement;
     if (!video) return;
-    if (type === "click") {
+
+    if (type === "mousedown" || type === "click") {
       const wrapper = video.parentElement;
       if (wrapper) wrapper.focus();
     }
+
     const rect = video.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
     const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+
+    const buttonName = e.button === 2 ? "right" : e.button === 1 ? "middle" : "left";
 
     if (type === "mousemove") {
       socketRef.current?.emit("control-event", {
@@ -850,11 +868,34 @@ function App() {
         y,
         monitorIndex: sessionMonitor,
       });
-    } else if (type === "click") {
+    } else if (type === "mousedown") {
+      setGuestCursor((prev) => ({ ...prev, clicking: true }));
+      socketRef.current?.emit("control-event", {
+        targetRoom: sessionRoomId,
+        type: "mousedown",
+        button: buttonName,
+        x,
+        y,
+        monitorIndex: sessionMonitor,
+      });
+    } else if (type === "mouseup") {
+      setGuestCursor((prev) => ({ ...prev, clicking: false }));
+      socketRef.current?.emit("control-event", {
+        targetRoom: sessionRoomId,
+        type: "mouseup",
+        button: buttonName,
+        x,
+        y,
+        monitorIndex: sessionMonitor,
+      });
+    } else if (type === "contextmenu") {
+      e.preventDefault();
+      e.stopPropagation();
+      // Safe fallback if mousedown/mouseup wasn't already triggered by browser
       socketRef.current?.emit("control-event", {
         targetRoom: sessionRoomId,
         type: "click",
-        button: e.button === 2 ? "right" : e.button === 1 ? "middle" : "left",
+        button: "right",
         x,
         y,
         monitorIndex: sessionMonitor,
@@ -956,16 +997,29 @@ function App() {
       }
     };
 
+    const onGlobalMouseUp = (e: MouseEvent) => {
+      setGuestCursor((prev) => ({ ...prev, clicking: false }));
+      const buttonName = e.button === 2 ? "right" : e.button === 1 ? "middle" : "left";
+      socketRef.current?.emit("control-event", {
+        targetRoom: sessionRoomId,
+        type: "mouseup",
+        button: buttonName,
+        monitorIndex: sessionMonitor,
+      });
+    };
+
     window.addEventListener("keydown", onGlobalKeyDown, { capture: true });
     window.addEventListener("keyup", onGlobalKeyUp, { capture: true });
+    window.addEventListener("mouseup", onGlobalMouseUp);
     window.addEventListener("blur", onWindowBlur);
 
     return () => {
       window.removeEventListener("keydown", onGlobalKeyDown, { capture: true });
       window.removeEventListener("keyup", onGlobalKeyUp, { capture: true });
+      window.removeEventListener("mouseup", onGlobalMouseUp);
       window.removeEventListener("blur", onWindowBlur);
     };
-  }, [isConnected, isHostMode, sessionRoomId]);
+  }, [isConnected, isHostMode, sessionRoomId, sessionMonitor]);
 
   // Change Remote Quality Preset
   const applyQualityPreset = (quality: number, fps: number) => {
@@ -1965,11 +2019,22 @@ function App() {
                 tabIndex={0}
                 onKeyDown={(e) => handleKeyInput(e, "keydown")}
                 onKeyUp={(e) => handleKeyInput(e, "keyup")}
-                onContextMenu={(e) => e.preventDefault()}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  handleRemoteInput(e, "contextmenu");
+                }}
                 onMouseEnter={() => setGuestCursor((prev) => ({ ...prev, visible: true }))}
                 onMouseLeave={() => setGuestCursor((prev) => ({ ...prev, visible: false, clicking: false }))}
-                onMouseDown={() => setGuestCursor((prev) => ({ ...prev, clicking: true }))}
-                onMouseUp={() => setGuestCursor((prev) => ({ ...prev, clicking: false }))}
+                onMouseDown={(e) => {
+                  if (e.target !== remoteVideoRef.current) {
+                    handleRemoteInput(e, "mousedown");
+                  }
+                }}
+                onMouseUp={(e) => {
+                  if (e.target !== remoteVideoRef.current) {
+                    handleRemoteInput(e, "mouseup");
+                  }
+                }}
                 onMouseMove={(e) => {
                   const rect = e.currentTarget.getBoundingClientRect();
                   setGuestCursor({
@@ -1978,6 +2043,9 @@ function App() {
                     visible: true,
                     clicking: e.buttons > 0,
                   });
+                  if (e.target !== remoteVideoRef.current) {
+                    handleRemoteInput(e, "mousemove");
+                  }
                 }}
                 style={{ cursor: showVirtualCursor ? "none" : "default" }}
               >
@@ -1986,8 +2054,10 @@ function App() {
                   autoPlay
                   playsInline
                   muted
-                  onClick={(e) => handleRemoteInput(e, "click")}
+                  onMouseDown={(e) => handleRemoteInput(e, "mousedown")}
+                  onMouseUp={(e) => handleRemoteInput(e, "mouseup")}
                   onMouseMove={(e) => handleRemoteInput(e, "mousemove")}
+                  onContextMenu={(e) => handleRemoteInput(e, "contextmenu")}
                   style={{ cursor: showVirtualCursor ? "none" : "default" }}
                 />
 

@@ -300,6 +300,36 @@ fn remote_mouse_click(button: String, x: Option<f64>, y: Option<f64>, monitor_in
 }
 
 #[command]
+fn remote_mouse_down(button: String, x: Option<f64>, y: Option<f64>, monitor_index: Option<usize>) {
+    if let (Some(px), Some(py)) = (x, y) {
+        remote_mouse_move(px, py, monitor_index.unwrap_or(0));
+    }
+    let btn = match button.as_str() {
+        "right" => Button::Right,
+        "middle" => Button::Middle,
+        _ => Button::Left,
+    };
+    if let Err(e) = simulate(&EventType::ButtonPress(btn)) {
+        eprintln!("⚠️ rdev ButtonPress error: {:?}", e);
+    }
+}
+
+#[command]
+fn remote_mouse_up(button: String, x: Option<f64>, y: Option<f64>, monitor_index: Option<usize>) {
+    if let (Some(px), Some(py)) = (x, y) {
+        remote_mouse_move(px, py, monitor_index.unwrap_or(0));
+    }
+    let btn = match button.as_str() {
+        "right" => Button::Right,
+        "middle" => Button::Middle,
+        _ => Button::Left,
+    };
+    if let Err(e) = simulate(&EventType::ButtonRelease(btn)) {
+        eprintln!("⚠️ rdev ButtonRelease error: {:?}", e);
+    }
+}
+
+#[command]
 fn remote_keyboard_event(state: String, key: String, code: Option<String>) {
     let rdev_key = str_to_key(&key).or_else(|| {
         code.as_deref().and_then(str_to_key)
@@ -681,7 +711,9 @@ fn main() {
             minimize_host_window,
             restore_host_window,
             stop_screen_capture,
-            remote_shortcut
+            remote_shortcut,
+            remote_mouse_down,
+            remote_mouse_up
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
