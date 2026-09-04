@@ -1316,7 +1316,7 @@ function App() {
       {/* macOS 권한 경고 배너 */}
       {!permissionGranted && (
         <div className="alert-banner">
-          <span>⚠️ 원격 제어와 화면 캡처를 위해 macOS 시스템 권한이 필요해요.</span>
+          <span>⚠️ 원격 제어 및 화면 캡처 권한이 필요해요. (권한 부여 후 <strong>Cmd+Q로 앱을 재시작</strong>해야 적용됩니다)</span>
           <div style={{ display: "flex", gap: "8px" }}>
             <button
               onClick={() => invoke("open_permission_settings", { permissionType: "accessibility" })}

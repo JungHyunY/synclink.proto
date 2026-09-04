@@ -467,11 +467,6 @@ fn check_permissions() -> bool {
     {
         let a11y = macos_accessibility_client::accessibility::application_is_trusted();
         let screen = unsafe { CGPreflightScreenCaptureAccess() };
-        if !screen {
-            unsafe {
-                CGRequestScreenCaptureAccess();
-            }
-        }
         return a11y && screen;
     }
     #[cfg(not(target_os = "macos"))]
@@ -484,15 +479,25 @@ fn check_permissions() -> bool {
 fn open_permission_settings(permission_type: String) {
     #[cfg(target_os = "macos")]
     {
-        let url = match permission_type.as_str() {
-            "screen" => "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
-            _ => "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
-        };
-        
-        std::process::Command::new("open")
-            .arg(url)
-            .spawn()
-            .ok();
+        if permission_type == "screen" {
+            unsafe {
+                CGRequestScreenCaptureAccess();
+            }
+            // First try modern Ventura / Sonoma / Sequoia path
+            let _ = std::process::Command::new("open")
+                .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
+                .spawn();
+            let _ = std::process::Command::new("open")
+                .arg("x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension")
+                .spawn();
+        } else {
+            let _ = std::process::Command::new("open")
+                .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+                .spawn();
+            let _ = std::process::Command::new("open")
+                .arg("x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension")
+                .spawn();
+        }
     }
     #[cfg(not(target_os = "macos"))]
     {

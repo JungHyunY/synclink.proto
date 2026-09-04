@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- App Transport Security (ATS) Settings: Allow HTTP & WebSocket signaling server connections -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key>
+        <true/>
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+    </dict>
+
+    <!-- Screen Recording Permission Description -->
+    <key>NSScreenCaptureUsageDescription</key>
+    <string>Yoonikon SyncLink requires screen recording permission to stream your display to remote guests.</string>
+
+    <!-- Accessibility Permission Description -->
+    <key>NSAccessibilityUsageDescription</key>
+    <string>Yoonikon SyncLink requires accessibility permission to simulate remote mouse and keyboard inputs.</string>
+
+    <!-- Camera & Microphone Descriptions (WebRTC Media) -->
+    <key>NSCameraUsageDescription</key>
+    <string>Yoonikon SyncLink requires camera access for WebRTC media streams.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Yoonikon SyncLink requires microphone access for WebRTC audio streams.</string>
+</dict>
+</plist>
