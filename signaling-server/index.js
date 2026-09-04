@@ -1,8 +1,12 @@
+const http = require("http");
 const { Server } = require("socket.io");
 const { exec } = require("child_process");
 const os = require("os");
 
 const PORT = process.env.PORT || 5963;
+
+// Map<roomId, { hostSocketId, password, deviceName, online }>
+const rooms = new Map();
 
 // ─── OS 방화벽 인바운드 포트 자동 개방 (Linux UFW / firewalld / Windows netsh) ───
 function autoOpenFirewallPort(port) {
@@ -10,10 +14,8 @@ function autoOpenFirewallPort(port) {
   let cmd = "";
 
   if (platform === "linux") {
-    // Ubuntu/Debian UFW 또는 CentOS/RHEL firewalld 자동 감지 및 개방
     cmd = `(command -v ufw >/dev/null 2>&1 && ufw allow ${port}/tcp) || (command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --zone=public --add-port=${port}/tcp --permanent && firewall-cmd --reload) || (command -v iptables >/dev/null 2>&1 && iptables -I INPUT -p tcp --dport ${port} -j ACCEPT)`;
   } else if (platform === "win32") {
-    // Windows 고급 방화벽 인바운드 규칙 등록 (관리자 권한 시 자동 등록)
     cmd = `netsh advfirewall firewall add rule name="SyncLink_Signaling_${port}" dir=in action=allow protocol=TCP localport=${port}`;
   }
 
@@ -30,14 +32,42 @@ function autoOpenFirewallPort(port) {
 
 autoOpenFirewallPort(PORT);
 
-const io = new Server(PORT, {
-  cors: { origin: "*" },
+// ─── HTTP Health Check & Diagnostic Server ───
+const server = http.createServer((req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  if (req.url === "/health" || req.url === "/ping" || req.url === "/") {
+    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({
+      status: "ok",
+      service: "synclink-signaling",
+      version: "1.0.4",
+      roomsOnline: rooms.size,
+      timestamp: Date.now()
+    }));
+    return;
+  }
+
+  res.writeHead(404);
+  res.end("Not Found");
 });
 
-console.log(`📡 Signaling Server running on port ${PORT}`);
+const io = new Server(server, {
+  cors: { origin: "*" },
+  transports: ["websocket", "polling"],
+});
 
-// Map<roomId, { hostSocketId, password, deviceName, online }>
-const rooms = new Map();
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`📡 Signaling Server running on http://0.0.0.0:${PORT}`);
+});
 
 io.on("connection", (socket) => {
   console.log(`🔌 Client connected: ${socket.id}`);

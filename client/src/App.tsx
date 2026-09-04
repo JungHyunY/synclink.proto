@@ -33,11 +33,21 @@ import {
   X,
   MousePointer,
   Keyboard,
+  AlertCircle,
 } from "lucide-react";
 import "./App.css";
 
 const DEFAULT_SERVER_URL = "";
 const ICE_SERVERS = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+
+function normalizeServerUrl(rawUrl: string): string {
+  let trimmed = rawUrl.trim();
+  if (!trimmed) return "";
+  if (!/^https?:\/\//i.test(trimmed)) {
+    trimmed = `http://${trimmed}`;
+  }
+  return trimmed.replace(/\/+$/, "");
+}
 
 function maskServerUrl(url: string): string {
   if (!url || url.trim() === "") return "미설정";
@@ -160,6 +170,129 @@ function App() {
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [availableUpdate, setAvailableUpdate] = useState<any>(null);
   const [isInstallingUpdate, setIsInstallingUpdate] = useState(false);
+
+  // Server Connection Test State
+  const [serverTestResult, setServerTestResult] = useState<{
+    status: "idle" | "testing" | "success" | "error";
+    message: string;
+    latency?: number;
+    details?: string;
+  }>({ status: "idle", message: "" });
+
+  const handleTestServerConnection = async (targetUrl?: string) => {
+    const rawTarget = targetUrl !== undefined ? targetUrl : serverUrl;
+    const cleanUrl = normalizeServerUrl(rawTarget);
+
+    if (!cleanUrl) {
+      setServerTestResult({
+        status: "error",
+        message: "서버 주소가 입력되지 않았어요.",
+        details: "서버 주소(예: http://192.168.0.x:5963)를 먼저 입력해주세요."
+      });
+      return;
+    }
+
+    // localhost 검사 (macOS/타 기기 접속 시 자주 발생하는 실수 경고)
+    const isLocalhost = cleanUrl.includes("localhost") || cleanUrl.includes("127.0.0.1");
+
+    setServerTestResult({
+      status: "testing",
+      message: `서버(${cleanUrl})로 연결 테스트 진행 중...`
+    });
+
+    const startTime = Date.now();
+
+    // 1단계: HTTP Health Check (/health) 테스트 (빠른 응답 및 진단)
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(`${cleanUrl}/health`, {
+        method: "GET",
+        signal: controller.signal,
+        headers: { "Accept": "application/json" }
+      }).catch((err) => {
+        throw err;
+      });
+      clearTimeout(timeoutId);
+
+      if (res && res.ok) {
+        const latency = Date.now() - startTime;
+        let data: any = {};
+        try {
+          data = await res.json();
+        } catch {}
+        setServerTestResult({
+          status: "success",
+          message: `시그널링 서버 연결 성공! (지연시간: ${latency}ms)`,
+          latency,
+          details: `서버 버전: ${data.version || "1.0.4"} | 온라인 호스트 방: ${data.roomsOnline ?? 0}개`
+        });
+        return;
+      }
+    } catch (httpErr) {
+      console.warn("HTTP Health check failed, falling back to Socket.io handshake:", httpErr);
+    }
+
+    // 2단계: Socket.io 직접 핸드셰이크 테스트
+    try {
+      const testSocket = io(cleanUrl, {
+        transports: ["websocket", "polling"],
+        timeout: 5000,
+        reconnection: false,
+        autoConnect: true,
+      });
+
+      const socketResult = await new Promise<{ success: boolean; latency: number; error?: string }>((resolve) => {
+        const timeout = setTimeout(() => {
+          testSocket.disconnect();
+          resolve({ success: false, latency: 0, error: "연결 시간 초과 (Timeout 5초)" });
+        }, 5000);
+
+        testSocket.on("connect", () => {
+          clearTimeout(timeout);
+          const latency = Date.now() - startTime;
+          testSocket.disconnect();
+          resolve({ success: true, latency });
+        });
+
+        testSocket.on("connect_error", (err) => {
+          clearTimeout(timeout);
+          testSocket.disconnect();
+          resolve({ success: false, latency: 0, error: err.message });
+        });
+      });
+
+      if (socketResult.success) {
+        setServerTestResult({
+          status: "success",
+          message: `시그널링 서버 연결 성공! (지연시간: ${socketResult.latency}ms)`,
+          latency: socketResult.latency,
+          details: "Socket.io 웹소켓 핸드셰이크가 정상적으로 완료되었습니다."
+        });
+      } else {
+        let helpGuide = "서버가 켜져 있는지 확인해주세요.";
+        if (isLocalhost) {
+          helpGuide = "현재 주소가 'localhost'로 설정되어 있습니다! 다른 기기(Mac/다른 PC)에서 접속할 때는 서버가 실행 중인 PC의 '실제 로컬 IP(예: 192.168.0.x:5963)'나 공인 IP를 입력해야 합니다.";
+        } else {
+          helpGuide = "서버 PC의 방화벽(5963 포트)이 차단되어 있거나, 같은 공유기(Wi-Fi) 네트워크에 연결되어 있지 않을 수 있습니다.";
+        }
+
+        setServerTestResult({
+          status: "error",
+          message: `서버 연결 실패: ${socketResult.error}`,
+          details: helpGuide
+        });
+      }
+    } catch (err: any) {
+      setServerTestResult({
+        status: "error",
+        message: `연결 시도 중 에러 발생: ${err.message || err}`,
+        details: isLocalhost
+          ? "다른 PC/Mac에서는 localhost 대신 서버 PC의 실제 IP를 입력하세요."
+          : "IP 주소와 포트(5963) 번호, 방화벽 설정을 확인해주세요."
+      });
+    }
+  };
 
   const handleCheckForUpdate = async (manual = false) => {
     try {
@@ -395,14 +528,17 @@ function App() {
       socketRef.current.disconnect();
     }
 
-    if (!serverUrl || serverUrl.trim() === "") {
+    const cleanUrl = normalizeServerUrl(serverUrl);
+    if (!cleanUrl) {
       setIsServerConnected(false);
       return;
     }
 
-    const socket = io(serverUrl, {
+    const socket = io(cleanUrl, {
+      transports: ["websocket", "polling"],
       reconnectionAttempts: 10,
       reconnectionDelay: 2000,
+      timeout: 8000,
     });
     socketRef.current = socket;
 
@@ -426,6 +562,11 @@ function App() {
 
     socket.on("disconnect", () => {
       console.log("❌ Disconnected from signaling server");
+      setIsServerConnected(false);
+    });
+
+    socket.on("connect_error", (err) => {
+      console.warn("⚠️ Signaling connection error:", err.message);
       setIsServerConnected(false);
     });
 
@@ -1724,7 +1865,25 @@ function App() {
                         {showServerUrl ? <EyeOff size={16} /> : <Eye size={16} />}
                       </button>
                     </div>
-                    <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+                    <div style={{ display: "flex", gap: "8px", marginTop: "4px", flexWrap: "wrap" }}>
+                      <button
+                        className="btn-main btn-secondary-dark"
+                        style={{ padding: "6px 12px", fontSize: "0.8rem", color: "#38bdf8", borderColor: "rgba(56, 189, 248, 0.4)" }}
+                        onClick={() => handleTestServerConnection()}
+                        disabled={serverTestResult.status === "testing"}
+                      >
+                        {serverTestResult.status === "testing" ? (
+                          <>
+                            <RefreshCw size={13} className="spin" style={{ marginRight: "4px" }} />
+                            연결 확인 중...
+                          </>
+                        ) : (
+                          <>
+                            <Zap size={13} style={{ marginRight: "4px" }} />
+                            서버 연결 테스트
+                          </>
+                        )}
+                      </button>
                       <button className="btn-main btn-secondary-dark" style={{ padding: "6px 12px", fontSize: "0.8rem" }} onClick={() => setServerUrl("http://localhost:5963")}>
                         로컬호스트 (5963)
                       </button>
@@ -1734,12 +1893,60 @@ function App() {
                         onClick={() => {
                           setServerUrl("");
                           localStorage.removeItem("synclink_server_url");
+                          setServerTestResult({ status: "idle", message: "" });
                         }}
                         title="서버 주소를 초기화하고 초기 설정 화면으로 돌아가요"
                       >
                         서버 설정 초기화
                       </button>
                     </div>
+
+                    {/* Server Connection Test Diagnostic Card */}
+                    {serverTestResult.status !== "idle" && (
+                      <div
+                        style={{
+                          marginTop: "10px",
+                          padding: "10px 14px",
+                          borderRadius: "8px",
+                          fontSize: "0.82rem",
+                          border:
+                            serverTestResult.status === "success"
+                              ? "1px solid rgba(74, 222, 128, 0.4)"
+                              : serverTestResult.status === "error"
+                              ? "1px solid rgba(248, 113, 113, 0.4)"
+                              : "1px solid rgba(56, 189, 248, 0.4)",
+                          background:
+                            serverTestResult.status === "success"
+                              ? "rgba(34, 197, 94, 0.08)"
+                              : serverTestResult.status === "error"
+                              ? "rgba(239, 68, 68, 0.08)"
+                              : "rgba(56, 189, 248, 0.08)",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: "bold" }}>
+                          {serverTestResult.status === "testing" && <RefreshCw size={14} className="spin" color="#38bdf8" />}
+                          {serverTestResult.status === "success" && <Check size={14} color="#4ade80" />}
+                          {serverTestResult.status === "error" && <AlertCircle size={14} color="#f87171" />}
+                          <span
+                            style={{
+                              color:
+                                serverTestResult.status === "success"
+                                  ? "#4ade80"
+                                  : serverTestResult.status === "error"
+                                  ? "#f87171"
+                                  : "#38bdf8",
+                            }}
+                          >
+                            {serverTestResult.message}
+                          </span>
+                        </div>
+                        {serverTestResult.details && (
+                          <div style={{ marginTop: "4px", color: "var(--text-muted)", fontSize: "0.78rem", lineHeight: "1.4" }}>
+                            {serverTestResult.details}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="input-field-group" style={{ marginTop: "12px" }}>
@@ -2330,10 +2537,7 @@ function App() {
                 const form = e.currentTarget;
                 const input = form.elements.namedItem("initialServerInput") as HTMLInputElement;
                 if (input && input.value.trim()) {
-                  let formatted = input.value.trim();
-                  if (!formatted.startsWith("http://") && !formatted.startsWith("https://")) {
-                    formatted = "http://" + formatted;
-                  }
+                  const formatted = normalizeServerUrl(input.value.trim());
                   setServerUrl(formatted);
                   localStorage.setItem("synclink_server_url", formatted);
                 }
@@ -2342,6 +2546,7 @@ function App() {
               <div className="input-field-group" style={{ marginBottom: "14px" }}>
                 <label className="input-label" style={{ fontWeight: 600 }}>시그널링 서버 주소 (URL / IP)</label>
                 <input
+                  id="initialServerInput"
                   name="initialServerInput"
                   className="input-text mono"
                   placeholder="예: http://192.168.0.10:5963 또는 http://내서버:5963"
@@ -2352,19 +2557,90 @@ function App() {
                 />
               </div>
 
-              <div style={{ display: "flex", gap: "8px", marginBottom: "18px" }}>
+              <div style={{ display: "flex", gap: "8px", marginBottom: "12px", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="btn-main btn-secondary-dark"
+                  style={{ flex: 1, padding: "8px 10px", fontSize: "0.8rem", color: "#38bdf8", borderColor: "rgba(56, 189, 248, 0.4)" }}
+                  onClick={() => {
+                    const input = document.getElementById("initialServerInput") as HTMLInputElement;
+                    if (input) handleTestServerConnection(input.value);
+                  }}
+                  disabled={serverTestResult.status === "testing"}
+                >
+                  {serverTestResult.status === "testing" ? (
+                    <>
+                      <RefreshCw size={13} className="spin" style={{ marginRight: "4px" }} />
+                      연결 확인 중...
+                    </>
+                  ) : (
+                    <>
+                      <Zap size={13} style={{ marginRight: "4px" }} />
+                      서버 연결 테스트
+                    </>
+                  )}
+                </button>
                 <button
                   type="button"
                   className="btn-main btn-secondary-dark"
                   style={{ flex: 1, padding: "8px 10px", fontSize: "0.8rem" }}
                   onClick={() => {
+                    const input = document.getElementById("initialServerInput") as HTMLInputElement;
+                    if (input) input.value = "http://localhost:5963";
                     setServerUrl("http://localhost:5963");
                     localStorage.setItem("synclink_server_url", "http://localhost:5963");
                   }}
                 >
-                  로컬호스트 (localhost:5963)
+                  로컬호스트 (5963)
                 </button>
               </div>
+
+              {/* 연결 테스트 결과 알림 */}
+              {serverTestResult.status !== "idle" && (
+                <div
+                  style={{
+                    marginBottom: "14px",
+                    padding: "10px 14px",
+                    borderRadius: "8px",
+                    fontSize: "0.82rem",
+                    border:
+                      serverTestResult.status === "success"
+                        ? "1px solid rgba(74, 222, 128, 0.4)"
+                        : serverTestResult.status === "error"
+                        ? "1px solid rgba(248, 113, 113, 0.4)"
+                        : "1px solid rgba(56, 189, 248, 0.4)",
+                    background:
+                      serverTestResult.status === "success"
+                        ? "rgba(34, 197, 94, 0.08)"
+                        : serverTestResult.status === "error"
+                        ? "rgba(239, 68, 68, 0.08)"
+                        : "rgba(56, 189, 248, 0.08)",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: "bold" }}>
+                    {serverTestResult.status === "testing" && <RefreshCw size={14} className="spin" color="#38bdf8" />}
+                    {serverTestResult.status === "success" && <Check size={14} color="#4ade80" />}
+                    {serverTestResult.status === "error" && <AlertCircle size={14} color="#f87171" />}
+                    <span
+                      style={{
+                        color:
+                          serverTestResult.status === "success"
+                            ? "#4ade80"
+                            : serverTestResult.status === "error"
+                            ? "#f87171"
+                            : "#38bdf8",
+                      }}
+                    >
+                      {serverTestResult.message}
+                    </span>
+                  </div>
+                  {serverTestResult.details && (
+                    <div style={{ marginTop: "4px", color: "var(--text-muted)", fontSize: "0.78rem", lineHeight: "1.4" }}>
+                      {serverTestResult.details}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div style={{ background: "rgba(0, 0, 0, 0.35)", borderRadius: "10px", padding: "12px", marginBottom: "22px", border: "1px solid rgba(255, 255, 255, 0.08)" }}>
                 <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#60a5fa", marginBottom: "4px" }}>💡 아직 시그널링 서버가 없으신가요?</div>
