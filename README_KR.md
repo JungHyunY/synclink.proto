@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Tauri: v2](https://img.shields.io/badge/Tauri-v2.0-24C8D8.svg)](https://tauri.app/)
 [![Rust](https://img.shields.io/badge/Rust-Tokio_|_rdev-DEA584.svg)](https://www.rust-lang.org/)
-[![UI: BDS](https://img.shields.io/badge/Design_System-BDS_v1.0.2-6366F1.svg)](https://www.npmjs.com/package/blueward-design-system)
+[![UI: YDS](https://img.shields.io/badge/Design_System-YDS_v2.0-6b7f42.svg)](http://localhost:5100)
 
 ---
 
@@ -52,7 +52,7 @@ curl -fsSL https://raw.githubusercontent.com/JungHyunY/synclink.proto/main/signa
 * **초경량 데스크톱 클라이언트 (`client/`):** Tauri v2 기반의 10MB 미만 초경량 번들 (Electron 대비 메모리 점유율 90% 절감)
 * **초저지연 WebRTC P2P 전송:** STUN/TURN 서버 기반의 중계 서버 없는 다이렉트 화면/입력 스트리밍
 * **시그널링 서버 (`signaling-server/`):** Node.js + Socket.io 기반의 초고속 P2P 세션 연결
-* **BDS 디자인 시스템 내장:** `blueward-design-system` v1.0.2 기반의 유려한 다크/라이트 테마 인터페이스
+* **YDS 디자인 시스템 내장:** Yoonikon Design System (YDS) v2.0 Tactical HUD 기반의 유려한 다크/라이트 테마 인터페이스
 
 ---
 

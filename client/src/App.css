@@ -1,36 +1,36 @@
-@import 'blueward-design-system/tokens.css';
-
 :root {
-  /* Official Blueward Design System (BDS) Tokens */
-  --bds-blue-core: #0066FF;
-  --bds-blue-electric: #00C2FF;
-  --bds-void-dark: #060B18;
-  --bds-sapphire-dark: #0B132B;
-  --bds-elevated-sapphire: #111C3D;
-  --bds-divider-navy: #1C284E;
+  /* Yoonikon Design System (YDS) Tactical HUD Tokens */
+  --yds-olive-core: #6b7f42;
+  --yds-olive-light: #8a9a5b;
+  --yds-olive-hover: #556832;
+  --yds-titanium-dark: #0f1113;
+  --yds-titanium-surface: #18181b;
+  --yds-titanium-card: #1e2024;
+  --yds-titanium-border: #27272a;
+  --yds-gold-accent: #dda15e;
 
-  --bg-color: #060B18;
-  --sidebar-bg: rgba(11, 19, 43, 0.92);
-  --card-bg: rgba(17, 28, 61, 0.78);
-  --card-border: #1C284E;
-  --card-hover: rgba(28, 40, 78, 0.95);
+  --bg-color: #0f1113;
+  --sidebar-bg: rgba(24, 24, 27, 0.95);
+  --card-bg: rgba(30, 32, 36, 0.85);
+  --card-border: #27272a;
+  --card-hover: rgba(45, 51, 59, 0.95);
   
-  --primary: #0066FF;
-  --primary-gradient: linear-gradient(135deg, #0066FF 0%, #00C2FF 100%);
-  --primary-hover: #0052cc;
-  --accent: #00C2FF;
-  --success: #10B981;
-  --warning: #F59E0B;
-  --danger: #EF4444;
+  --primary: #6b7f42;
+  --primary-gradient: linear-gradient(135deg, #6b7f42 0%, #8a9a5b 100%);
+  --primary-hover: #556832;
+  --accent: #dda15e;
+  --success: #6b7f42;
+  --warning: #dda15e;
+  --danger: #ef4444;
   
-  --text-main: #F8FAFC;
-  --text-muted: #94A3B8;
-  --text-dim: #64748B;
+  --text-main: #f4f4f5;
+  --text-muted: #a1a1aa;
+  --text-dim: #71717a;
   
-  --glass-bg: rgba(11, 19, 43, 0.88);
-  --glass-border: rgba(0, 194, 255, 0.18);
-  --shadow-lg: 0 20px 40px -15px rgba(6, 11, 24, 0.8);
-  --shadow-glow: 0 0 24px rgba(0, 102, 255, 0.45);
+  --glass-bg: rgba(24, 24, 27, 0.92);
+  --glass-border: rgba(107, 127, 66, 0.25);
+  --shadow-lg: 0 20px 40px -15px rgba(15, 17, 19, 0.8);
+  --shadow-glow: 0 0 24px rgba(107, 127, 66, 0.35);
 }
 
 * {
@@ -39,7 +39,7 @@
 
 body {
   margin: 0;
-  font-family: var(--bds-font-sans, 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif);
+  font-family: var(--yds-font-sans, 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif);
   background-color: var(--bg-color);
   color: var(--text-main);
   height: 100vh;
@@ -49,14 +49,14 @@ body {
 }
 
 .mono {
-  font-family: var(--bds-font-mono, 'JetBrains Mono', monospace);
+  font-family: var(--yds-font-mono, 'JetBrains Mono', monospace);
 }
 
 .container {
   display: flex;
   height: 100vh;
   width: 100vw;
-  background: radial-gradient(circle at 50% 0%, #0B132B 0%, #060B18 80%);
+  background: radial-gradient(circle at 50% 0%, #1e2024 0%, #0f1113 80%);
   overflow: hidden;
 }
 
