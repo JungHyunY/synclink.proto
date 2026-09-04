@@ -631,9 +631,6 @@ body {
 
 .in-session-toolbar {
   position: absolute;
-  top: 14px;
-  left: 50%;
-  transform: translateX(-50%);
   background: rgba(15, 23, 42, 0.88);
   backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -641,10 +638,85 @@ body {
   padding: 6px 16px;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.6);
   z-index: 1000;
-  transition: opacity 0.3s;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.in-session-toolbar.pos-top-center {
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: auto;
+  right: auto;
+}
+
+.in-session-toolbar.pos-top-left {
+  top: 14px;
+  left: 20px;
+  right: auto;
+  bottom: auto;
+  transform: none;
+}
+
+.in-session-toolbar.pos-top-right {
+  top: 14px;
+  right: 20px;
+  left: auto;
+  bottom: auto;
+  transform: none;
+}
+
+.in-session-toolbar.pos-bottom-center {
+  bottom: 16px;
+  top: auto;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+}
+
+.in-session-toolbar.minimized {
+  padding: 6px 14px;
+  gap: 8px;
+  border-radius: 20px;
+  cursor: pointer;
+  background: rgba(15, 23, 42, 0.82);
+  user-select: none;
+}
+
+.in-session-toolbar.minimized:hover {
+  background: rgba(15, 23, 42, 0.96);
+  border-color: var(--primary);
+}
+
+.in-session-toolbar.minimized.pos-top-center:hover {
+  transform: translateX(-50%) translateY(2px);
+}
+
+.in-session-toolbar.minimized.pos-top-left:hover,
+.in-session-toolbar.minimized.pos-top-right:hover {
+  transform: translateY(2px);
+}
+
+.in-session-toolbar.minimized.pos-bottom-center:hover {
+  transform: translateX(-50%) translateY(-2px);
+}
+
+.minimized-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-main);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.minimized-ping {
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-left: 2px;
 }
 
 .toolbar-badge {

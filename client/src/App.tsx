@@ -37,6 +37,9 @@ import {
   ExternalLink,
   Sun,
   Moon,
+  ChevronUp,
+  ChevronDown,
+  Move,
 } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import "./App.css";
@@ -220,6 +223,24 @@ function App() {
   useEffect(() => {
     flowModeRef.current = flowMode;
   }, [flowMode]);
+
+  // Floating Toolbar Position & Minimize State
+  type ToolbarPosition = "top-center" | "top-left" | "top-right" | "bottom-center";
+  const [toolbarPosition, setToolbarPosition] = useState<ToolbarPosition>(() => {
+    return (localStorage.getItem("synclink_toolbar_pos") as ToolbarPosition) || "top-center";
+  });
+  const [isToolbarMinimized, setIsToolbarMinimized] = useState<boolean>(() => {
+    return localStorage.getItem("synclink_toolbar_minimized") === "true";
+  });
+  const [showPosMenu, setShowPosMenu] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem("synclink_toolbar_pos", toolbarPosition);
+  }, [toolbarPosition]);
+
+  useEffect(() => {
+    localStorage.setItem("synclink_toolbar_minimized", String(isToolbarMinimized));
+  }, [isToolbarMinimized]);
 
   const [availableMonitors, setAvailableMonitors] = useState<any[]>([]);
 
@@ -2699,211 +2720,316 @@ function App() {
       ) : (
         /* ─────────────────── IN-SESSION SCREEN (ACTIVE) ─────────────────── */
         <div className="session-screen" ref={videoContainerRef}>
-          {/* 상단 플로팅 글래스모피즘 툴바 */}
-          <div className="in-session-toolbar">
-            <div className="toolbar-badge">
+          {/* 상단 플로팅 글래스모피즘 툴바 (최소화 및 위치 변경 지원) */}
+          {isToolbarMinimized ? (
+            <div
+              className={`in-session-toolbar minimized pos-${toolbarPosition}`}
+              onClick={() => setIsToolbarMinimized(false)}
+              title="클릭하여 툴바 펼치기"
+            >
               <div className="status-dot-sm online" />
-              <span>{sessionDeviceName || formatDeviceId(sessionRoomId)}</span>
-              <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginLeft: "4px" }}>({status})</span>
+              <span className="minimized-title">
+                {sessionDeviceName || formatDeviceId(sessionRoomId)}
+              </span>
+              {ping !== null && (
+                <span className="minimized-ping" style={{ color: ping < 50 ? "#34d399" : "#f59e0b" }}>
+                  {ping}ms
+                </span>
+              )}
+              {toolbarPosition === "bottom-center" ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </div>
-
-            {ping !== null && (
-              <div className="toolbar-badge" style={{ color: ping < 50 ? "#34d399" : "#f59e0b" }}>
-                <Activity size={14} />
-                <span>{ping} ms</span>
-                <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginLeft: "4px" }}>• {sessionFps} FPS</span>
+          ) : (
+            <div className={`in-session-toolbar pos-${toolbarPosition}`}>
+              <div className="toolbar-badge">
+                <div className="status-dot-sm online" />
+                <span>{sessionDeviceName || formatDeviceId(sessionRoomId)}</span>
+                <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginLeft: "4px" }}>({status})</span>
               </div>
-            )}
 
-            {flowMode === "flow" && (
-              <div className="toolbar-badge" style={{ background: "rgba(107, 127, 66, 0.2)", color: "#8a9a5b", border: "1px solid rgba(107, 127, 66, 0.4)" }}>
-                <Activity size={14} />
-                <span>SyncLink Flow (KVM)</span>
-              </div>
-            )}
+              {ping !== null && (
+                <div className="toolbar-badge" style={{ color: ping < 50 ? "#34d399" : "#f59e0b" }}>
+                  <Activity size={14} />
+                  <span>{ping} ms</span>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginLeft: "4px" }}>• {sessionFps} FPS</span>
+                </div>
+              )}
 
-            {/* 게스트 제어 옵션들 (화면 제어 모드일 때만 표시) */}
-            {!isHostMode && flowMode !== "flow" && (
-              <>
-                {/* 화질 프리셋 */}
-                <button
-                  className={`toolbar-btn ${sessionQuality === 95 ? "active" : ""}`}
-                  onClick={() => applyQualityPreset(95, 60)}
-                  title="초고화질 (60 FPS)"
-                >
-                  <Zap size={14} />
-                  <span>Ultra 60fps</span>
-                </button>
+              {flowMode === "flow" && (
+                <div className="toolbar-badge" style={{ background: "rgba(107, 127, 66, 0.2)", color: "#8a9a5b", border: "1px solid rgba(107, 127, 66, 0.4)" }}>
+                  <Activity size={14} />
+                  <span>SyncLink Flow (KVM)</span>
+                </div>
+              )}
 
-                <button
-                  className={`toolbar-btn ${sessionQuality === 65 ? "active" : ""}`}
-                  onClick={() => applyQualityPreset(65, 30)}
-                  title="균형 화질 (30 FPS)"
-                >
-                  <span>Balanced</span>
-                </button>
-
-                {/* 모니터 전환 */}
-                <button
-                  className="toolbar-btn"
-                  onClick={() => switchRemoteMonitor(sessionMonitor === 0 ? 1 : 0)}
-                  title="화면 전환"
-                >
-                  <Monitor size={14} />
-                  <span>Display {sessionMonitor + 1}</span>
-                </button>
-
-                {/* 클립보드 동기화 상태 */}
-                <button
-                  className={`toolbar-btn ${autoClipboardSync ? "active" : ""}`}
-                  onClick={() => setAutoClipboardSync(!autoClipboardSync)}
-                  title="클립보드 자동 동기화 토글"
-                >
-                  <Clipboard size={14} />
-                  <span>클립보드</span>
-                </button>
-
-                {/* 프라이버시 블랙스크린 (커튼 모드) */}
-                <button
-                  className={`toolbar-btn ${isBlackScreen ? "active" : ""}`}
-                  onClick={() => toggleBlackScreen(!isBlackScreen)}
-                  title="호스트 현장 모니터 화면 가리기 (프라이버시 모드)"
-                >
-                  <EyeOff size={14} color={isBlackScreen ? "#34d399" : "#94a3b8"} />
-                  <span>{isBlackScreen ? "화면 가림 On" : "프라이버시"}</span>
-                </button>
-
-                {/* 원격 마우스 커서 표시 토글 */}
-                <button
-                  className={`toolbar-btn ${showVirtualCursor ? "active" : ""}`}
-                  onClick={() => setShowVirtualCursor(!showVirtualCursor)}
-                  title="원격 마우스 포인터 표시 On/Off"
-                >
-                  <MousePointer size={14} color={showVirtualCursor ? "#38bdf8" : "#94a3b8"} />
-                  <span>{showVirtualCursor ? "커서 On" : "커서 Off"}</span>
-                </button>
-
-                {/* 원격 단축키 퀵 전송 메뉴 */}
-                <div style={{ position: "relative" }}>
+              {/* 게스트 제어 옵션들 (화면 제어 모드일 때만 표시) */}
+              {!isHostMode && flowMode !== "flow" && (
+                <>
+                  {/* 화질 프리셋 */}
                   <button
-                    className={`toolbar-btn ${showShortcutsMenu ? "active" : ""}`}
-                    onClick={() => setShowShortcutsMenu(!showShortcutsMenu)}
-                    title="단축키 퀵 전송 메뉴"
+                    className={`toolbar-btn ${sessionQuality === 95 ? "active" : ""}`}
+                    onClick={() => applyQualityPreset(95, 60)}
+                    title="초고화질 (60 FPS)"
                   >
-                    <Keyboard size={14} />
-                    <span>단축키</span>
+                    <Zap size={14} />
+                    <span>Ultra 60fps</span>
                   </button>
 
-                  {showShortcutsMenu && (
-                    <div
-                      className="glass-card"
-                      style={{
-                        position: "absolute",
-                        top: "100%",
-                        left: "50%",
-                        transform: "translateX(-50%)",
-                        marginTop: "8px",
-                        padding: "6px",
-                        width: "210px",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "4px",
-                        zIndex: 10001,
-                        background: "rgba(15, 23, 42, 0.96)",
-                        border: "1px solid rgba(255, 255, 255, 0.15)",
-                        borderRadius: "10px",
-                        boxShadow: "0 10px 25px rgba(0,0,0,0.6)",
+                  <button
+                    className={`toolbar-btn ${sessionQuality === 65 ? "active" : ""}`}
+                    onClick={() => applyQualityPreset(65, 30)}
+                    title="균형 화질 (30 FPS)"
+                  >
+                    <span>Balanced</span>
+                  </button>
+
+                  {/* 모니터 전환 */}
+                  <button
+                    className="toolbar-btn"
+                    onClick={() => switchRemoteMonitor(sessionMonitor === 0 ? 1 : 0)}
+                    title="화면 전환"
+                  >
+                    <Monitor size={14} />
+                    <span>Display {sessionMonitor + 1}</span>
+                  </button>
+
+                  {/* 클립보드 동기화 상태 */}
+                  <button
+                    className={`toolbar-btn ${autoClipboardSync ? "active" : ""}`}
+                    onClick={() => setAutoClipboardSync(!autoClipboardSync)}
+                    title="클립보드 자동 동기화 토글"
+                  >
+                    <Clipboard size={14} />
+                    <span>클립보드</span>
+                  </button>
+
+                  {/* 프라이버시 블랙스크린 (커튼 모드) */}
+                  <button
+                    className={`toolbar-btn ${isBlackScreen ? "active" : ""}`}
+                    onClick={() => toggleBlackScreen(!isBlackScreen)}
+                    title="호스트 현장 모니터 화면 가리기 (프라이버시 모드)"
+                  >
+                    <EyeOff size={14} color={isBlackScreen ? "#34d399" : "#94a3b8"} />
+                    <span>{isBlackScreen ? "화면 가림 On" : "프라이버시"}</span>
+                  </button>
+
+                  {/* 원격 마우스 커서 표시 토글 */}
+                  <button
+                    className={`toolbar-btn ${showVirtualCursor ? "active" : ""}`}
+                    onClick={() => setShowVirtualCursor(!showVirtualCursor)}
+                    title="원격 마우스 포인터 표시 On/Off"
+                  >
+                    <MousePointer size={14} color={showVirtualCursor ? "#38bdf8" : "#94a3b8"} />
+                    <span>{showVirtualCursor ? "커서 On" : "커서 Off"}</span>
+                  </button>
+
+                  {/* 원격 단축키 퀵 전송 메뉴 */}
+                  <div style={{ position: "relative" }}>
+                    <button
+                      className={`toolbar-btn ${showShortcutsMenu ? "active" : ""}`}
+                      onClick={() => setShowShortcutsMenu(!showShortcutsMenu)}
+                      title="단축키 퀵 전송 메뉴"
+                    >
+                      <Keyboard size={14} />
+                      <span>단축키</span>
+                    </button>
+
+                    {showShortcutsMenu && (
+                      <div
+                        className="glass-card"
+                        style={{
+                          position: "absolute",
+                          top: toolbarPosition === "bottom-center" ? "auto" : "100%",
+                          bottom: toolbarPosition === "bottom-center" ? "100%" : "auto",
+                          left: "50%",
+                          transform: "translateX(-50%)",
+                          marginTop: toolbarPosition === "bottom-center" ? "0" : "8px",
+                          marginBottom: toolbarPosition === "bottom-center" ? "8px" : "0",
+                          padding: "6px",
+                          width: "210px",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "4px",
+                          zIndex: 10001,
+                          background: "rgba(15, 23, 42, 0.96)",
+                          border: "1px solid rgba(255, 255, 255, 0.15)",
+                          borderRadius: "10px",
+                          boxShadow: "0 10px 25px rgba(0,0,0,0.6)",
+                        }}
+                      >
+                        <button
+                          className="shortcut-item-btn"
+                          onClick={() => {
+                            sendRemoteShortcut(["control", "alt", "delete"]);
+                            setShowShortcutsMenu(false);
+                          }}
+                        >
+                          <span className="shortcut-key">Ctrl + Alt + Del</span>
+                          <span className="shortcut-desc">보안 화면</span>
+                        </button>
+                        <button
+                          className="shortcut-item-btn"
+                          onClick={() => {
+                            sendRemoteShortcut(["meta"]);
+                            setShowShortcutsMenu(false);
+                          }}
+                        >
+                          <span className="shortcut-key">Win (시작)</span>
+                          <span className="shortcut-desc">시작 메뉴</span>
+                        </button>
+                        <button
+                          className="shortcut-item-btn"
+                          onClick={() => {
+                            sendRemoteShortcut(["meta", "d"]);
+                            setShowShortcutsMenu(false);
+                          }}
+                        >
+                          <span className="shortcut-key">Win + D</span>
+                          <span className="shortcut-desc">바탕화면</span>
+                        </button>
+                        <button
+                          className="shortcut-item-btn"
+                          onClick={() => {
+                            sendRemoteShortcut(["alt", "tab"]);
+                            setShowShortcutsMenu(false);
+                          }}
+                        >
+                          <span className="shortcut-key">Alt + Tab</span>
+                          <span className="shortcut-desc">작업 전환</span>
+                        </button>
+                        <button
+                          className="shortcut-item-btn"
+                          onClick={() => {
+                            sendRemoteShortcut(["control", "shift", "escape"]);
+                            setShowShortcutsMenu(false);
+                          }}
+                        >
+                          <span className="shortcut-key">Ctrl+Shift+Esc</span>
+                          <span className="shortcut-desc">작업 관리자</span>
+                        </button>
+                        <button
+                          className="shortcut-item-btn"
+                          onClick={() => {
+                            sendRemoteShortcut(["alt", "f4"]);
+                            setShowShortcutsMenu(false);
+                          }}
+                        >
+                          <span className="shortcut-key">Alt + F4</span>
+                          <span className="shortcut-desc">창 닫기</span>
+                        </button>
+                        <button
+                          className="shortcut-item-btn"
+                          onClick={() => {
+                            sendRemoteShortcut(["hangulmode"]);
+                            setShowShortcutsMenu(false);
+                          }}
+                        >
+                          <span className="shortcut-key">한/영 전환</span>
+                          <span className="shortcut-desc">언어 변경</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="toolbar-divider" />
+
+                  {/* 전체화면 */}
+                  <button className="toolbar-btn" onClick={toggleFullscreen} title="전체화면">
+                    {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                  </button>
+                </>
+              )}
+
+              <div className="toolbar-divider" />
+
+              {/* 툴바 위치 변경 버튼 */}
+              <div style={{ position: "relative" }}>
+                <button
+                  className={`toolbar-btn ${showPosMenu ? "active" : ""}`}
+                  onClick={() => setShowPosMenu(!showPosMenu)}
+                  title="툴바 위치 변경"
+                >
+                  <Move size={14} />
+                  <span>위치</span>
+                </button>
+
+                {showPosMenu && (
+                  <div
+                    className="glass-card"
+                    style={{
+                      position: "absolute",
+                      top: toolbarPosition === "bottom-center" ? "auto" : "100%",
+                      bottom: toolbarPosition === "bottom-center" ? "100%" : "auto",
+                      right: 0,
+                      marginTop: toolbarPosition === "bottom-center" ? "0" : "8px",
+                      marginBottom: toolbarPosition === "bottom-center" ? "8px" : "0",
+                      padding: "6px",
+                      width: "150px",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "4px",
+                      zIndex: 10001,
+                      background: "rgba(15, 23, 42, 0.96)",
+                      border: "1px solid rgba(255, 255, 255, 0.15)",
+                      borderRadius: "10px",
+                      boxShadow: "0 10px 25px rgba(0,0,0,0.6)",
+                    }}
+                  >
+                    <button
+                      className={`shortcut-item-btn ${toolbarPosition === "top-center" ? "active-border" : ""}`}
+                      onClick={() => {
+                        setToolbarPosition("top-center");
+                        setShowPosMenu(false);
                       }}
                     >
-                      <button
-                        className="shortcut-item-btn"
-                        onClick={() => {
-                          sendRemoteShortcut(["control", "alt", "delete"]);
-                          setShowShortcutsMenu(false);
-                        }}
-                      >
-                        <span className="shortcut-key">Ctrl + Alt + Del</span>
-                        <span className="shortcut-desc">보안 화면</span>
-                      </button>
-                      <button
-                        className="shortcut-item-btn"
-                        onClick={() => {
-                          sendRemoteShortcut(["meta"]);
-                          setShowShortcutsMenu(false);
-                        }}
-                      >
-                        <span className="shortcut-key">Win (시작)</span>
-                        <span className="shortcut-desc">시작 메뉴</span>
-                      </button>
-                      <button
-                        className="shortcut-item-btn"
-                        onClick={() => {
-                          sendRemoteShortcut(["meta", "d"]);
-                          setShowShortcutsMenu(false);
-                        }}
-                      >
-                        <span className="shortcut-key">Win + D</span>
-                        <span className="shortcut-desc">바탕화면</span>
-                      </button>
-                      <button
-                        className="shortcut-item-btn"
-                        onClick={() => {
-                          sendRemoteShortcut(["alt", "tab"]);
-                          setShowShortcutsMenu(false);
-                        }}
-                      >
-                        <span className="shortcut-key">Alt + Tab</span>
-                        <span className="shortcut-desc">작업 전환</span>
-                      </button>
-                      <button
-                        className="shortcut-item-btn"
-                        onClick={() => {
-                          sendRemoteShortcut(["control", "shift", "escape"]);
-                          setShowShortcutsMenu(false);
-                        }}
-                      >
-                        <span className="shortcut-key">Ctrl+Shift+Esc</span>
-                        <span className="shortcut-desc">작업 관리자</span>
-                      </button>
-                      <button
-                        className="shortcut-item-btn"
-                        onClick={() => {
-                          sendRemoteShortcut(["alt", "f4"]);
-                          setShowShortcutsMenu(false);
-                        }}
-                      >
-                        <span className="shortcut-key">Alt + F4</span>
-                        <span className="shortcut-desc">창 닫기</span>
-                      </button>
-                      <button
-                        className="shortcut-item-btn"
-                        onClick={() => {
-                          sendRemoteShortcut(["hangulmode"]);
-                          setShowShortcutsMenu(false);
-                        }}
-                      >
-                        <span className="shortcut-key">한/영 전환</span>
-                        <span className="shortcut-desc">언어 변경</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
+                      <span>⬆️ 상단 중앙</span>
+                    </button>
+                    <button
+                      className={`shortcut-item-btn ${toolbarPosition === "top-left" ? "active-border" : ""}`}
+                      onClick={() => {
+                        setToolbarPosition("top-left");
+                        setShowPosMenu(false);
+                      }}
+                    >
+                      <span>↖️ 상단 좌측</span>
+                    </button>
+                    <button
+                      className={`shortcut-item-btn ${toolbarPosition === "top-right" ? "active-border" : ""}`}
+                      onClick={() => {
+                        setToolbarPosition("top-right");
+                        setShowPosMenu(false);
+                      }}
+                    >
+                      <span>↗️ 상단 우측</span>
+                    </button>
+                    <button
+                      className={`shortcut-item-btn ${toolbarPosition === "bottom-center" ? "active-border" : ""}`}
+                      onClick={() => {
+                        setToolbarPosition("bottom-center");
+                        setShowPosMenu(false);
+                      }}
+                    >
+                      <span>⬇️ 하단 중앙</span>
+                    </button>
+                  </div>
+                )}
+              </div>
 
-                <div className="toolbar-divider" />
+              {/* 툴바 최소화 버튼 */}
+              <button
+                className="toolbar-btn"
+                onClick={() => setIsToolbarMinimized(true)}
+                title="툴바 최소화 (접기)"
+              >
+                {toolbarPosition === "bottom-center" ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
+              </button>
 
-                {/* 전체화면 */}
-                <button className="toolbar-btn" onClick={toggleFullscreen} title="전체화면">
-                  {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-                </button>
-              </>
-            )}
-
-            {/* 세션 종료 */}
-            <button className="btn-main btn-danger-soft" style={{ padding: "6px 12px", fontSize: "0.85rem" }} onClick={endSession}>
-              <Power size={14} />
-              <span>종료</span>
-            </button>
-          </div>
+              {/* 세션 종료 */}
+              <button className="btn-main btn-danger-soft" style={{ padding: "6px 12px", fontSize: "0.85rem" }} onClick={endSession}>
+                <Power size={14} />
+                <span>종료</span>
+              </button>
+            </div>
+          )}
 
           {/* 영상 스트리밍 뷰 혹은 SyncLink Flow 대시보드 */}
           {flowMode === "flow" ? (
