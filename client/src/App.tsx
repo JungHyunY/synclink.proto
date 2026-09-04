@@ -52,8 +52,22 @@ const SUPPORT_LINKS = {
 const openExternalLink = async (url: string) => {
   try {
     await openUrl(url);
-  } catch {
-    window.open(url, "_blank");
+    return;
+  } catch (openerErr) {
+    console.warn("Plugin-opener failed, trying native shell invoke:", openerErr);
+  }
+
+  try {
+    await invoke("open_external_url", { url });
+    return;
+  } catch (invokeErr) {
+    console.warn("Native shell invoke failed, trying window.open:", invokeErr);
+  }
+
+  try {
+    window.open(url, "_blank", "noopener,noreferrer");
+  } catch (winErr) {
+    console.error("All URL open methods failed:", winErr);
   }
 };
 
