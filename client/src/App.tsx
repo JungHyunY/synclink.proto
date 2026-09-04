@@ -34,11 +34,26 @@ import {
   MousePointer,
   Keyboard,
   AlertCircle,
+  ExternalLink,
 } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import "./App.css";
 
 const DEFAULT_SERVER_URL = "";
 const ICE_SERVERS = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+
+// ─── 서포트 & 파트너십 링크 ───
+const SUPPORT_LINKS = {
+  buyMeACoffee: "https://buymeacoffee.com/tpp6347", // Buy Me a Coffee 공식 후원 링크
+};
+
+const openExternalLink = async (url: string) => {
+  try {
+    await openUrl(url);
+  } catch {
+    window.open(url, "_blank");
+  }
+};
 
 function normalizeServerUrl(rawUrl: string): string {
   let trimmed = rawUrl.trim();
@@ -1354,6 +1369,56 @@ function App() {
             </div>
 
             <div className="sidebar-footer">
+              {/* Buy Me a Coffee 공식 미니 배너 */}
+              <div
+                onClick={() => openExternalLink(SUPPORT_LINKS.buyMeACoffee)}
+                title="개발자에게 커피 한 잔 선물하기 (Buy Me a Coffee)"
+                style={{
+                  background: "rgba(255, 221, 0, 0.08)",
+                  border: "1px solid rgba(255, 221, 0, 0.28)",
+                  borderRadius: "10px",
+                  padding: "9px 12px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  cursor: "pointer",
+                  marginBottom: "8px",
+                  transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(255, 221, 0, 0.16)";
+                  e.currentTarget.style.borderColor = "rgba(255, 221, 0, 0.5)";
+                  e.currentTarget.style.transform = "translateY(-1px)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "rgba(255, 221, 0, 0.08)";
+                  e.currentTarget.style.borderColor = "rgba(255, 221, 0, 0.28)";
+                  e.currentTarget.style.transform = "translateY(0)";
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <div
+                    style={{
+                      width: "26px",
+                      height: "26px",
+                      borderRadius: "6px",
+                      background: "#FFDD00",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#000",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M20.216 6.415l-.132-.666c-.119-.597-.388-1.156-1.01-1.378-.602-.217-1.385-.181-2.428-.181H4.636c-.954 0-1.74.032-2.348.243-.616.216-.902.776-1.026 1.381l-.872 4.417c-.366 1.849.208 3.731 1.545 5.051 1.258 1.242 3.018 1.838 4.887 1.838h8.556c1.869 0 3.629-.596 4.887-1.838 1.337-1.32 1.911-3.202 1.545-5.051l-.594-3.216zm-3.284 3.518h-2.133v-1.07h2.133v1.07zm0-2.14h-2.133V6.723h2.133v1.07zm-3.2 2.14h-2.133v-1.07h2.133v1.07zm0-2.14h-2.133V6.723h2.133v1.07zm-3.2 2.14H8.4v-1.07h2.132v1.07zm0-2.14H8.4V6.723h2.132v1.07zM23.99 8.21c-.044-.225-.13-.443-.263-.637-.216-.317-.557-.525-.951-.577l-1.082-.143.435 2.193c.196.993-.058 2.01-.699 2.788-.475.577-1.144.93-1.886 1.025l.235 1.189c1.233-.186 2.338-.828 3.092-1.777.949-1.196 1.326-2.736 1.119-4.068z" />
+                    </svg>
+                  </div>
+                  <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "#fef08a" }}>Buy me a coffee</span>
+                </div>
+                <ExternalLink size={12} color="#fef08a" style={{ opacity: 0.8 }} />
+              </div>
+
               <div className="server-status">
                 <div className={`status-dot-sm ${isServerConnected ? "online" : "offline"}`} />
                 <span>{isServerConnected ? "시그널링 서버에 연결되었어요" : "서버가 오프라인이에요"}</span>
@@ -2061,6 +2126,86 @@ function App() {
                       {copiedNotification ? <Check size={14} color="#34d399" /> : <Copy size={14} />}
                     </button>
                   </div>
+                </div>
+
+                {/* Buy Me a Coffee 공식 후원 배너 */}
+                <div
+                  className="glass-card"
+                  style={{
+                    maxWidth: "600px",
+                    marginTop: "16px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "16px",
+                    background: "rgba(255, 221, 0, 0.05)",
+                    border: "1px solid rgba(255, 221, 0, 0.25)",
+                    cursor: "pointer",
+                    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                  }}
+                  onClick={() => openExternalLink(SUPPORT_LINKS.buyMeACoffee)}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "rgba(255, 221, 0, 0.1)";
+                    e.currentTarget.style.borderColor = "rgba(255, 221, 0, 0.45)";
+                    e.currentTarget.style.transform = "translateY(-1px)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "rgba(255, 221, 0, 0.05)";
+                    e.currentTarget.style.borderColor = "rgba(255, 221, 0, 0.25)";
+                    e.currentTarget.style.transform = "translateY(0)";
+                  }}
+                  title="Buy Me a Coffee 후원 페이지 열기"
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <div
+                      style={{
+                        width: "36px",
+                        height: "36px",
+                        borderRadius: "10px",
+                        background: "#FFDD00",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#000",
+                        flexShrink: 0,
+                        boxShadow: "0 2px 8px rgba(255, 221, 0, 0.35)",
+                      }}
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M20.216 6.415l-.132-.666c-.119-.597-.388-1.156-1.01-1.378-.602-.217-1.385-.181-2.428-.181H4.636c-.954 0-1.74.032-2.348.243-.616.216-.902.776-1.026 1.381l-.872 4.417c-.366 1.849.208 3.731 1.545 5.051 1.258 1.242 3.018 1.838 4.887 1.838h8.556c1.869 0 3.629-.596 4.887-1.838 1.337-1.32 1.911-3.202 1.545-5.051l-.594-3.216zm-3.284 3.518h-2.133v-1.07h2.133v1.07zm0-2.14h-2.133V6.723h2.133v1.07zm-3.2 2.14h-2.133v-1.07h2.133v1.07zm0-2.14h-2.133V6.723h2.133v1.07zm-3.2 2.14H8.4v-1.07h2.132v1.07zm0-2.14H8.4V6.723h2.132v1.07zM23.99 8.21c-.044-.225-.13-.443-.263-.637-.216-.317-.557-.525-.951-.577l-1.082-.143.435 2.193c.196.993-.058 2.01-.699 2.788-.475.577-1.144.93-1.886 1.025l.235 1.189c1.233-.186 2.338-.828 3.092-1.777.949-1.196 1.326-2.736 1.119-4.068z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#fef08a" }}>
+                        개발자에게 커피 한 잔 선물하기
+                      </div>
+                      <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                        SyncLink의 무료 운영과 오픈소스 개발을 따뜻하게 응원해 주세요
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    className="btn-main"
+                    style={{
+                      padding: "6px 14px",
+                      fontSize: "0.8rem",
+                      background: "#FFDD00",
+                      color: "#000",
+                      fontWeight: 700,
+                      border: "none",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      flexShrink: 0,
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openExternalLink(SUPPORT_LINKS.buyMeACoffee);
+                    }}
+                  >
+                    <span>Buy me a coffee</span>
+                    <ExternalLink size={13} color="#000" />
+                  </button>
                 </div>
               </div>
             )}
