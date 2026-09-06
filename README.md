@@ -32,18 +32,36 @@
 
 ## ⚡ 퀵 스타트 (Quick Start - 3분 완성)
 
-### 1️⃣ 리눅스 서버 준비 (원클릭 자동 설치)
+### 1️⃣ 시그널링 서버 준비 (택 1)
+
+#### 🪟 [A] 윈도우(Windows) PC에서 실행 (초간단)
+1. [Node.js](https://nodejs.org/) (LTS 권장)가 설치되어 있는지 확인합니다.
+2. `signaling-server` 폴더 안의 **`start-windows.bat`** 파일을 더블 클릭하여 실행합니다.  
+   *(처음 실행 시 필요한 패키지가 자동 설치되며, 방화벽 포트 5963 등록이 진행됩니다)*
+3. 콘솔 창에 표시되는 **`[Network IP]` (예: `http://192.168.0.15:5963`)**를 확인합니다.
+
+> 💻 *터미널(PowerShell/CMD)로 직접 실행 시*:
+> ```powershell
+> cd signaling-server
+> npm install
+> npm start
+> ```
+
+#### 🐧 [B] 리눅스 서버 준비 (VPS / 홈 서버 원클릭 자동 설치)
 개인 VPS나 홈 서버(Ubuntu, Debian, CentOS, Rocky Linux 등) 터미널에 아래 명령어를 입력하면 **Node.js 설치 + 방화벽 개방 + 부팅 시 자동 시작 등록**까지 자동으로 완료됩니다:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/JungHyunY/synclink.proto/main/signaling-server/install.sh | sudo bash
 ```
 > *Docker 사용 시*: `cd signaling-server && docker compose up -d`
 
+---
+
 ### 2️⃣ 클라이언트 실행 및 원격 연결
 1. 상단 **[클라이언트 다운로드]**에서 본인 OS에 맞는 설치 파일(`.exe` / `.dmg`)을 받아 실행합니다.
-2. **[설정] 탭**에서 구축한 서버 주소(예: `http://내_서버_IP:5963`)를 입력합니다.
+2. **[설정] 탭**에서 위에서 실행한 서버 주소(예: `http://192.168.0.15:5963` 또는 `http://내_서버_IP:5963`)를 입력합니다.  
+   *(같은 PC에서 테스트할 때는 `http://localhost:5963` 버튼을 누르면 됩니다)*
 3. **[원격 접속] 탭**에서 상대방 PC의 9자리 기기 ID와 PIN을 입력하면 즉시 60FPS 초저지연 원격 제어가 시작됩니다!
-   *(호스트 PC는 [무인 원격 접속 상시 대기]가 켜져 있어 별도의 버튼 클릭 없이 자동 수락됩니다)*
+   *(호스트 PC는 [무인 원격 접속 상시 대기]가 켜져 있어 별도의 수락 버튼 클릭 없이 자동 연결됩니다)*
 
 ---
 
@@ -60,19 +78,33 @@ curl -fsSL https://raw.githubusercontent.com/JungHyunY/synclink.proto/main/signa
 
 ### 시그널링 서버 설치 및 실행 (Signaling Server)
 
-#### 방법 1: 리눅스 원클릭 자동 설치 (추천: Ubuntu / Debian / CentOS / Rocky)
+#### 방법 1: 윈도우(Windows) 실행
+1. **원클릭 실행**: `signaling-server/start-windows.bat` 더블 클릭 (관리자 권한 실행 권장)
+2. **명령 프롬프트/PowerShell 수동 실행**:
+   ```powershell
+   cd signaling-server
+   npm install
+   npm start
+   ```
+3. **방화벽 수동 허용** (동일 Wi-Fi/공유기 내 다른 기기에서 접속 시 필요):  
+   - Windows PowerShell(관리자 권한)에서 다음 명령어 1줄 실행:
+     ```powershell
+     netsh advfirewall firewall add rule name="SyncLink_Signaling_5963" dir=in action=allow protocol=TCP localport=5963
+     ```
+
+#### 방법 2: 리눅스 원클릭 자동 설치 (Ubuntu / Debian / CentOS / Rocky)
 리눅스 터미널에서 아래 명령어 한 줄을 실행하면 Node.js 환경 감지, 방화벽 포트 개방(5963/TCP), systemd 상시 백그라운드 서비스 등록 및 자동 시작이 완료됩니다:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/JungHyunY/synclink.proto/main/signaling-server/install.sh | sudo bash
 ```
 
-#### 방법 2: Docker 컨테이너 실행
+#### 방법 3: Docker 컨테이너 실행
 ```bash
 cd signaling-server
 docker compose up -d
 ```
 
-#### 방법 3: 수동 실행
+#### 방법 4: 수동 실행 (공통)
 ```bash
 cd signaling-server
 npm install

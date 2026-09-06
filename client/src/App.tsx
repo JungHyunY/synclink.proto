@@ -3818,7 +3818,7 @@ function App() {
               <div style={{ background: "rgba(0, 0, 0, 0.35)", borderRadius: "10px", padding: "12px", marginBottom: "22px", border: "1px solid rgba(255, 255, 255, 0.08)" }}>
                 <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#8a9a5b", marginBottom: "4px" }}>💡 아직 시그널링 서버가 없으신가요?</div>
                 <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", lineHeight: 1.4 }}>
-                  개인 PC나 VPS 터미널에서 아래 명령어로 10초 만에 띄울 수 있어요:
+                  윈도우는 <span style={{ color: "#38bdf8", fontWeight: 600 }}>signaling-server/start-windows.bat</span> 더블 클릭, 또는 터미널에서:
                 </div>
                 <div style={{ marginTop: "6px", fontFamily: "monospace", fontSize: "0.75rem", color: "#34d399", background: "rgba(0,0,0,0.5)", padding: "6px 8px", borderRadius: "6px" }}>
                   cd signaling-server && npm install && npm start

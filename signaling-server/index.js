@@ -66,7 +66,30 @@ const io = new Server(server, {
 });
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`📡 Signaling Server running on http://0.0.0.0:${PORT}`);
+  const nets = os.networkInterfaces();
+  const ips = [];
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name]) {
+      if (net.family === "IPv4" && !net.internal) {
+        ips.push(net.address);
+      }
+    }
+  }
+
+  console.log("\n=======================================================");
+  console.log("  🚀 Yoonikon SyncLink Signaling Server v1.0.8");
+  console.log("=======================================================");
+  console.log(`  📡 [Local Host]  http://localhost:${PORT}`);
+  if (ips.length > 0) {
+    ips.forEach((ip) => {
+      console.log(`  🌐 [Network IP]  http://${ip}:${PORT}`);
+    });
+  } else {
+    console.log(`  🌐 [Network IP]  http://0.0.0.0:${PORT}`);
+  }
+  console.log("=======================================================");
+  console.log("  💡 원격 접속할 기기의 [설정] 탭에 위 [Network IP]를 입력하세요.");
+  console.log("=======================================================\n");
 });
 
 io.on("connection", (socket) => {
