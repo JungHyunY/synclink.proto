@@ -123,7 +123,7 @@ function formatDeviceId(id: string): string {
   return `${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)} ${cleaned.slice(6, 9)}`;
 }
 
-const CURRENT_VERSION = "1.0.7";
+const CURRENT_VERSION = "1.0.8";
 
 function compareVersions(v1: string, v2: string): number {
   const clean1 = (v1 || "").replace(/^v/, "").split(".").map(Number);
@@ -444,7 +444,7 @@ function App() {
           status: "success",
           message: `시그널링 서버 연결 성공! (지연시간: ${latency}ms)`,
           latency,
-          details: `서버 버전: ${data.version || "1.0.7"} | 온라인 호스트 방: ${data.roomsOnline ?? 0}개`
+          details: `서버 버전: ${data.version || "1.0.8"} | 온라인 호스트 방: ${data.roomsOnline ?? 0}개`
         });
         return;
       }
@@ -2867,7 +2867,7 @@ function App() {
                         버전 및 업데이트
                       </h3>
                       <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
-                        Yoonikon SyncLink <b>v1.0.7</b> (Native Desktop)
+                        Yoonikon SyncLink <b>v1.0.8</b> (Native Desktop)
                       </div>
                     </div>
                     <button

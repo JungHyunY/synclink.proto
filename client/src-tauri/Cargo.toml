@@ -1,6 +1,6 @@
 [package]
 name = "synclink"
-version = "1.0.7"
+version = "1.0.8"
 description = "Yoonikon SyncLink WebRTC Remote Desktop"
 authors = ["yoonikon"]
 edition = "2021"
