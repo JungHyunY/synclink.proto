@@ -283,6 +283,14 @@ function App() {
     return () => window.removeEventListener("keydown", handleNewWindowShortcut);
   }, []);
 
+  // Power Management: Prevent system sleep when hosting or auto standby is active
+  useEffect(() => {
+    if (isMainWindow) {
+      const shouldPrevent = isHostingActive || autoHostStandby;
+      invoke("prevent_system_sleep", { enabled: shouldPrevent }).catch(() => {});
+    }
+  }, [isHostingActive, autoHostStandby, isMainWindow]);
+
   const [availableMonitors, setAvailableMonitors] = useState<any[]>([]);
 
   const handleSetFlowMode = (m: "screen" | "flow") => {
@@ -949,6 +957,9 @@ function App() {
       if (!isHostRef.current) return;
       console.log(`🔌 Guest (${userId}) connected. Starting session in mode:`, flowModeRef.current);
       setStatus("Guest connected. Negotiating...");
+
+      // Automatically wake display and dismiss lock screensaver for incoming guest
+      invoke("wake_remote_display").catch(() => {});
 
       // Start screen capture on demand only if NOT in Flow mode!
       if (flowModeRef.current !== "flow" && !isScreenCapturingRef.current) {
@@ -2623,6 +2634,33 @@ function App() {
                         <span>라이트 모드 (Light Clean)</span>
                       </button>
                     </div>
+                  </div>
+                </div>
+
+                {/* 무인 원격 접속 및 절전 모드 / 잠금 해제 가이드 */}
+                <div className="glass-card" style={{ maxWidth: "600px", marginTop: "16px" }}>
+                  <h3 className="card-title" style={{ fontSize: "1rem", marginBottom: "8px", display: "flex", alignItems: "center", gap: "8px" }}>
+                    <Zap size={18} color="#f59e0b" />
+                    무인 원격 접속 & 절전 모드 / 잠금 해제 가이드
+                  </h3>
+                  <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: "1.6" }}>
+                    <p style={{ margin: "0 0 8px 0" }}>
+                      외부에서 언제든 접속하려면 호스트 컴퓨터가 <b>전원 꺼짐(Shutdown)</b> 또는 <b>시스템 절전(Sleep S3)</b>에 들어가지 않아야 합니다.
+                    </p>
+                    <ul style={{ margin: 0, paddingLeft: "18px" }}>
+                      <li style={{ marginBottom: "6px" }}>
+                        <b>🔋 화면 꺼짐 vs 시스템 절전</b>: 모니터(화면)만 꺼지는 것은 괜찮지만, 컴퓨터 본체가 절전 모드에 들어가면 네트워크가 차단됩니다. Windows 전원 설정에서 <b>[절전 모드: 해당 없음(안 함)]</b>으로 설정하고 <b>[화면 끄기: 15분]</b> 등으로 맞추는 것을 권장합니다.
+                      </li>
+                      <li style={{ marginBottom: "6px" }}>
+                        <b>⚡ 자동 시스템 절전 방지 탑재</b>: SyncLink 호스트 대기 중에는 OS에 시스템 절전 방지(Power Keep-Alive)를 자동으로 선언하여 본체가 잠들지 않도록 보호합니다.
+                      </li>
+                      <li style={{ marginBottom: "6px" }}>
+                        <b>💡 접속 시 모니터 자동 깨우기</b>: 게스트가 접속하는 순간 잠자던 모니터와 잠금화면을 자동으로 깨웁니다.
+                      </li>
+                      <li>
+                        <b>🔓 잠금 화면 원격 로그인</b>: PC가 잠금 화면에 있더라도 원격 화면에서 마우스를 클릭하거나 키보드를 누르면 비밀번호/PIN 입력창이 나타나며, 원격 키보드로 입력하여 정상 로그인할 수 있습니다.
+                      </li>
+                    </ul>
                   </div>
                 </div>
 

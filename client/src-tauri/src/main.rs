@@ -921,6 +921,17 @@ fn open_external_url(url: String) -> Result<(), String> {
 }
 
 mod kvm_manager;
+mod power_manager;
+
+#[command]
+fn prevent_system_sleep(enabled: bool) {
+    power_manager::prevent_sleep(enabled);
+}
+
+#[command]
+fn wake_remote_display() {
+    power_manager::wake_display();
+}
 
 #[command]
 fn enable_kvm_mode(enabled: bool, direction: String, screen_width: usize, screen_height: usize) {
@@ -993,7 +1004,9 @@ fn main() {
             remote_mouse_wheel,
             test_server_connectivity,
             open_new_window,
-            get_window_count
+            get_window_count,
+            prevent_system_sleep,
+            wake_remote_display
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
