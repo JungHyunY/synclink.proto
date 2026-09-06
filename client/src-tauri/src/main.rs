@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use rdev::{simulate, Button, EventType, Key};
-use tauri::{command, Emitter, Window};
+use tauri::{command, Emitter, Window, AppHandle, Manager, WebviewWindowBuilder, WebviewUrl};
 use screenshots::Screen; 
 use std::io::Cursor;
 use base64::{engine::general_purpose, Engine as _};
@@ -581,6 +581,44 @@ async fn restore_host_window(window: Window) {
     let _ = window.set_focus();
 }
 
+#[command]
+async fn open_new_window(app_handle: AppHandle, window: Window) -> Result<String, String> {
+    let count = app_handle.webview_windows().len();
+    if count >= 3 {
+        return Err("동시에 최대 3개의 창까지만 열 수 있습니다.".to_string());
+    }
+
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let label = format!("window_{}", timestamp);
+
+    let mut builder = WebviewWindowBuilder::new(
+        &app_handle,
+        &label,
+        WebviewUrl::App("index.html".into()),
+    )
+    .title("Yoonikon SyncLink")
+    .inner_size(1000.0, 680.0)
+    .min_inner_size(1000.0, 680.0)
+    .resizable(false)
+    .maximizable(false);
+
+    if let Ok(pos) = window.outer_position() {
+        let offset = (count as i32) * 30;
+        builder = builder.position((pos.x + offset) as f64, (pos.y + offset) as f64);
+    }
+
+    let _win = builder.build().map_err(|e| format!("새 창 생성 실패: {}", e))?;
+    Ok(label)
+}
+
+#[command]
+fn get_window_count(app_handle: AppHandle) -> usize {
+    app_handle.webview_windows().len()
+}
+
 #[cfg(target_os = "macos")]
 mod mac_brightness {
     use std::ffi::CString;
@@ -953,7 +991,9 @@ fn main() {
             release_kvm_control,
             remote_mouse_move_relative,
             remote_mouse_wheel,
-            test_server_connectivity
+            test_server_connectivity,
+            open_new_window,
+            get_window_count
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

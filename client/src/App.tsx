@@ -40,7 +40,9 @@ import {
   ChevronUp,
   ChevronDown,
   Move,
+  CopyPlus,
 } from "lucide-react";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import "./App.css";
 
@@ -241,6 +243,45 @@ function App() {
   useEffect(() => {
     localStorage.setItem("synclink_toolbar_minimized", String(isToolbarMinimized));
   }, [isToolbarMinimized]);
+
+  // Multi-window State & Handlers (Up to 3 concurrent windows)
+  const [windowLabel, setWindowLabel] = useState<string>("main");
+  const isMainWindow = windowLabel === "main";
+
+  useEffect(() => {
+    try {
+      const win = getCurrentWebviewWindow();
+      if (win && win.label) {
+        setWindowLabel(win.label);
+        if (win.label !== "main") {
+          win.setTitle("Yoonikon SyncLink (새 세션 창)").catch(() => {});
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to retrieve current window label:", e);
+    }
+  }, []);
+
+  const handleOpenNewWindow = async () => {
+    try {
+      await invoke("open_new_window");
+    } catch (err: any) {
+      console.warn("새 창 열기 오류:", err);
+      alert(typeof err === "string" ? err : (err?.message || "동시에 최대 3개의 창까지만 열 수 있습니다."));
+    }
+  };
+
+  // Global Shortcut for Opening a New Session Window (Ctrl+Shift+N or Cmd+Shift+N)
+  useEffect(() => {
+    const handleNewWindowShortcut = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "N" || e.key === "n")) {
+        e.preventDefault();
+        handleOpenNewWindow();
+      }
+    };
+    window.addEventListener("keydown", handleNewWindowShortcut);
+    return () => window.removeEventListener("keydown", handleNewWindowShortcut);
+  }, []);
 
   const [availableMonitors, setAvailableMonitors] = useState<any[]>([]);
 
@@ -841,8 +882,8 @@ function App() {
     socket.on("connect", () => {
       console.log("✅ Connected to signaling server:", socket.id);
       setIsServerConnected(true);
-      // Auto-register host if hosting was active or autoHostStandby is enabled
-      if (isHostRef.current || autoHostStandbyRef.current) {
+      // Auto-register host if hosting was active or autoHostStandby is enabled (only on main window)
+      if (isMainWindow && (isHostRef.current || autoHostStandbyRef.current)) {
         if (myDeviceId && myPin) {
           socket.emit("register-host", {
             roomId: myDeviceId,
@@ -1426,22 +1467,6 @@ function App() {
     });
   };
 
-  const handleKeyInput = (e: React.KeyboardEvent, type: "keydown" | "keyup") => {
-    if (isHostRef.current) return;
-    const isModifierCombo = e.ctrlKey || e.altKey || e.metaKey;
-    const isBrowserSpecial = [
-      " ", "Space", "Tab", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
-      "Backspace", "Delete", "Home", "End", "PageUp", "PageDown",
-      "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
-    ].includes(e.key);
-
-    if (isModifierCombo || isBrowserSpecial) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    sendRemoteKeyEvent(type, e.key, e.code);
-  };
-
   // Global Key Listener for Remote Control Session (Prevents focus drop & browser shortcut interception)
   useEffect(() => {
     if (!isConnected || isHostMode || !sessionRoomId) return;
@@ -1460,8 +1485,8 @@ function App() {
 
       if (isModifierCombo || isBrowserSpecial) {
         e.preventDefault();
-        e.stopPropagation();
       }
+      e.stopPropagation();
 
       activeKeysRef.current.add(e.code || e.key);
       sendRemoteKeyEvent("keydown", e.key, e.code);
@@ -1481,8 +1506,8 @@ function App() {
 
       if (isModifierCombo || isBrowserSpecial) {
         e.preventDefault();
-        e.stopPropagation();
       }
+      e.stopPropagation();
 
       activeKeysRef.current.delete(e.code || e.key);
       sendRemoteKeyEvent("keyup", e.key, e.code);
@@ -1669,6 +1694,25 @@ function App() {
                 <SettingsIcon size={18} />
                 <span>설정 (Settings)</span>
               </button>
+
+              {/* 새 창 열기 버튼 */}
+              <div style={{ marginTop: "12px", paddingTop: "10px", borderTop: "1px solid rgba(255, 255, 255, 0.08)" }}>
+                <button
+                  type="button"
+                  className="nav-item"
+                  style={{
+                    background: "rgba(107, 127, 66, 0.15)",
+                    border: "1px dashed rgba(107, 127, 66, 0.4)",
+                    color: "var(--accent-glow)",
+                    justifyContent: "flex-start",
+                  }}
+                  onClick={handleOpenNewWindow}
+                  title="새 창을 열어 여러 대의 PC를 동시에 제어할 수 있습니다 (최대 3개, 단축키: Ctrl+Shift+N)"
+                >
+                  <CopyPlus size={18} />
+                  <span>새 창 열기 (최대 3개)</span>
+                </button>
+              </div>
             </div>
 
             <div className="sidebar-footer">
@@ -1734,9 +1778,21 @@ function App() {
             {/* 탭 1: 원격 접속 (Connect) */}
             {activeTab === "connect" && (
               <div>
-                <div className="content-header">
-                  <h1 className="content-title">원격 데스크톱 접속</h1>
-                  <p className="content-subtitle">접속할 컴퓨터의 9자리 기기 ID와 PIN 비밀번호를 입력해 주세요.</p>
+                <div className="content-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+                  <div>
+                    <h1 className="content-title">원격 데스크톱 접속</h1>
+                    <p className="content-subtitle">접속할 컴퓨터의 9자리 기기 ID와 PIN 비밀번호를 입력해 주세요.</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-main"
+                    style={{ padding: "8px 14px", fontSize: "0.85rem", gap: "6px", flexShrink: 0 }}
+                    onClick={handleOpenNewWindow}
+                    title="새 창을 열어 여러 대의 PC를 동시에 제어할 수 있습니다 (최대 3개)"
+                  >
+                    <CopyPlus size={15} />
+                    <span>+ 새 창 열기</span>
+                  </button>
                 </div>
 
                 <div className="card-grid">
@@ -3014,6 +3070,16 @@ function App() {
                 )}
               </div>
 
+              {/* 새 창 열기 (최대 3대 동시 제어) */}
+              <button
+                className="toolbar-btn"
+                onClick={handleOpenNewWindow}
+                title="새 세션 창 열기 (최대 3대 동시 원격 제어)"
+              >
+                <CopyPlus size={14} />
+                <span>새 창</span>
+              </button>
+
               {/* 툴바 최소화 버튼 */}
               <button
                 className="toolbar-btn"
@@ -3145,8 +3211,6 @@ function App() {
               <div
                 className="video-wrapper"
                 tabIndex={0}
-                onKeyDown={(e) => handleKeyInput(e, "keydown")}
-                onKeyUp={(e) => handleKeyInput(e, "keyup")}
                 onContextMenu={(e) => {
                   e.preventDefault();
                   handleRemoteInput(e, "contextmenu");
