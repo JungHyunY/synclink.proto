@@ -1,119 +1,107 @@
-# Yoonikon SyncLink (유니콘 싱크링크)
+# Yoonikon SyncLink (싱크링크)
 
-> **차세대 WebRTC P2P 초저지연 원격 데스크톱 & 크로스 플랫폼 디바이스 제어 솔루션**
+> 윈도우와 맥북을 같이 쓰거나 다른 PC를 원격으로 제어할 때 쓰려고 만든 **WebRTC P2P 원격 제어 & 가상 KVM(Flow) 프로그램**이에요.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Tauri: v2](https://img.shields.io/badge/Tauri-v2.0-24C8D8.svg)](https://tauri.app/)
 [![Rust](https://img.shields.io/badge/Rust-Tokio_|_rdev-DEA584.svg)](https://www.rust-lang.org/)
-[![UI: YDS](https://img.shields.io/badge/Design_System-YDS_v2.0-6b7f42.svg)](http://localhost:5100)
 
 ---
 
-## 📥 클라이언트 다운로드 (Client Downloads)
+## 📥 앱 다운로드
 
-별도의 개발 환경이나 빌드 없이, 아래 링크에서 **운영체제별 최신 설치 파일**을 즉시 다운로드하여 사용하실 수 있습니다.
+직접 빌드할 필요 없이 아래에서 내 컴퓨터 운영체제에 맞는 걸 받아서 바로 쓰시면 돼요.
 
-| 운영체제 (OS) | 파일 형식 | 바로 다운로드 |
+| OS | 파일 | 다운로드 |
 | :--- | :---: | :--- |
-| **Windows 10 / 11** (64-bit) | `.exe` | [**⬇️ Windows 설치 파일 (.exe) 다운로드**](https://github.com/JungHyunY/synclink.proto/releases/latest) |
-| **Windows 10 / 11** (MSI 패키지) | `.msi` | [**⬇️ Windows 패키지 (.msi) 다운로드**](https://github.com/JungHyunY/synclink.proto/releases/latest) |
-| **macOS** (Apple Silicon M1/M2/M3/M4) | `.dmg` | [**⬇️ Mac 설치 파일 (.dmg) 다운로드**](https://github.com/JungHyunY/synclink.proto/releases/latest) |
+| **Windows 10 / 11** (64-bit) | `.exe` | [**⬇️ Windows 실행 파일 (.exe) 받기**](https://github.com/JungHyunY/synclink.proto/releases/latest) |
+| **Windows 10 / 11** (설치형) | `.msi` | [**⬇️ Windows 설치 패키지 (.msi) 받기**](https://github.com/JungHyunY/synclink.proto/releases/latest) |
+| **macOS** (M1/M2/M3/M4 실리콘) | `.dmg` | [**⬇️ Mac 디스크 이미지 (.dmg) 받기**](https://github.com/JungHyunY/synclink.proto/releases/latest) |
 
-> 📌 **안내**: [**📦 전체 릴리즈 및 이전 버전 다운로드 페이지 (GitHub Releases)**](https://github.com/JungHyunY/synclink.proto/releases)에서 모든 파일 목록과 패치 내역을 확인하실 수 있습니다.
+> 📌 이전 버전이나 전체 파일 목록이 궁금하시면 [GitHub Releases 페이지](https://github.com/JungHyunY/synclink.proto/releases)를 확인해주세요.
 
-> 💡 **macOS 사용자 필수 안내 ("앱이 손상되었기 때문에 열 수 없습니다" 해결법)**:  
-> Apple 유료 개발자 인증서가 없는 오픈소스 앱은 macOS Gatekeeper가 인터넷 다운로드 파일에 보안 격리 속성을 부여하여 '손상됨' 경고를 띄웁니다. **파일이 실제로 손상된 것이 아니며**, 앱을 `응용 프로그램(Applications)` 폴더로 옮긴 뒤 터미널에서 아래 명령어를 실행하시면 정상 실행됩니다:  
+> 💡 **맥(macOS)에서 "앱이 손상되었기 때문에 열 수 없습니다"라고 뜰 때**:  
+> 애플 개발자 유료 인증서가 안 들어간 오픈소스 앱이라 맥 게이트키퍼가 보안 경고를 띄우는 거예요. **실제 파일에 문제 있는 게 아니니까**, 앱을 `응용 프로그램` 폴더로 옮겨둔 뒤 터미널 열고 아래 명령어 한 번만 쳐주시면 정상적으로 열려요.
 > ```bash
 > xattr -cr /Applications/SyncLink.app
 > ```
-> *(또는 `시스템 설정 > 개인정보 보호 및 보안 > 보안` 섹션에서 **[확인 없이 열기]**를 클릭하셔도 됩니다)*
+> *(또는 `시스템 설정 > 개인정보 보호 및 보안 > 보안` 맨 밑에서 **[확인 없이 열기]**를 눌러도 됩니다)*
 
 ---
 
-## ⚡ 퀵 스타트 (Quick Start - 3분 완성)
+## ✨ 이런 기능들이 있어요
 
-### 1️⃣ 시그널링 서버 준비 (택 1)
+- **초저지연 WebRTC P2P 연결**: 중계 서버 거치지 않고 내 PC와 상대 PC가 직접 다이렉트로 통신해서 딜레이가 거의 없어요.
+- **🌊 SyncLink Flow (가상 KVM 모드)**: Microsoft Mouse Without Borders를 윈도우 ↔ 맥에서도 쓸 수 있게 만들었어요. 모니터 가장자리로 마우스 커서를 밀면 옆 PC로 스무스하게 넘어가서 한 세트의 마우스/키보드로 두 대를 동시에 조작할 수 있어요.
+- **🖥️ 60FPS 풀 화면 원격 제어**: 일반적인 TeamViewer나 AnyDesk처럼 화면을 보면서 원격 제어하는 모드도 지원해요. 상단 툴바 위치도 내 맘대로 옮기거나 숨길 수 있어요.
+- **📋 실시간 클립보드 공유**: 윈도우에서 `Ctrl+C` 복사하고 맥에서 `Cmd+V` 붙여넣기하면 바로 들어가요.
+- **🔋 무인 원격 접속 & 화면 깨우기**: 상대 PC가 잠자기 모드에 들어가서 꺼지지 않도록 방지해주고, 원격 접속 시 꺼져있던 모니터를 알아서 깨워줘요.
+- **🪟 멀티 세션 지원**: 창을 최대 3개까지 동시에 띄워서 여러 대의 컴퓨터를 한 번에 제어할 수 있어요.
 
-#### 🪟 [A] 윈도우(Windows) PC에서 실행 (초간단)
-1. [Node.js](https://nodejs.org/) (LTS 권장)가 설치되어 있는지 확인합니다.
-2. `signaling-server` 폴더 안의 **`start-windows.bat`** 파일을 더블 클릭하여 실행합니다.  
-   *(처음 실행 시 필요한 패키지가 자동 설치되며, 방화벽 포트 5963 등록이 진행됩니다)*
-3. 콘솔 창에 표시되는 **`[Network IP]` (예: `http://192.168.0.15:5963`)**를 확인합니다.
+---
 
-> 💻 *터미널(PowerShell/CMD)로 직접 실행 시*:
+## ⚡ 빠른 시작 (처음 써볼 때)
+
+### 1단계: 시그널링 서버 켜기 (택 1)
+
+P2P로 서로를 찾아가려면 처음에 길을 안내해 줄 시그널링 서버가 하나 돌아가고 있어야 해요.
+
+#### 🪟 윈도우 PC에서 켤 때 (제일 편한 방법)
+1. 컴퓨터에 [Node.js](https://nodejs.org/)가 깔려있는지 확인해주세요. (LTS 버전 추천)
+2. `signaling-server` 폴더 안에 있는 **`start-windows.bat`** 파일을 그냥 더블 클릭해서 실행하세요.  
+   *(처음 켤 때 알아서 `npm install` 해주고 방화벽 5963 포트도 알아서 열어줘요)*
+3. 까만 창에 나오는 **`[Network IP]` (예: `http://192.168.0.15:5963`)** 주소를 기억해두세요.
+
+> 터미널로 직접 켜고 싶다면:
 > ```powershell
 > cd signaling-server
 > npm install
 > npm start
 > ```
 
-#### 🐧 [B] 리눅스 서버 준비 (VPS / 홈 서버 원클릭 자동 설치)
-개인 VPS나 홈 서버(Ubuntu, Debian, CentOS, Rocky Linux 등) 터미널에 아래 명령어를 입력하면 **Node.js 설치 + 방화벽 개방 + 부팅 시 자동 시작 등록**까지 자동으로 완료됩니다:
+#### 🐧 리눅스 서버에서 켤 때 (오라클 클라우드 / 개인 VPS / 우분투 홈서버)
+터미널에 이 명령어 한 줄만 복사해서 붙여넣으면 끝나요:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/JungHyunY/synclink.proto/main/signaling-server/install.sh | sudo bash
 ```
-> *Docker 사용 시*: `cd signaling-server && docker compose up -d`
+> 도커가 편하시면: `cd signaling-server && docker compose up -d`
 
 ---
 
-### 2️⃣ 클라이언트 실행 및 원격 연결
-1. 상단 **[클라이언트 다운로드]**에서 본인 OS에 맞는 설치 파일(`.exe` / `.dmg`)을 받아 실행합니다.
-2. **[설정] 탭**에서 위에서 실행한 서버 주소(예: `http://192.168.0.15:5963` 또는 `http://내_서버_IP:5963`)를 입력합니다.  
-   *(같은 PC에서 테스트할 때는 `http://localhost:5963` 버튼을 누르면 됩니다)*
-3. **[원격 접속] 탭**에서 상대방 PC의 9자리 기기 ID와 PIN을 입력하면 즉시 60FPS 초저지연 원격 제어가 시작됩니다!
-   *(호스트 PC는 [무인 원격 접속 상시 대기]가 켜져 있어 별도의 수락 버튼 클릭 없이 자동 연결됩니다)*
+### 2단계: 클라이언트 켜고 연결하기
+
+1. 양쪽 컴퓨터에서 다운받은 SyncLink 앱을 켭니다.
+2. **[설정] 탭**에 들어가서 1단계에서 띄운 서버 주소(예: `http://192.168.0.15:5963`)를 넣고 저장하세요.  
+   *(서버를 띄운 컴퓨터 자체에서 테스트할 땐 `로컬호스트 (5963)` 버튼을 누르면 돼요)*
+3. **[원격 접속] 탭**에서 상대방 PC의 9자리 기기 ID와 PIN 비밀번호를 입력하고 접속 버튼을 누르면 바로 연결됩니다!  
+   *(화면 제어 모드랑 Flow(가상 KVM) 모드 중 원하는 걸 골라서 연결할 수 있어요)*
 
 ---
 
-## 2. 아키텍처 및 핵심 기술
+## 🛠️ 개발 환경에서 직접 빌드하기
 
-* **초경량 데스크톱 클라이언트 (`client/`):** Tauri v2 기반의 10MB 미만 초경량 번들 (Electron 대비 메모리 점유율 90% 절감)
-* **초저지연 WebRTC P2P 전송:** STUN/TURN 서버 기반의 중계 서버 없는 다이렉트 화면/입력 스트리밍
-* **시그널링 서버 (`signaling-server/`):** Node.js + Socket.io 기반의 초고속 P2P 세션 연결
-* **YDS 디자인 시스템 내장:** Yoonikon Design System (YDS) v2.0 Tactical HUD 기반의 유려한 다크/라이트 테마 인터페이스
+혹시 코드를 직접 수정하거나 개발 모드로 실행해보고 싶다면 아래 순서대로 하시면 돼요.
 
----
+### 요구 사항
+- [Node.js](https://nodejs.org/) 18 이상
+- [Rust](https://www.rust-lang.org/) (최신 stable)
+- C++ 빌드 툴 (윈도우의 경우 Visual Studio C++ 빌드 도구)
 
-## 3. 실행 방법
-
-### 시그널링 서버 설치 및 실행 (Signaling Server)
-
-#### 방법 1: 윈도우(Windows) 실행
-1. **원클릭 실행**: `signaling-server/start-windows.bat` 더블 클릭 (관리자 권한 실행 권장)
-2. **명령 프롬프트/PowerShell 수동 실행**:
-   ```powershell
-   cd signaling-server
-   npm install
-   npm start
-   ```
-3. **방화벽 수동 허용** (동일 Wi-Fi/공유기 내 다른 기기에서 접속 시 필요):  
-   - Windows PowerShell(관리자 권한)에서 다음 명령어 1줄 실행:
-     ```powershell
-     netsh advfirewall firewall add rule name="SyncLink_Signaling_5963" dir=in action=allow protocol=TCP localport=5963
-     ```
-
-#### 방법 2: 리눅스 원클릭 자동 설치 (Ubuntu / Debian / CentOS / Rocky)
-리눅스 터미널에서 아래 명령어 한 줄을 실행하면 Node.js 환경 감지, 방화벽 포트 개방(5963/TCP), systemd 상시 백그라운드 서비스 등록 및 자동 시작이 완료됩니다:
-```bash
-curl -fsSL https://raw.githubusercontent.com/JungHyunY/synclink.proto/main/signaling-server/install.sh | sudo bash
-```
-
-#### 방법 3: Docker 컨테이너 실행
-```bash
-cd signaling-server
-docker compose up -d
-```
-
-#### 방법 4: 수동 실행 (공통)
+### 1. 시그널링 서버 실행
 ```bash
 cd signaling-server
 npm install
 npm start
 ```
 
-### 데스크톱 클라이언트 실행 (개발 모드)
+### 2. 데스크톱 클라이언트 실행
 ```bash
 cd client
 npm install
 npm run tauri dev
 ```
+
+---
+
+## 📜 라이선스
+MIT License
