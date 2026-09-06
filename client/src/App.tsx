@@ -41,6 +41,10 @@ import {
   ChevronDown,
   Move,
   CopyPlus,
+  CheckCircle2,
+  XCircle,
+  Info,
+  Sparkles,
 } from "lucide-react";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -119,9 +123,77 @@ function formatDeviceId(id: string): string {
   return `${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)} ${cleaned.slice(6, 9)}`;
 }
 
+const CURRENT_VERSION = "1.0.7";
+
+function compareVersions(v1: string, v2: string): number {
+  const clean1 = (v1 || "").replace(/^v/, "").split(".").map(Number);
+  const clean2 = (v2 || "").replace(/^v/, "").split(".").map(Number);
+  for (let i = 0; i < Math.max(clean1.length, clean2.length); i++) {
+    const num1 = clean1[i] || 0;
+    const num2 = clean2[i] || 0;
+    if (num1 > num2) return 1;
+    if (num1 < num2) return -1;
+  }
+  return 0;
+}
+
+interface CustomDialogConfig {
+  isOpen: boolean;
+  type?: "info" | "success" | "warning" | "error" | "update";
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  onConfirm?: () => void;
+  onCancel?: () => void;
+}
+
 function App() {
   // Navigation
   const [activeTab, setActiveTab] = useState<"connect" | "host" | "devices" | "settings">("connect");
+
+  // Custom Modal Dialog State (replaces native browser alerts/confirms)
+  const [dialogConfig, setDialogConfig] = useState<CustomDialogConfig | null>(null);
+
+  const showDialog = (options: {
+    title?: string;
+    message: string;
+    type?: "info" | "success" | "warning" | "error" | "update";
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm?: () => void;
+    onCancel?: () => void;
+  }) => {
+    setDialogConfig({
+      isOpen: true,
+      title: options.title || (options.type === "error" ? "오류" : options.type === "warning" ? "알림" : options.type === "success" ? "성공" : options.type === "update" ? "업데이트 알림" : "안내"),
+      message: options.message,
+      type: options.type || "info",
+      confirmText: options.confirmText || "확인",
+      cancelText: options.cancelText,
+      onConfirm: options.onConfirm,
+      onCancel: options.onCancel,
+    });
+  };
+
+  const closeDialog = () => {
+    setDialogConfig(null);
+  };
+
+  useEffect(() => {
+    if (!dialogConfig?.isOpen) return;
+    const handleDialogKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (dialogConfig.onCancel) dialogConfig.onCancel();
+        closeDialog();
+      } else if (e.key === "Enter") {
+        if (dialogConfig.onConfirm) dialogConfig.onConfirm();
+        closeDialog();
+      }
+    };
+    window.addEventListener("keydown", handleDialogKeyDown);
+    return () => window.removeEventListener("keydown", handleDialogKeyDown);
+  }, [dialogConfig]);
 
   // Server & Connectivity
   const [serverUrl, setServerUrl] = useState(() => localStorage.getItem("synclink_server_url") || DEFAULT_SERVER_URL);
@@ -267,7 +339,11 @@ function App() {
       await invoke("open_new_window");
     } catch (err: any) {
       console.warn("새 창 열기 오류:", err);
-      alert(typeof err === "string" ? err : (err?.message || "동시에 최대 3개의 창까지만 열 수 있습니다."));
+      showDialog({
+        type: "warning",
+        title: "새 창 열기 제한",
+        message: typeof err === "string" ? err : (err?.message || "동시에 최대 3개의 창까지만 열 수 있습니다."),
+      });
     }
   };
 
@@ -445,47 +521,132 @@ function App() {
   const handleCheckForUpdate = async (manual = false) => {
     try {
       setIsCheckingUpdate(true);
-      let updateCheckFn: any = null;
+
+      let foundUpdateInfo: {
+        version: string;
+        body?: string;
+        downloadUrl?: string;
+        nativeUpdate?: any;
+      } | null = null;
+
+      // 1. Try Tauri native updater plugin
       try {
-        const updaterPkg = "@tauri-apps/plugin-updater";
-        const updaterMod = await import(/* @vite-ignore */ updaterPkg);
-        updateCheckFn = updaterMod.check;
-      } catch (modErr) {
-        console.warn("Tauri updater plugin not loaded:", modErr);
+        const updaterMod = await import("@tauri-apps/plugin-updater");
+        const nativeUpdate = await updaterMod.check();
+        if (nativeUpdate && nativeUpdate.version) {
+          foundUpdateInfo = {
+            version: nativeUpdate.version,
+            body: nativeUpdate.body,
+            nativeUpdate,
+          };
+        }
+      } catch (nativeErr) {
+        console.log("Tauri updater check info (falling back to GitHub Releases API):", nativeErr);
       }
 
-      if (!updateCheckFn) {
-        setIsCheckingUpdate(false);
-        if (manual) alert("현재 최신 버전(v1.0.7)을 사용 중이에요! ✨");
-        return;
+      // 2. Fallback to GitHub Releases API (ensures it works even if latest.json is not present)
+      if (!foundUpdateInfo) {
+        try {
+          const res = await fetch("https://api.github.com/repos/JungHyunY/synclink.proto/releases/latest");
+          if (res.ok) {
+            const data = await res.json();
+            const latestTag = (data.tag_name || "").trim();
+            const isNewer = compareVersions(latestTag, CURRENT_VERSION) > 0;
+            if (isNewer) {
+              const isMac = navigator.userAgent.toLowerCase().includes("mac");
+              const targetAsset = data.assets?.find((a: any) =>
+                isMac
+                  ? a.name.endsWith(".dmg") || a.name.endsWith(".app.tar.gz")
+                  : a.name.endsWith("-setup.exe") || a.name.endsWith(".exe") || a.name.endsWith(".msi")
+              );
+              foundUpdateInfo = {
+                version: latestTag.replace(/^v/, ""),
+                body: data.body || "최신 기능 개선 및 안정성 향상이 포함되어 있습니다.",
+                downloadUrl: targetAsset?.browser_download_url || data.html_url,
+              };
+            }
+          }
+        } catch (apiErr) {
+          console.warn("GitHub API release check error:", apiErr);
+        }
       }
 
-      const update = await updateCheckFn();
       setIsCheckingUpdate(false);
-      if (update) {
-        setAvailableUpdate(update);
+
+      if (foundUpdateInfo) {
+        setAvailableUpdate(foundUpdateInfo);
+        showDialog({
+          type: "update",
+          title: `새 버전 SyncLink v${foundUpdateInfo.version} 출시!`,
+          message: `새로운 버전이 배포되었습니다.\n\n${foundUpdateInfo.body || ""}`,
+          confirmText: "지금 업데이트",
+          cancelText: "나중에",
+          onConfirm: () => {
+            if (foundUpdateInfo?.nativeUpdate) {
+              handleInstallNativeUpdate(foundUpdateInfo.nativeUpdate);
+            } else if (foundUpdateInfo?.downloadUrl) {
+              openUrl(foundUpdateInfo.downloadUrl).catch(() => {
+                window.open(foundUpdateInfo!.downloadUrl, "_blank");
+              });
+            }
+          },
+        });
       } else if (manual) {
-        alert("현재 최신 버전(v1.0.7)을 사용 중이에요! ✨");
+        showDialog({
+          type: "success",
+          title: "최신 버전 사용 중",
+          message: `현재 최신 버전(v${CURRENT_VERSION})을 사용하고 있어요! ✨\n새로운 업데이트가 없습니다.`,
+          confirmText: "확인",
+        });
       }
-    } catch (err) {
+    } catch (err: any) {
       setIsCheckingUpdate(false);
       if (manual) {
-        console.warn("Update check notice:", err);
-        alert("현재 최신 버전이거나 업데이트 서버를 조회 중이에요.");
+        showDialog({
+          type: "warning",
+          title: "업데이트 확인 안내",
+          message: "업데이트 서버(GitHub)에 연결할 수 없거나 요청 한도를 초과했습니다.\n잠시 후 다시 시도해 주세요.",
+          confirmText: "확인",
+        });
       }
     }
   };
 
-  const handleInstallUpdate = async () => {
-    if (!availableUpdate) return;
+  const handleInstallNativeUpdate = async (nativeUpdate: any) => {
     try {
       setIsInstallingUpdate(true);
-      await availableUpdate.downloadAndInstall();
-      alert("최신 버전 다운로드가 완료되었어요! 앱을 자동으로 재실행합니다.");
-    } catch (err) {
-      alert("업데이트 설치 중 오류가 발생했어요: " + err);
+      showDialog({
+        type: "update",
+        title: "업데이트 다운로드 중",
+        message: "백그라운드에서 최신 버전을 다운로드하여 설치하고 있습니다...\n잠시만 기다려 주세요.",
+      });
+      await nativeUpdate.downloadAndInstall();
+      showDialog({
+        type: "success",
+        title: "다운로드 완료",
+        message: "최신 버전 다운로드가 완료되었습니다! 앱을 자동으로 재실행합니다.",
+        confirmText: "확인",
+      });
+    } catch (err: any) {
+      showDialog({
+        type: "error",
+        title: "업데이트 설치 실패",
+        message: "업데이트 설치 중 오류가 발생했습니다: " + (err?.message || err),
+        confirmText: "확인",
+      });
     } finally {
       setIsInstallingUpdate(false);
+    }
+  };
+
+  const handleInstallUpdate = () => {
+    if (!availableUpdate) return;
+    if (availableUpdate.nativeUpdate) {
+      handleInstallNativeUpdate(availableUpdate.nativeUpdate);
+    } else if (availableUpdate.downloadUrl) {
+      openUrl(availableUpdate.downloadUrl).catch(() => {
+        window.open(availableUpdate.downloadUrl, "_blank");
+      });
     }
   };
 
@@ -604,9 +765,13 @@ function App() {
     try {
       const res = await invoke<boolean>("set_autostart_status", { enabled });
       setIsAutoStartEnabled(res);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to toggle autostart:", err);
-      alert("자동 실행 설정 중 오류가 발생했어요: " + err);
+      showDialog({
+        type: "error",
+        title: "자동 실행 설정 실패",
+        message: "자동 실행 설정 중 오류가 발생했습니다: " + (err?.message || err),
+      });
     }
   };
 
@@ -1131,7 +1296,11 @@ function App() {
     // Host Offline Notification
     socket.on("host-offline", () => {
       if (!isHostRef.current) {
-        alert("호스트와의 연결이 종료되었어요.");
+        showDialog({
+          type: "info",
+          title: "연결 종료",
+          message: "호스트와의 원격 제어 연결이 종료되었습니다.",
+        });
         endSession();
       }
     });
@@ -1223,7 +1392,14 @@ function App() {
 
   // Start Hosting (Manual immediate start)
   const startHosting = async () => {
-    if (!myPin) return alert("무인 접속을 위한 PIN 비밀번호를 설정해 주세요.");
+    if (!myPin) {
+      showDialog({
+        type: "warning",
+        title: "PIN 번호 필요",
+        message: "무인 접속을 위한 PIN 비밀번호를 설정해 주세요.",
+      });
+      return;
+    }
     isHostRef.current = true;
     setIsHostingActive(true);
     setIsHostMode(true);
@@ -1280,7 +1456,14 @@ function App() {
   // Connect as Guest
   const connectToDevice = (target: string, pin: string) => {
     const cleanId = target.replace(/\s+/g, "");
-    if (!cleanId) return alert("접속할 기기 ID를 입력해 주세요.");
+    if (!cleanId) {
+      showDialog({
+        type: "warning",
+        title: "기기 ID 입력 필요",
+        message: "접속할 9자리 기기 ID를 입력해 주세요.",
+      });
+      return;
+    }
     setIsConnecting(true);
     setAuthError(null);
 
@@ -3419,7 +3602,14 @@ function App() {
                 className="btn-main btn-primary-glow"
                 style={{ flex: 1 }}
                 onClick={() => {
-                  if (!newDeviceId || !newDeviceName) return alert("기기 이름과 ID를 입력해 주세요.");
+                  if (!newDeviceId || !newDeviceName) {
+                    showDialog({
+                      type: "warning",
+                      title: "입력값 누락",
+                      message: "기기 이름과 9자리 ID를 모두 입력해 주세요.",
+                    });
+                    return;
+                  }
                   addSavedDevice(newDeviceId, newDeviceName, newDevicePin, newDeviceMemo);
                   setShowAddModal(false);
                   setNewDeviceName("");
@@ -3632,6 +3822,64 @@ function App() {
                 <span>서버 저장 및 시작하기</span>
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 Custom In-App Modal Dialog (Replaces native browser alert/confirm popups) */}
+      {dialogConfig && dialogConfig.isOpen && (
+        <div
+          className="custom-dialog-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              if (dialogConfig.onCancel) dialogConfig.onCancel();
+              closeDialog();
+            }
+          }}
+        >
+          <div className="custom-dialog-card">
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "14px" }}>
+              <div className={`custom-dialog-icon-wrapper ${dialogConfig.type || "info"}`}>
+                {dialogConfig.type === "success" && <CheckCircle2 size={24} />}
+                {dialogConfig.type === "warning" && <AlertCircle size={24} />}
+                {dialogConfig.type === "error" && <XCircle size={24} />}
+                {dialogConfig.type === "update" && <Sparkles size={24} />}
+                {(!dialogConfig.type || dialogConfig.type === "info") && <Info size={24} />}
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3 className="custom-dialog-title">{dialogConfig.title}</h3>
+              </div>
+            </div>
+
+            <div className="custom-dialog-message">{dialogConfig.message}</div>
+
+            <div className="custom-dialog-footer">
+              {dialogConfig.cancelText && (
+                <button
+                  type="button"
+                  className="btn-main btn-secondary-dark"
+                  style={{ padding: "8px 16px", fontSize: "0.88rem" }}
+                  onClick={() => {
+                    if (dialogConfig.onCancel) dialogConfig.onCancel();
+                    closeDialog();
+                  }}
+                >
+                  {dialogConfig.cancelText}
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn-main btn-primary"
+                style={{ padding: "8px 22px", fontSize: "0.88rem" }}
+                onClick={() => {
+                  if (dialogConfig.onConfirm) dialogConfig.onConfirm();
+                  closeDialog();
+                }}
+                autoFocus
+              >
+                {dialogConfig.confirmText || "확인"}
+              </button>
+            </div>
           </div>
         </div>
       )}
