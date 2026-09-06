@@ -180,6 +180,17 @@ function App() {
     setDialogConfig(null);
   };
 
+  // Global safety net: override window.alert so no browser 'tauri.localhost' popup ever appears
+  useEffect(() => {
+    window.alert = (msg?: any) => {
+      showDialog({
+        type: "info",
+        title: "안내",
+        message: String(msg ?? ""),
+      });
+    };
+  }, []);
+
   useEffect(() => {
     if (!dialogConfig?.isOpen) return;
     const handleDialogKeyDown = (e: KeyboardEvent) => {
