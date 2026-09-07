@@ -4307,7 +4307,7 @@ dependencies = [
 
 [[package]]
 name = "synclink"
-version = "1.0.13"
+version = "1.0.14"
 dependencies = [
  "arboard",
  "base64 0.21.7",

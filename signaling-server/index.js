@@ -49,7 +49,7 @@ const server = http.createServer((req, res) => {
     res.end(JSON.stringify({
       status: "ok",
       service: "synclink-signaling",
-      version: "1.0.13",
+      version: "1.0.14",
       roomsOnline: rooms.size,
       timestamp: Date.now()
     }));
@@ -77,7 +77,7 @@ server.listen(PORT, "0.0.0.0", () => {
   }
 
   console.log("\n=======================================================");
-  console.log("  🚀 Yoonikon SyncLink Signaling Server v1.0.13");
+  console.log("  🚀 Yoonikon SyncLink Signaling Server v1.0.14");
   console.log("=======================================================");
   console.log(`  📡 [Local Host]  http://localhost:${PORT}`);
   if (ips.length > 0) {

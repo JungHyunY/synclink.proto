@@ -167,7 +167,7 @@ function formatDeviceId(id: string): string {
   return `${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)} ${cleaned.slice(6, 9)}`;
 }
 
-const CURRENT_VERSION = "1.0.13";
+const CURRENT_VERSION = "1.0.14";
 
 function compareVersions(v1: string, v2: string): number {
   const clean1 = (v1 || "").replace(/^v/, "").split(".").map(Number);
@@ -1195,14 +1195,8 @@ function App() {
       }
     };
 
-    // 게스트 모드일 경우 비디오 수신 전용 트랜시버를 사전에 등록 (Windows Chromium WebView2 <-> macOS WebKit 호환성 확보)
-    if (!isHostRef.current && flowModeRef.current !== "flow") {
-      try {
-        peer.addTransceiver("video", { direction: "recvonly" });
-      } catch (transceiverErr) {
-        console.warn("Could not pre-add recvonly video transceiver:", transceiverErr);
-      }
-    }
+    // Note: Answerer (guest) automatically gets matching receiver transceiver on setRemoteDescription(offer).
+    // Pre-adding a local transceiver before setRemoteDescription causes transceiver direction mismatch in Chromium.
 
     peer.onicecandidate = (e) => {
       if (e.candidate) {
@@ -1216,16 +1210,24 @@ function App() {
       remoteStreamRef.current = stream;
       setRemoteMediaStream(stream);
 
-      // 원격 미디어 트랙 상태 모니터링
+      // 원격 미디어 트랙 상태 모니터링 및 재생 보장
       if (e.track) {
+        e.track.enabled = true;
         e.track.onmute = () => console.warn("⚠️ Remote video track muted (Host canvas idle or throttling)");
-        e.track.onunmute = () => console.log("✅ Remote video track unmuted and active");
+        e.track.onunmute = () => {
+          console.log("✅ Remote video track unmuted and active");
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.play().catch(() => {});
+          }
+        };
         e.track.onended = () => console.log("🛑 Remote video track ended");
       }
 
       if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = stream;
-        remoteVideoRef.current.play().catch((err) => console.error("Play error on ontrack:", err));
+        const v = remoteVideoRef.current;
+        v.srcObject = stream;
+        v.muted = true;
+        v.play().catch((err) => console.error("Play error on ontrack:", err));
       }
     };
     peer.onconnectionstatechange = () => {
@@ -1704,29 +1706,37 @@ function App() {
     }
   }, [isMainWindow, autoHostStandby, isServerConnected, myDeviceId, myPin, myDeviceName]);
 
-  // Video Frame Listener from Rust
+  // Video Frame Listener from Rust (Always active to eliminate 0-frame delay on guest connect)
   useEffect(() => {
     let unlisten: (() => void) | undefined;
+    let isMounted = true;
     const startListening = async () => {
-      unlisten = await listen<string>("video-frame", (event) => {
-        const canvas = captureCanvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-        const img = new Image();
-        img.onload = () => {
-          if (canvas.width !== img.width) canvas.width = img.width;
-          if (canvas.height !== img.height) canvas.height = img.height;
-          ctx.drawImage(img, 0, 0);
-        };
-        img.src = `data:image/jpeg;base64,${event.payload}`;
-      });
+      try {
+        unlisten = await listen<string>("video-frame", (event) => {
+          if (!isMounted) return;
+          const canvas = captureCanvasRef.current;
+          if (!canvas) return;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return;
+          const img = new Image();
+          img.onload = () => {
+            if (!isMounted) return;
+            if (canvas.width !== img.width) canvas.width = img.width;
+            if (canvas.height !== img.height) canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+          };
+          img.src = `data:image/jpeg;base64,${event.payload}`;
+        });
+      } catch (e) {
+        console.error("Failed to setup video-frame listener:", e);
+      }
     };
-    if (isHostingActive) startListening();
+    startListening();
     return () => {
+      isMounted = false;
       if (unlisten) unlisten();
     };
-  }, [isHostingActive]);
+  }, []);
 
   // Periodic Clipboard Sync (Both Host and Guest)
   useEffect(() => {
@@ -2217,7 +2227,7 @@ function App() {
         </div>
       )}
 
-      {/* Background Frame Capture Canvas - visually active to prevent macOS WebKit from throttling captureStream */}
+      {/* Background Frame Capture Canvas - rendered at top layer with hardware acceleration to prevent macOS WebKit from throttling captureStream */}
       <canvas
         ref={captureCanvasRef}
         style={{
@@ -2227,8 +2237,10 @@ function App() {
           width: "100%",
           height: "100%",
           pointerEvents: "none",
-          opacity: 0.001,
-          zIndex: -999,
+          opacity: 0.01,
+          zIndex: 9999,
+          transform: "translateZ(0)",
+          willChange: "contents",
         }}
       />
 
@@ -3996,6 +4008,12 @@ function App() {
                   autoPlay
                   playsInline
                   muted
+                  onLoadedData={(e) => {
+                    (e.target as HTMLVideoElement).play().catch(() => {});
+                  }}
+                  onCanPlay={(e) => {
+                    (e.target as HTMLVideoElement).play().catch(() => {});
+                  }}
                   onMouseDown={(e) => handleRemoteInput(e, "mousedown")}
                   onMouseUp={(e) => handleRemoteInput(e, "mouseup")}
                   onMouseMove={(e) => handleRemoteInput(e, "mousemove")}
