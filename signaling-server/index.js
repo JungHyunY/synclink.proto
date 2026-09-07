@@ -97,6 +97,16 @@ io.on("connection", (socket) => {
 
   // 1. Host 등록 (무인 접속용 PIN/비밀번호 포함)
   socket.on("register-host", ({ roomId, password, deviceName }) => {
+    const existing = rooms.get(roomId);
+    if (existing && existing.online && existing.hostSocketId !== socket.id) {
+      const activeHostSocket = io.sockets.sockets.get(existing.hostSocketId);
+      if (activeHostSocket && activeHostSocket.connected) {
+        console.log(`⚠️ Host Re-registration ignored for Room ${roomId}: Active host ${existing.hostSocketId} already registered. Sub-window duplicate prevented.`);
+        socket.emit("host-registered", { success: true, roomId, note: "Existing active host preserved" });
+        return;
+      }
+    }
+
     socket.join(roomId);
     rooms.set(roomId, {
       hostSocketId: socket.id,

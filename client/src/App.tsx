@@ -383,7 +383,14 @@ function App() {
   }, [isToolbarMinimized]);
 
   // Multi-window State & Handlers (Up to 3 concurrent windows)
-  const [windowLabel, setWindowLabel] = useState<string>("main");
+  const [windowLabel, setWindowLabel] = useState<string>(() => {
+    try {
+      const win = getCurrentWebviewWindow();
+      return win?.label || "main";
+    } catch {
+      return "main";
+    }
+  });
   const isMainWindow = windowLabel === "main";
 
   useEffect(() => {
@@ -393,6 +400,8 @@ function App() {
         setWindowLabel(win.label);
         if (win.label !== "main") {
           win.setTitle("Yoonikon SyncLink (새 세션 창)").catch(() => {});
+          // 서브 창은 항상 원격 접속(Connect) 탭으로 고정
+          setActiveTab("connect");
         }
       }
     } catch (e) {
@@ -1544,6 +1553,8 @@ function App() {
 
     // 🎮 Control Events
     socket.on("control-event", async (payload) => {
+      // 오직 메인 창만 원격 입력(키보드/마우스)을 OS에 실행 (서브 창이 열려 있어도 중복 입력 원천 차단)
+      if (!isMainWindow) return;
       if (isHostRef.current) {
         try {
           if (payload.type === "mousemove") {
@@ -1658,8 +1669,9 @@ function App() {
     };
   }, [serverUrl, myDeviceId, myPin, myDeviceName]);
 
-  // Keep auto-standby registration active when credentials or connection change
+  // Keep auto-standby registration active when credentials or connection change (ONLY on main window)
   useEffect(() => {
+    if (!isMainWindow) return;
     if (!socketRef.current || !isServerConnected) return;
     if (autoHostStandby && myDeviceId && myPin) {
       socketRef.current.emit("register-host", {
@@ -1671,7 +1683,7 @@ function App() {
       setStatus("Standby");
       console.log("⚡ Auto Unattended Standby registered for Room:", myDeviceId);
     }
-  }, [autoHostStandby, isServerConnected, myDeviceId, myPin, myDeviceName]);
+  }, [isMainWindow, autoHostStandby, isServerConnected, myDeviceId, myPin, myDeviceName]);
 
   // Video Frame Listener from Rust
   useEffect(() => {
@@ -1733,6 +1745,14 @@ function App() {
 
   // Start Hosting (Manual immediate start)
   const startHosting = async () => {
+    if (!isMainWindow) {
+      showDialog({
+        type: "warning",
+        title: "호스트 시작 불가",
+        message: "호스트(화면 공유)는 메인 창에서만 실행할 수 있습니다.\n새 창은 다른 PC에 동시 접속하기 위한 전용 세션 창입니다.",
+      });
+      return;
+    }
     if (!myPin) {
       showDialog({
         type: "warning",
@@ -1872,7 +1892,7 @@ function App() {
     invoke("release_kvm_control").catch(() => {});
     setStatus("Ready");
     setPing(null);
-    if (isHostRef.current) {
+    if (isMainWindow && isHostRef.current) {
       setIsHostingActive(false);
       isHostRef.current = false;
       invoke("set_privacy_mode", { enabled: false }).catch(() => {});
