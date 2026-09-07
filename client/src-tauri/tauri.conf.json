@@ -46,7 +46,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQ2RUIyNDNGNkUzNzVGMzEKUldReFh6ZHVQeVRyMW93STQwbWxHTTRIczlsSjZ6WEtxaXBoR0g2K3JvL1k4SnNqMThhL3Y3MVgK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM1ODFBNjIwQTc5NkQzREQKUldUZDA1YW5JS2FCeGFRcFVDL1Ryejdlb3FYOEgwbHpDSnJaeWgyTnE4eTR1ZjlvRTZLMExwVlQK",
       "endpoints": [
         "https://github.com/JungHyunY/synclink.proto/releases/latest/download/latest.json"
       ]

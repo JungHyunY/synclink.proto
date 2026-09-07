@@ -3232,7 +3232,7 @@ function App() {
                         버전 및 업데이트
                       </h3>
                       <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
-                        Yoonikon SyncLink <b>v1.0.8</b> (Native Desktop)
+                        Yoonikon SyncLink <b>v{CURRENT_VERSION}</b> (Native Desktop)
                       </div>
                     </div>
                     <button
