@@ -571,7 +571,17 @@ async fn set_window_session_mode(window: Window, is_session: bool) {
 
 #[command]
 async fn minimize_host_window(window: Window) {
-    let _ = window.minimize();
+    #[cfg(target_os = "windows")]
+    {
+        let _ = window.minimize();
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        // macOS WebKit은 창이 최소화(Dock)되면 전력 절약을 위해 Canvas 드로잉 및 captureStream을 0 FPS로 정지합니다.
+        // 따라서 macOS에서는 창을 최소화하지 않고 백그라운드 활성 상태를 유지합니다.
+        let _ = window;
+        println!("ℹ️ Host window minimize skipped on non-Windows to keep WebKit canvas capture running");
+    }
 }
 
 #[command]

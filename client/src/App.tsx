@@ -82,6 +82,42 @@ const openExternalLink = async (url: string) => {
   }
 };
 
+// WebRTC Cross-Platform H.264 SDP 우선 협상 유틸리티 (macOS WebKit <-> Windows Chromium 호환성 보장)
+function preferH264(sdp: string): string {
+  if (!sdp) return sdp;
+  const lines = sdp.split(/\r\n|\n/);
+  const mVideoIndex = lines.findIndex((l) => l.startsWith("m=video "));
+  if (mVideoIndex === -1) return sdp;
+
+  const mLine = lines[mVideoIndex];
+  const parts = mLine.split(" ");
+  if (parts.length <= 3) return sdp;
+
+  const header = parts.slice(0, 3); // ["m=video", port, proto]
+  const payloadTypes = parts.slice(3);
+
+  // H264 payload types 찾기
+  const h264Payloads: string[] = [];
+  const otherPayloads: string[] = [];
+
+  for (const pt of payloadTypes) {
+    const isH264 = lines.some(
+      (l) => l.startsWith(`a=rtpmap:${pt} H264/`) || l.startsWith(`a=rtpmap:${pt} h264/`)
+    );
+    if (isH264) {
+      h264Payloads.push(pt);
+    } else {
+      otherPayloads.push(pt);
+    }
+  }
+
+  if (h264Payloads.length === 0) return sdp;
+
+  // H264 코덱을 m=video 헤더의 최우선 순위로 재배치
+  lines[mVideoIndex] = `${header.join(" ")} ${[...h264Payloads, ...otherPayloads].join(" ")}`;
+  return lines.join("\r\n");
+}
+
 function normalizeServerUrl(rawUrl: string): string {
   let trimmed = rawUrl.trim();
   if (!trimmed) return "";
@@ -539,6 +575,7 @@ function App() {
   }, [isHostingActive, autoHostStandby, isMainWindow]);
 
   const [availableMonitors, setAvailableMonitors] = useState<any[]>([]);
+  const [remoteMediaStream, setRemoteMediaStream] = useState<MediaStream | null>(null);
 
   const handleSetFlowMode = (m: "screen" | "flow") => {
     setFlowMode(m);
@@ -1047,6 +1084,15 @@ function App() {
       }
     };
 
+    // 게스트 모드일 경우 비디오 수신 전용 트랜시버를 사전에 등록 (Windows Chromium WebView2 <-> macOS WebKit 호환성 확보)
+    if (!isHostRef.current && flowModeRef.current !== "flow") {
+      try {
+        peer.addTransceiver("video", { direction: "recvonly" });
+      } catch (transceiverErr) {
+        console.warn("Could not pre-add recvonly video transceiver:", transceiverErr);
+      }
+    }
+
     peer.onicecandidate = (e) => {
       if (e.candidate) {
         socketRef.current?.emit("ice-candidate", { target: targetId, candidate: e.candidate });
@@ -1055,10 +1101,20 @@ function App() {
     peer.ontrack = (e) => {
       console.log("🎥 Video track received from host!", e.streams[0]);
       setStatus("Connected");
-      remoteStreamRef.current = e.streams[0];
+      const stream = e.streams[0];
+      remoteStreamRef.current = stream;
+      setRemoteMediaStream(stream);
+
+      // 원격 미디어 트랙 상태 모니터링
+      if (e.track) {
+        e.track.onmute = () => console.warn("⚠️ Remote video track muted (Host canvas idle or throttling)");
+        e.track.onunmute = () => console.log("✅ Remote video track unmuted and active");
+        e.track.onended = () => console.log("🛑 Remote video track ended");
+      }
+
       if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = e.streams[0];
-        remoteVideoRef.current.play().catch((err) => console.error("Play error:", err));
+        remoteVideoRef.current.srcObject = stream;
+        remoteVideoRef.current.play().catch((err) => console.error("Play error on ontrack:", err));
       }
     };
     peer.onconnectionstatechange = () => {
@@ -1066,9 +1122,8 @@ function App() {
       if (peer.connectionState === "connected") {
         setStatus("Connected");
         setIsConnected(true);
-        if (isHostRef.current && flowModeRef.current !== "flow") {
-          invoke("minimize_host_window").catch(() => {});
-        }
+        // 주의: macOS WebKit은 창이 Dock으로 최소화되면 Canvas 렌더링 컨텍스트를 0 FPS로 정지시키므로,
+        // 호스트 창을 강제로 최소화하지 않고 ON AIR 대시보드 상태를 유지합니다.
       } else if (
         peer.connectionState === "disconnected" ||
         peer.connectionState === "failed" ||
@@ -1319,16 +1374,26 @@ function App() {
       peerRef.current?.close();
       const peer = createPeerConnection(userId);
       if (flowModeRef.current !== "flow" && captureCanvasRef.current) {
-        const canvas = captureCanvasRef.current as any;
-        const stream = canvas.captureStream(hostFps);
+        const canvas = captureCanvasRef.current;
+        // 초기 프레임을 칠해 WebKit/Safari의 captureStream이 첫 프레임을 즉시 인코딩하도록 보장
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.fillStyle = "#0f172a";
+          ctx.fillRect(0, 0, canvas.width || 1920, canvas.height || 1080);
+        }
+        const stream = (canvas as any).captureStream(hostFps);
         stream.getTracks().forEach((track: any) => peer.addTrack(track, stream));
       }
       peerRef.current = peer;
 
       try {
         const offer = await peer.createOffer();
-        await peer.setLocalDescription(offer);
-        socket.emit("offer", { target: userId, caller: socket.id, sdp: offer, mode: flowModeRef.current });
+        const prioritizedOffer = {
+          type: offer.type,
+          sdp: preferH264(offer.sdp || ""),
+        } as RTCSessionDescriptionInit;
+        await peer.setLocalDescription(prioritizedOffer);
+        socket.emit("offer", { target: userId, caller: socket.id, sdp: prioritizedOffer, mode: flowModeRef.current });
       } catch (e) {
         console.error("Offer error:", e);
       }
@@ -1343,11 +1408,19 @@ function App() {
       const peer = createPeerConnection(payload.caller);
       peerRef.current = peer;
       try {
-        await peer.setRemoteDescription(payload.sdp);
+        const remoteOffer = {
+          type: payload.sdp.type,
+          sdp: preferH264(payload.sdp.sdp || ""),
+        } as RTCSessionDescriptionInit;
+        await peer.setRemoteDescription(remoteOffer);
         processCandidateQueue(peer);
         const answer = await peer.createAnswer();
-        await peer.setLocalDescription(answer);
-        socket.emit("answer", { target: payload.caller, sdp: answer });
+        const prioritizedAnswer = {
+          type: answer.type,
+          sdp: preferH264(answer.sdp || ""),
+        } as RTCSessionDescriptionInit;
+        await peer.setLocalDescription(prioritizedAnswer);
+        socket.emit("answer", { target: payload.caller, sdp: prioritizedAnswer });
         setIsConnected(true);
       } catch (e) {
         console.error("Answer error:", e);
@@ -1356,7 +1429,11 @@ function App() {
 
     socket.on("answer", async (payload) => {
       if (peerRef.current) {
-        await peerRef.current.setRemoteDescription(payload.sdp);
+        const remoteAnswer = {
+          type: payload.sdp.type,
+          sdp: preferH264(payload.sdp.sdp || ""),
+        } as RTCSessionDescriptionInit;
+        await peerRef.current.setRemoteDescription(remoteAnswer);
         processCandidateQueue(peerRef.current);
         setStatus("Session Active");
         setIsConnected(true);
@@ -1688,6 +1765,7 @@ function App() {
     flowChannelRef.current?.close();
     flowChannelRef.current = null;
     remoteStreamRef.current = null;
+    setRemoteMediaStream(null);
     setIsConnected(false);
     setIsBlackScreen(false);
     setIsPrivacyCover(false);
@@ -1712,17 +1790,20 @@ function App() {
     invoke("set_window_session_mode", { isSession: false }).catch(() => {});
   };
 
-  // Immediate Video Stream Attach
+  // Immediate Video Stream Attach (Reactive to remoteMediaStream arrival)
   useEffect(() => {
-    if (isConnected && !isHostMode && remoteVideoRef.current && remoteStreamRef.current) {
+    const stream = remoteMediaStream || remoteStreamRef.current;
+    if (isConnected && !isHostMode && remoteVideoRef.current && stream) {
       const v = remoteVideoRef.current;
-      v.srcObject = remoteStreamRef.current;
-      v.play().catch(() => {});
+      if (v.srcObject !== stream) {
+        v.srcObject = stream;
+      }
+      v.play().catch((err) => console.error("Auto play error in stream effect:", err));
       v.onloadedmetadata = () => {
         v.play().catch(() => {});
       };
     }
-  }, [isConnected, isHostMode]);
+  }, [isConnected, isHostMode, remoteMediaStream]);
 
   // Guest Input Handlers (Full Mouse Down, Up, Drag, Right-click & Long-press Support)
   const handleRemoteInput = (e: React.MouseEvent, type: string) => {
@@ -3769,7 +3850,14 @@ function App() {
                 style={{ cursor: showVirtualCursor ? "none" : "default" }}
               >
                 <video
-                  ref={remoteVideoRef}
+                  ref={(el) => {
+                    (remoteVideoRef as any).current = el;
+                    const stream = remoteMediaStream || remoteStreamRef.current;
+                    if (el && stream && el.srcObject !== stream) {
+                      el.srcObject = stream;
+                      el.play().catch(() => {});
+                    }
+                  }}
                   autoPlay
                   playsInline
                   muted
