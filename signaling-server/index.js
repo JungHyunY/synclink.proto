@@ -49,7 +49,7 @@ const server = http.createServer((req, res) => {
     res.end(JSON.stringify({
       status: "ok",
       service: "synclink-signaling",
-      version: "1.0.11",
+      version: "1.0.12",
       roomsOnline: rooms.size,
       timestamp: Date.now()
     }));
@@ -77,7 +77,7 @@ server.listen(PORT, "0.0.0.0", () => {
   }
 
   console.log("\n=======================================================");
-  console.log("  🚀 Yoonikon SyncLink Signaling Server v1.0.11");
+  console.log("  🚀 Yoonikon SyncLink Signaling Server v1.0.12");
   console.log("=======================================================");
   console.log(`  📡 [Local Host]  http://localhost:${PORT}`);
   if (ips.length > 0) {
@@ -108,11 +108,13 @@ io.on("connection", (socket) => {
     }
 
     socket.join(roomId);
+    socket.data.hostedRoomId = roomId;
     rooms.set(roomId, {
       hostSocketId: socket.id,
       password: password || "",
       deviceName: deviceName || "Remote Host",
       online: true,
+      guests: (existing && existing.guests) ? existing.guests : new Set(),
     });
     console.log(`🖥️ Host Registered -> Room ID: ${roomId} [${deviceName}]`);
     socket.emit("host-registered", { success: true, roomId });
@@ -140,6 +142,10 @@ io.on("connection", (socket) => {
     }
 
     socket.join(roomId);
+    socket.data.joinedRoomId = roomId;
+    if (!room.guests) room.guests = new Set();
+    room.guests.add(socket.id);
+
     console.log(`🔑 Auth Success: Guest (${socket.id}) -> Room: ${roomId} [Mode: ${mode || "screen"}]`);
     socket.emit("auth-response", { 
       success: true, 
@@ -155,6 +161,12 @@ io.on("connection", (socket) => {
   // 3. 기존 호환성용 join-room
   socket.on("join-room", (roomId) => {
     socket.join(roomId);
+    socket.data.joinedRoomId = roomId;
+    const room = rooms.get(roomId);
+    if (room) {
+      if (!room.guests) room.guests = new Set();
+      room.guests.add(socket.id);
+    }
     console.log(`User ${socket.id} joined room: ${roomId}`);
     socket.to(roomId).emit("user-connected", socket.id);
   });
@@ -202,21 +214,49 @@ io.on("connection", (socket) => {
   // 9. 게스트 명시적 세션 종료 처리
   socket.on("guest-disconnect", ({ roomId }) => {
     console.log(`👋 Guest (${socket.id}) ended session for Room: ${roomId}`);
-    socket.to(roomId).emit("guest-disconnected", { guestId: socket.id });
+    const targetRoomId = roomId || socket.data.joinedRoomId;
+    if (targetRoomId) {
+      const room = rooms.get(targetRoomId);
+      if (room && room.guests) {
+        room.guests.delete(socket.id);
+      }
+      socket.to(targetRoomId).emit("guest-disconnected", { guestId: socket.id });
+      socket.leave(targetRoomId);
+    }
+    delete socket.data.joinedRoomId;
   });
 
   // 10. 소켓 연결 해제 처리 (Host 또는 Guest 종료)
   socket.on("disconnect", () => {
     console.log(`❌ Client disconnected: ${socket.id}`);
+
+    // 1) 만약 이 소켓이 호스트였던 경우 -> 해당 호스트의 방만 닫음
     for (const [roomId, room] of rooms.entries()) {
       if (room.hostSocketId === socket.id) {
         room.online = false;
         socket.to(roomId).emit("host-offline", { roomId });
         rooms.delete(roomId);
         console.log(`🛑 Host disconnected, Room closed: ${roomId}`);
-      } else {
-        // 게스트 비정상 종료 시 호스트에게 알림
-        socket.to(roomId).emit("guest-disconnected", { guestId: socket.id });
+      }
+    }
+
+    // 2) 만약 이 소켓이 게스트였던 경우 -> '오직 자신이 참가했던 방'에만 guest-disconnected를 알림
+    const joinedRoomId = socket.data.joinedRoomId;
+    if (joinedRoomId) {
+      const room = rooms.get(joinedRoomId);
+      if (room && room.guests) {
+        room.guests.delete(socket.id);
+      }
+      socket.to(joinedRoomId).emit("guest-disconnected", { guestId: socket.id });
+      console.log(`👋 Guest (${socket.id}) disconnected from Room: ${joinedRoomId}`);
+    } else {
+      // fallback: joinedRoomId가 없는 경우 room.guests에 등록된 방만 정확히 탐색하여 알림
+      for (const [roomId, room] of rooms.entries()) {
+        if (room.guests && room.guests.has(socket.id)) {
+          room.guests.delete(socket.id);
+          socket.to(roomId).emit("guest-disconnected", { guestId: socket.id });
+          console.log(`👋 Guest (${socket.id}) disconnected from Room (guest Set match): ${roomId}`);
+        }
       }
     }
   });

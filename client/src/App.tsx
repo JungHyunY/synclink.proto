@@ -167,7 +167,7 @@ function formatDeviceId(id: string): string {
   return `${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)} ${cleaned.slice(6, 9)}`;
 }
 
-const CURRENT_VERSION = "1.0.11";
+const CURRENT_VERSION = "1.0.12";
 
 function compareVersions(v1: string, v2: string): number {
   const clean1 = (v1 || "").replace(/^v/, "").split(".").map(Number);
@@ -879,6 +879,7 @@ function App() {
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const captureCanvasRef = useRef<HTMLCanvasElement>(null);
   const isHostRef = useRef(false);
+  const connectedGuestIdRef = useRef<string | null>(null);
   const isScreenCapturingRef = useRef(false);
   const autoHostStandbyRef = useRef(autoHostStandby);
   const candidateQueue = useRef<RTCIceCandidate[]>([]);
@@ -1088,6 +1089,7 @@ function App() {
   // Handle Guest Disconnection (For Host: release capture and maintain standby)
   const handleHostGuestDisconnected = async () => {
     console.log("👋 Guest disconnected (cleaning up WebRTC & screen capture)");
+    connectedGuestIdRef.current = null;
     peerRef.current?.close();
     peerRef.current = null;
     setIsConnected(false);
@@ -1449,6 +1451,7 @@ function App() {
     socket.on("user-connected", async (payload: any) => {
       if (!isHostRef.current) return;
       const guestId = typeof payload === "string" ? payload : payload.guestId;
+      connectedGuestIdRef.current = guestId;
       const requestedMode = (typeof payload === "object" && payload.mode) ? payload.mode : flowModeRef.current;
       setFlowMode(requestedMode);
       flowModeRef.current = requestedMode;
@@ -1662,10 +1665,15 @@ function App() {
     });
 
     // Guest Disconnected Notification (Host receives this)
-    socket.on("guest-disconnected", () => {
-      if (isHostRef.current) {
-        handleHostGuestDisconnected();
+    socket.on("guest-disconnected", (payload: any) => {
+      if (!isHostRef.current) return;
+      const disconnectedGuestId = typeof payload === "string" ? payload : payload?.guestId;
+      if (disconnectedGuestId && connectedGuestIdRef.current && disconnectedGuestId !== connectedGuestIdRef.current) {
+        console.log(`ℹ️ Ignoring guest-disconnected from non-active guest: ${disconnectedGuestId} (Active: ${connectedGuestIdRef.current})`);
+        return;
       }
+      connectedGuestIdRef.current = null;
+      handleHostGuestDisconnected();
     });
 
     return () => {
@@ -1888,13 +1896,15 @@ function App() {
     setIsBlackScreen(false);
     setIsPrivacyCover(false);
     setIsControllingFlowRemote(false);
-    invoke("enable_kvm_mode", {
-      enabled: false,
-      direction: flowDirection,
-      screenWidth: 1920,
-      screenHeight: 1080,
-    }).catch(() => {});
-    invoke("release_kvm_control").catch(() => {});
+    if (flowModeRef.current === "flow") {
+      invoke("enable_kvm_mode", {
+        enabled: false,
+        direction: flowDirection,
+        screenWidth: 1920,
+        screenHeight: 1080,
+      }).catch(() => {});
+      invoke("release_kvm_control").catch(() => {});
+    }
     setStatus("Ready");
     setPing(null);
     if (isMainWindow && isHostRef.current) {
