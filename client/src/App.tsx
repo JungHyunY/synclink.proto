@@ -878,11 +878,98 @@ function App() {
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const activeKeysRef = useRef<Set<string>>(new Set());
+  const isConnectedRef = useRef(false);
+  const isHostingActiveRef = useRef(false);
+
+  useEffect(() => {
+    isConnectedRef.current = isConnected;
+  }, [isConnected]);
+
+  useEffect(() => {
+    isHostingActiveRef.current = isHostingActive;
+  }, [isHostingActive]);
 
   useEffect(() => {
     autoHostStandbyRef.current = autoHostStandby;
     localStorage.setItem("synclink_auto_standby", autoHostStandby ? "true" : "false");
   }, [autoHostStandby]);
+
+  // 원격 연결 중 또는 호스트 세션 중 실수로 앱 닫기 방지 (Prevent Accidental Window Close)
+  useEffect(() => {
+    let unlistenClose: (() => void) | undefined;
+    const setupCloseProtection = async () => {
+      try {
+        const appWindow = getCurrentWebviewWindow();
+        unlistenClose = await appWindow.onCloseRequested(async (event) => {
+          // 1. 원격 제어 세션이 진행 중인 경우 (게스트 또는 호스트 접속 중)
+          if (isConnectedRef.current || isScreenCapturingRef.current) {
+            event.preventDefault();
+            showDialog({
+              type: "warning",
+              title: "원격 제어 세션 진행 중",
+              message:
+                "현재 원격 접속이 활성화되어 있습니다.\n\n앱을 닫으면 원격 제어가 즉시 끊어지며 상대방이 다시 접속할 수 없게 됩니다.\n정말로 앱을 종료하시겠습니까?",
+              confirmText: "연결 끊고 종료",
+              cancelText: "취소 (연결 유지)",
+              onConfirm: async () => {
+                endSession();
+                setTimeout(() => {
+                  appWindow.destroy();
+                }, 150);
+              },
+            });
+            return;
+          }
+
+          // 2. 호스트 무인 원격 대기 중인 경우 (게스트 접속을 기다리는 호스트 PC)
+          if (isMainWindow && autoHostStandbyRef.current && isHostRef.current) {
+            event.preventDefault();
+            showDialog({
+              type: "warning",
+              title: "무인 원격 대기 중",
+              message:
+                "현재 이 PC는 외부 접속을 기다리는 '무인 원격 대기(Standby)' 상태입니다.\n\n앱을 완전히 닫으면 외부에서 이 PC에 접속할 수 없습니다.\n창을 닫는 대신 최소화하거나 백그라운드로 유지하는 것을 권장합니다.\n\n정말 종료하시겠습니까?",
+              confirmText: "대기 종료",
+              cancelText: "취소 (대기 유지)",
+              onConfirm: async () => {
+                setTimeout(() => {
+                  appWindow.destroy();
+                }, 150);
+              },
+            });
+            return;
+          }
+        });
+      } catch (err) {
+        console.warn("Failed to register onCloseRequested handler:", err);
+      }
+    };
+
+    setupCloseProtection();
+
+    return () => {
+      if (unlistenClose) unlistenClose();
+    };
+  }, [isMainWindow]);
+
+  // 원격 세션 중 실수로 단축키(Alt+F4, Cmd+W 등)로 창 닫기 방어
+  useEffect(() => {
+    const handleAccidentalCloseShortcuts = (e: KeyboardEvent) => {
+      if (isConnectedRef.current) {
+        if ((e.altKey && e.key === "F4") || ((e.metaKey || e.ctrlKey) && (e.key === "w" || e.key === "W"))) {
+          e.preventDefault();
+          showDialog({
+            type: "warning",
+            title: "원격 접속 진행 중",
+            message: "원격 제어 중에는 단축키로 앱을 바로 종료할 수 없습니다.\n종료를 원하시면 세션 툴바의 [종료] 버튼을 이용해 주세요.",
+            confirmText: "확인",
+          });
+        }
+      }
+    };
+    window.addEventListener("keydown", handleAccidentalCloseShortcuts);
+    return () => window.removeEventListener("keydown", handleAccidentalCloseShortcuts);
+  }, []);
 
   // Sync state to LocalStorage
   useEffect(() => {
