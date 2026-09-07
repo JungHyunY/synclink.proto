@@ -1182,9 +1182,9 @@ function App() {
     };
   }, [flowDirection]);
 
-  // Sync KVM Mode to Rust Backend
+  // Sync KVM Mode to Rust Backend (Only Guest controls remote, Host must NOT trap its mouse)
   useEffect(() => {
-    if (isConnected && flowMode === "flow") {
+    if (isConnected && flowMode === "flow" && !isHostRef.current) {
       invoke("enable_kvm_mode", {
         enabled: true,
         direction: flowDirection,

@@ -955,8 +955,10 @@ fn release_kvm_control() {
 #[command]
 fn remote_mouse_move_relative(dx: f64, dy: f64) {
     if let Some((cur_x, cur_y)) = kvm_manager::get_os_cursor_pos() {
-        let new_x = cur_x + dx;
-        let new_y = cur_y + dy;
+        let (sw, sh) = kvm_manager::get_os_screen_size();
+        let new_x = (cur_x + dx).clamp(0.0, sw);
+        let new_y = (cur_y + dy).clamp(0.0, sh);
+        kvm_manager::set_os_cursor_pos(new_x, new_y);
         let _ = simulate(&EventType::MouseMove { x: new_x, y: new_y });
     }
 }
