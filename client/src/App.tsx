@@ -53,7 +53,13 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import "./App.css";
 
 const DEFAULT_SERVER_URL = "http://localhost:5963";
-const ICE_SERVERS = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+const ICE_SERVERS = {
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+    { urls: "stun:stun.cloudflare.com:3478" },
+  ],
+};
 
 // ─── 서포트 & 파트너십 링크 ───
 const SUPPORT_LINKS = {
@@ -161,7 +167,7 @@ function formatDeviceId(id: string): string {
   return `${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)} ${cleaned.slice(6, 9)}`;
 }
 
-const CURRENT_VERSION = "1.0.8";
+const CURRENT_VERSION = "1.0.9";
 
 function compareVersions(v1: string, v2: string): number {
   const clean1 = (v1 || "").replace(/^v/, "").split(".").map(Number);
