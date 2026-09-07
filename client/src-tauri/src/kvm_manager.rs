@@ -161,12 +161,13 @@ pub fn init_kvm(app_handle: AppHandle) {
                 if !is_controlling {
                     anchor_pos = None;
 
-                    // Check if mouse genuinely hits the configured edge of the primary monitor
+                    // Check if mouse hits the configured edge of the primary monitor (with 6px tolerance margin)
+                    let edge_margin = 6.0;
                     let crossed = match dir.as_str() {
-                        "right" => cur_x >= (sw - 1.0),
-                        "left" => cur_x <= 0.0,
-                        "top" => cur_y <= 0.0,
-                        "bottom" => cur_y >= (sh - 1.0),
+                        "right" => cur_x >= (sw - edge_margin),
+                        "left" => cur_x <= edge_margin,
+                        "top" => cur_y <= edge_margin,
+                        "bottom" => cur_y >= (sh - edge_margin),
                         _ => false,
                     };
 
@@ -181,10 +182,10 @@ pub fn init_kvm(app_handle: AppHandle) {
 
                         // Store the edge boundary where cursor crossed
                         let anchor = match dir.as_str() {
-                            "right" => (sw - 1.0, cur_y.clamp(0.0, sh)),
-                            "left" => (0.0, cur_y.clamp(0.0, sh)),
-                            "top" => (cur_x.clamp(0.0, sw), 0.0),
-                            "bottom" => (cur_x.clamp(0.0, sw), sh - 1.0),
+                            "right" => (sw - 2.0, cur_y.clamp(0.0, sh)),
+                            "left" => (2.0, cur_y.clamp(0.0, sh)),
+                            "top" => (cur_x.clamp(0.0, sw), 2.0),
+                            "bottom" => (cur_x.clamp(0.0, sw), sh - 2.0),
                             _ => (cur_x, cur_y),
                         };
                         anchor_pos = Some(anchor);

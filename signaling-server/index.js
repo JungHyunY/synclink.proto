@@ -49,7 +49,7 @@ const server = http.createServer((req, res) => {
     res.end(JSON.stringify({
       status: "ok",
       service: "synclink-signaling",
-      version: "1.0.10",
+      version: "1.0.11",
       roomsOnline: rooms.size,
       timestamp: Date.now()
     }));
@@ -77,7 +77,7 @@ server.listen(PORT, "0.0.0.0", () => {
   }
 
   console.log("\n=======================================================");
-  console.log("  🚀 Yoonikon SyncLink Signaling Server v1.0.10");
+  console.log("  🚀 Yoonikon SyncLink Signaling Server v1.0.11");
   console.log("=======================================================");
   console.log(`  📡 [Local Host]  http://localhost:${PORT}`);
   if (ips.length > 0) {
@@ -119,7 +119,7 @@ io.on("connection", (socket) => {
   });
 
   // 2. Guest 인증 및 접속 요청
-  socket.on("auth-connect", ({ roomId, password }) => {
+  socket.on("auth-connect", ({ roomId, password, mode }) => {
     const room = rooms.get(roomId);
     if (!room || !room.online) {
       console.log(`❌ Auth Failed (Room not found or offline): ${roomId}`);
@@ -140,7 +140,7 @@ io.on("connection", (socket) => {
     }
 
     socket.join(roomId);
-    console.log(`🔑 Auth Success: Guest (${socket.id}) -> Room: ${roomId}`);
+    console.log(`🔑 Auth Success: Guest (${socket.id}) -> Room: ${roomId} [Mode: ${mode || "screen"}]`);
     socket.emit("auth-response", { 
       success: true, 
       roomId, 
@@ -148,8 +148,8 @@ io.on("connection", (socket) => {
       hostSocketId: room.hostSocketId 
     });
 
-    // Host에게 새 게스트가 연결되었음을 알림
-    io.to(room.hostSocketId).emit("user-connected", socket.id);
+    // Host에게 새 게스트가 연결되었음을 알림 (요청된 모드 screen 또는 flow 포함)
+    io.to(room.hostSocketId).emit("user-connected", { guestId: socket.id, mode: mode || "screen" });
   });
 
   // 3. 기존 호환성용 join-room

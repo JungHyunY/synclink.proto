@@ -167,7 +167,7 @@ function formatDeviceId(id: string): string {
   return `${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)} ${cleaned.slice(6, 9)}`;
 }
 
-const CURRENT_VERSION = "1.0.10";
+const CURRENT_VERSION = "1.0.11";
 
 function compareVersions(v1: string, v2: string): number {
   const clean1 = (v1 || "").replace(/^v/, "").split(".").map(Number);
@@ -1446,16 +1446,20 @@ function App() {
     });
 
     // WebRTC Signaling
-    socket.on("user-connected", async (userId: string) => {
+    socket.on("user-connected", async (payload: any) => {
       if (!isHostRef.current) return;
-      console.log(`🔌 Guest (${userId}) connected. Starting session in mode:`, flowModeRef.current);
-      setStatus("Guest connected. Negotiating...");
+      const guestId = typeof payload === "string" ? payload : payload.guestId;
+      const requestedMode = (typeof payload === "object" && payload.mode) ? payload.mode : flowModeRef.current;
+      setFlowMode(requestedMode);
+      flowModeRef.current = requestedMode;
+      console.log(`🔌 Guest (${guestId}) connected. Starting session in mode:`, requestedMode);
+      setStatus(`Guest connected. Negotiating (${requestedMode} mode)...`);
 
       // Automatically wake display and dismiss lock screensaver for incoming guest
       invoke("wake_remote_display").catch(() => {});
 
       // Start screen capture on demand only if NOT in Flow mode!
-      if (flowModeRef.current !== "flow" && !isScreenCapturingRef.current) {
+      if (requestedMode !== "flow" && !isScreenCapturingRef.current) {
         if (captureCanvasRef.current) {
           captureCanvasRef.current.width = 1920;
           captureCanvasRef.current.height = 1080;
@@ -1474,8 +1478,8 @@ function App() {
       }
 
       peerRef.current?.close();
-      const peer = createPeerConnection(userId);
-      if (flowModeRef.current !== "flow" && captureCanvasRef.current) {
+      const peer = createPeerConnection(guestId);
+      if (requestedMode !== "flow" && captureCanvasRef.current) {
         const canvas = captureCanvasRef.current;
         // 초기 프레임을 칠해 WebKit/Safari의 captureStream이 첫 프레임을 즉시 인코딩하도록 보장
         const ctx = canvas.getContext("2d");
@@ -1495,7 +1499,7 @@ function App() {
           sdp: preferH264(offer.sdp || ""),
         } as RTCSessionDescriptionInit;
         await peer.setLocalDescription(prioritizedOffer);
-        socket.emit("offer", { target: userId, caller: socket.id, sdp: prioritizedOffer, mode: flowModeRef.current });
+        socket.emit("offer", { target: guestId, caller: socket.id, sdp: prioritizedOffer, mode: requestedMode });
       } catch (e) {
         console.error("Offer error:", e);
       }
@@ -1831,6 +1835,7 @@ function App() {
     socketRef.current?.emit("auth-connect", {
       roomId: cleanId,
       password: pin,
+      mode: flowModeRef.current,
     });
   };
 
