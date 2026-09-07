@@ -167,7 +167,7 @@ function formatDeviceId(id: string): string {
   return `${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)} ${cleaned.slice(6, 9)}`;
 }
 
-const CURRENT_VERSION = "1.0.15";
+const CURRENT_VERSION = "1.0.16";
 
 function compareVersions(v1: string, v2: string): number {
   const clean1 = (v1 || "").replace(/^v/, "").split(".").map(Number);
@@ -2074,13 +2074,14 @@ function App() {
         "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Backspace", "Delete", " ", "Home", "End", "PageUp", "PageDown"
       ].includes(e.key);
 
-      if (isModifierCombo || isBrowserSpecial) {
+      const isHangulKey = e.key === "HangulMode" || e.code === "Lang2" || (e.key === "Alt" && e.code === "AltRight");
+      if (isModifierCombo || isBrowserSpecial || isHangulKey) {
         e.preventDefault();
       }
       e.stopPropagation();
 
       activeKeysRef.current.add(e.code || e.key);
-      sendRemoteKeyEvent("keydown", e.key, e.code);
+      sendRemoteKeyEvent("keydown", isHangulKey ? "HangulMode" : e.key, isHangulKey ? "Lang2" : e.code);
     };
 
     const onGlobalKeyUp = (e: KeyboardEvent) => {
@@ -2095,13 +2096,14 @@ function App() {
         "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Backspace", "Delete", " ", "Home", "End", "PageUp", "PageDown"
       ].includes(e.key);
 
-      if (isModifierCombo || isBrowserSpecial) {
+      const isHangulKey = e.key === "HangulMode" || e.code === "Lang2" || (e.key === "Alt" && e.code === "AltRight");
+      if (isModifierCombo || isBrowserSpecial || isHangulKey) {
         e.preventDefault();
       }
       e.stopPropagation();
 
       activeKeysRef.current.delete(e.code || e.key);
-      sendRemoteKeyEvent("keyup", e.key, e.code);
+      sendRemoteKeyEvent("keyup", isHangulKey ? "HangulMode" : e.key, isHangulKey ? "Lang2" : e.code);
     };
 
     const onWindowBlur = () => {
@@ -3616,6 +3618,21 @@ function App() {
                     <span>{showVirtualCursor ? "커서 On" : "커서 Off"}</span>
                   </button>
 
+                  {/* 한/영 전환 퀵 버튼 */}
+                  <button
+                    className="toolbar-btn"
+                    onClick={() => {
+                      sendRemoteKeyEvent("keydown", "HangulMode", "Lang2");
+                      setTimeout(() => {
+                        sendRemoteKeyEvent("keyup", "HangulMode", "Lang2");
+                      }, 50);
+                    }}
+                    title="한/영 입력 전환 (Windows: 한영키 / Mac: Ctrl+Space)"
+                  >
+                    <span style={{ fontWeight: 800, fontSize: "0.8rem", color: "#38bdf8" }}>한/A</span>
+                    <span>한/영</span>
+                  </button>
+
                   {/* 원격 단축키 퀵 전송 메뉴 */}
                   <div style={{ position: "relative" }}>
                     <button
@@ -3650,6 +3667,19 @@ function App() {
                           boxShadow: "0 10px 25px rgba(0,0,0,0.6)",
                         }}
                       >
+                        <button
+                          className="shortcut-item-btn"
+                          onClick={() => {
+                            sendRemoteKeyEvent("keydown", "HangulMode", "Lang2");
+                            setTimeout(() => {
+                              sendRemoteKeyEvent("keyup", "HangulMode", "Lang2");
+                            }, 50);
+                            setShowShortcutsMenu(false);
+                          }}
+                        >
+                          <span className="shortcut-key">한/영 전환</span>
+                          <span className="shortcut-desc">한글 ↔ 영어</span>
+                        </button>
                         <button
                           className="shortcut-item-btn"
                           onClick={() => {

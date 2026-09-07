@@ -331,6 +331,42 @@ fn remote_mouse_up(button: String, x: Option<f64>, y: Option<f64>, monitor_index
 
 #[command]
 fn remote_keyboard_event(state: String, key: String, code: Option<String>) {
+    let key_lower = key.to_lowercase();
+    let code_lower = code.as_deref().unwrap_or("").to_lowercase();
+
+    // 🇰🇷 한/영 전환 키 특수 처리 (Windows -> macOS 또는 Windows -> Windows 크로스 플랫폼 지원)
+    let is_hangul_toggle = key_lower == "hangulmode"
+        || key_lower == "hangul"
+        || key_lower == "kana"
+        || code_lower == "lang2"
+        || (key_lower == "alt" && code_lower == "altright");
+
+    #[cfg(target_os = "macos")]
+    {
+        if is_hangul_toggle {
+            if state == "down" {
+                // macOS에서는 Control + Space가 표준 한/영 전환 시스템 단축키
+                let _ = simulate(&EventType::KeyPress(Key::ControlLeft));
+                let _ = simulate(&EventType::KeyPress(Key::Space));
+                thread::sleep(Duration::from_millis(15));
+                let _ = simulate(&EventType::KeyRelease(Key::Space));
+                let _ = simulate(&EventType::KeyRelease(Key::ControlLeft));
+            }
+            return;
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        if is_hangul_toggle {
+            if state == "down" {
+                let _ = simulate(&EventType::KeyPress(Key::AltGr));
+                let _ = simulate(&EventType::KeyRelease(Key::AltGr));
+            }
+            return;
+        }
+    }
+
     let rdev_key = str_to_key(&key).or_else(|| {
         code.as_deref().and_then(str_to_key)
     });
