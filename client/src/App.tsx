@@ -167,7 +167,7 @@ function formatDeviceId(id: string): string {
   return `${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)} ${cleaned.slice(6, 9)}`;
 }
 
-const CURRENT_VERSION = "1.0.12";
+const CURRENT_VERSION = "1.0.13";
 
 function compareVersions(v1: string, v2: string): number {
   const clean1 = (v1 || "").replace(/^v/, "").split(".").map(Number);
@@ -846,9 +846,16 @@ function App() {
       await nativeUpdate.downloadAndInstall();
       showDialog({
         type: "success",
-        title: "다운로드 완료",
-        message: "최신 버전 다운로드가 완료되었습니다! 앱을 자동으로 재실행합니다.",
-        confirmText: "확인",
+        title: "업데이트 완료",
+        message: "최신 버전 다운로드 및 설치가 완료되었습니다!\n확인을 누르면 앱이 새 버전으로 자동 재실행됩니다.",
+        confirmText: "지금 재시작",
+        onConfirm: async () => {
+          try {
+            await invoke("restart_app");
+          } catch {
+            window.location.reload();
+          }
+        },
       });
     } catch (err: any) {
       showDialog({

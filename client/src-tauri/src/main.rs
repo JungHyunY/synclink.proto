@@ -629,6 +629,11 @@ fn get_window_count(app_handle: AppHandle) -> usize {
     app_handle.webview_windows().len()
 }
 
+#[command]
+fn restart_app(app_handle: AppHandle) {
+    app_handle.restart();
+}
+
 #[cfg(target_os = "macos")]
 mod mac_brightness {
     use std::ffi::CString;
@@ -1017,6 +1022,7 @@ fn main() {
             test_server_connectivity,
             open_new_window,
             get_window_count,
+            restart_app,
             prevent_system_sleep,
             wake_remote_display
         ])
