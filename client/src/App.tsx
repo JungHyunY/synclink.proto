@@ -45,12 +45,14 @@ import {
   XCircle,
   Info,
   Sparkles,
+  Globe,
+  Code,
 } from "lucide-react";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import "./App.css";
 
-const DEFAULT_SERVER_URL = "";
+const DEFAULT_SERVER_URL = "http://localhost:5963";
 const ICE_SERVERS = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
 // ─── 서포트 & 파트너십 링크 ───
@@ -212,6 +214,17 @@ function App() {
   const [isServerConnected, setIsServerConnected] = useState(false);
   const [ping, setPing] = useState<number | null>(null);
 
+  // 🤖 Yoonikon AI Smart Clipboard Assistant State
+  const [geminiApiKey, setGeminiApiKey] = useState(() => localStorage.getItem("synclink_gemini_api_key") || "");
+  const [isAiPanelOpen, setIsAiPanelOpen] = useState(false);
+  const [aiInputText, setAiInputText] = useState("");
+  const [aiOutputText, setAiOutputText] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
+  const [aiAction, setAiAction] = useState<"error" | "translate" | "code" | "custom">("error");
+  const [aiCustomPrompt, setAiCustomPrompt] = useState("");
+  const [aiDetectedType, setAiDetectedType] = useState<"error" | "code" | "text">("text");
+
   // Host Configuration (Hardware Machine ID + LocalStorage)
   const [myDeviceId, setMyDeviceId] = useState(() => {
     return localStorage.getItem("synclink_device_id") || "100000000";
@@ -368,6 +381,153 @@ function App() {
     };
     window.addEventListener("keydown", handleNewWindowShortcut);
     return () => window.removeEventListener("keydown", handleNewWindowShortcut);
+  }, []);
+
+  // ─── AI Smart Clipboard Assistant Logic ───
+  const detectContentType = (text: string): "error" | "code" | "text" => {
+    const lower = text.toLowerCase();
+    const errorKeywords = [
+      "error", "exception", "failed", "traceback", "fatal", "errno", "uncaught",
+      "panic:", "syntaxerror", "typeerror", "referenceerror", "command not found", "cannot find module"
+    ];
+    if (errorKeywords.some((kw) => lower.includes(kw))) return "error";
+
+    const codeIndicators = [
+      "function ", "def ", "const ", "let ", "import ", "export ", "class ",
+      "return ", "if (", "fn ", "pub ", "struct ", "impl ", "<?php", "#include"
+    ];
+    if (codeIndicators.some((kw) => text.includes(kw)) || (text.includes("{") && text.includes("}")) || (text.includes("(") && text.includes(");"))) {
+      return "code";
+    }
+
+    return "text";
+  };
+
+  const openAiAssistant = async (textOverride?: string, actionOverride?: "error" | "translate" | "code" | "custom") => {
+    let text = textOverride;
+    if (!text) {
+      try {
+        text = await invoke<string>("get_clipboard_text");
+      } catch {
+        text = "";
+      }
+    }
+    const targetText = text || "";
+    setAiInputText(targetText);
+    setAiOutputText("");
+    setAiError("");
+
+    const detected = detectContentType(targetText);
+    setAiDetectedType(detected);
+
+    if (actionOverride) {
+      setAiAction(actionOverride);
+    } else {
+      if (detected === "error") setAiAction("error");
+      else if (detected === "code") setAiAction("code");
+      else setAiAction("translate");
+    }
+
+    setIsAiPanelOpen(true);
+  };
+
+  const handleRunAi = async (actionToRun?: "error" | "translate" | "code" | "custom", customPromptOverride?: string) => {
+    const act = actionToRun || aiAction;
+    const promptText = aiInputText.trim();
+    if (!promptText) {
+      setAiError("분석할 클립보드 텍스트가 비어 있습니다.");
+      return;
+    }
+
+    const currentKey = geminiApiKey.trim();
+    if (!currentKey) {
+      setAiError("Google Gemini API 키가 설정되지 않았습니다. [설정] 탭에서 무료 API 키를 등록해주세요.");
+      return;
+    }
+
+    setAiLoading(true);
+    setAiError("");
+    setAiOutputText("");
+
+    let systemPrompt = "";
+    if (act === "error") {
+      systemPrompt = "당신은 최고 실력의 시니어 개발자입니다. 다음 터미널/콘솔 오류 로그를 분석하여, 1) 오류의 근본 원인을 1~2문장으로 알기 쉽게 짚고, 2) 터미널이나 에디터에서 바로 복사해 실행/적용할 수 있는 해결 명령어 또는 수정 코드를 명쾌하게 제시하세요.";
+    } else if (act === "translate") {
+      systemPrompt = "당신은 전문 테크 번역가입니다. 다음 텍스트를 자연스럽고 읽기 쉬운 한국어로 번역하고, 중요한 핵심 요약 2~3줄을 함께 덧붙여주세요.";
+    } else if (act === "code") {
+      systemPrompt = "당신은 노련한 소프트웨어 아키텍트입니다. 다음 코드의 핵심 기능과 동작 방식을 간결하게 설명하고, 잠재적인 버그나 성능 개선점이 있다면 개선된 코드 스니펫과 함께 제시하세요.";
+    } else {
+      systemPrompt = customPromptOverride || aiCustomPrompt || "다음 텍스트를 분석하고 유용한 인사이트를 제공해주세요.";
+    }
+
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(currentKey)}`;
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: `${systemPrompt}\n\n[대상 텍스트]:\n\`\`\`\n${promptText}\n\`\`\`` }]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 1024,
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson?.error?.message || `API 요청 실패 (HTTP ${response.status})`);
+      }
+
+      const resData = await response.json();
+      const output = resData?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!output) throw new Error("AI가 유효한 답변을 생성하지 못했습니다.");
+
+      setAiOutputText(output);
+    } catch (err: any) {
+      console.error("Gemini API Error:", err);
+      setAiError(err?.message || "AI 분석 중 오류가 발생했습니다.");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleCopyAiResult = async () => {
+    if (!aiOutputText) return;
+    try {
+      await navigator.clipboard.writeText(aiOutputText);
+      await invoke("set_clipboard_text", { text: aiOutputText });
+      showDialog({
+        type: "success",
+        title: "복사 완료",
+        message: "AI 분석 결과가 클립보드에 복사되었습니다! 상대 PC나 원하는 곳에 바로 붙여넣기(Ctrl+V)하세요.",
+      });
+    } catch (err) {
+      console.warn("Failed to copy AI result:", err);
+    }
+  };
+
+  // Global Shortcut for AI Assistant (Ctrl+Space, Cmd+K, or Ctrl+Shift+A)
+  useEffect(() => {
+    const handleAiShortcut = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isInput = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        (e.code === "Space" || (!isInput && (e.key === "k" || e.key === "K")) || (e.shiftKey && (e.key === "a" || e.key === "A")))
+      ) {
+        e.preventDefault();
+        openAiAssistant();
+      }
+    };
+    window.addEventListener("keydown", handleAiShortcut);
+    return () => window.removeEventListener("keydown", handleAiShortcut);
   }, []);
 
   // Power Management: Prevent system sleep when hosting or auto standby is active
@@ -1917,6 +2077,23 @@ function App() {
                   <CopyPlus size={18} />
                   <span>새 창 열기 (최대 3개)</span>
                 </button>
+
+                <button
+                  type="button"
+                  className="nav-item"
+                  style={{
+                    background: "rgba(168, 85, 247, 0.12)",
+                    border: "1px solid rgba(168, 85, 247, 0.35)",
+                    color: "#d8b4fe",
+                    justifyContent: "flex-start",
+                    marginTop: "6px",
+                  }}
+                  onClick={() => openAiAssistant()}
+                  title="AI 스마트 클립보드 도우미 열기 (단축키: Ctrl+Space)"
+                >
+                  <Sparkles size={18} color="#c084fc" />
+                  <span style={{ fontWeight: 600 }}>AI 클립보드 (Ctrl+Space)</span>
+                </button>
               </div>
             </div>
 
@@ -1988,16 +2165,35 @@ function App() {
                     <h1 className="content-title">원격 데스크톱 접속</h1>
                     <p className="content-subtitle">접속할 컴퓨터의 9자리 기기 ID와 PIN 비밀번호를 입력해 주세요.</p>
                   </div>
-                  <button
-                    type="button"
-                    className="btn-main"
-                    style={{ padding: "8px 14px", fontSize: "0.85rem", gap: "6px", flexShrink: 0 }}
-                    onClick={handleOpenNewWindow}
-                    title="새 창을 열어 여러 대의 PC를 동시에 제어할 수 있습니다 (최대 3개)"
-                  >
-                    <CopyPlus size={15} />
-                    <span>+ 새 창 열기</span>
-                  </button>
+                  <div style={{ display: "flex", gap: "8px", flexShrink: 0, flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      className="btn-main"
+                      style={{
+                        padding: "8px 14px",
+                        fontSize: "0.85rem",
+                        gap: "6px",
+                        background: "rgba(168, 85, 247, 0.15)",
+                        borderColor: "rgba(168, 85, 247, 0.4)",
+                        color: "#d8b4fe",
+                      }}
+                      onClick={() => openAiAssistant()}
+                      title="클립보드 텍스트 에러 분석, 코드 변환, 번역 도우미 (단축키: Ctrl+Space)"
+                    >
+                      <Sparkles size={15} color="#c084fc" />
+                      <span style={{ fontWeight: 600 }}>AI 클립보드</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-main"
+                      style={{ padding: "8px 14px", fontSize: "0.85rem", gap: "6px" }}
+                      onClick={handleOpenNewWindow}
+                      title="새 창을 열어 여러 대의 PC를 동시에 제어할 수 있습니다 (최대 3개)"
+                    >
+                      <CopyPlus size={15} />
+                      <span>+ 새 창 열기</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="card-grid">
@@ -2773,6 +2969,88 @@ function App() {
                     </div>
                   </div>
 
+                  {/* ✨ AI 스마트 클립보드 설정 (Google Gemini) */}
+                  <div className="input-field-group" style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid var(--card-border)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                      <label className="input-label" style={{ display: "flex", alignItems: "center", gap: "6px", color: "#d8b4fe", fontWeight: 700, margin: 0 }}>
+                        <Sparkles size={16} color="#c084fc" />
+                        AI 스마트 클립보드 (Google Gemini)
+                      </label>
+                      <span
+                        style={{
+                          fontSize: "0.75rem",
+                          padding: "2px 8px",
+                          borderRadius: "6px",
+                          background: geminiApiKey ? "rgba(34, 197, 94, 0.15)" : "rgba(148, 163, 184, 0.15)",
+                          color: geminiApiKey ? "#4ade80" : "var(--text-muted)",
+                          border: geminiApiKey ? "1px solid rgba(74, 222, 128, 0.4)" : "1px solid rgba(148, 163, 184, 0.3)",
+                        }}
+                      >
+                        {geminiApiKey ? "API 키 등록 완료 ✅" : "미등록 (기능 비활성)"}
+                      </span>
+                    </div>
+
+                    <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "0 0 10px 0", lineHeight: 1.4 }}>
+                      원격 작업 중 복사(Ctrl+C)한 <b>터미널 에러 해결책 제시, 외국어 번역, 코드 분석</b>에 사용되는 Google Gemini API 키입니다.
+                    </p>
+
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <input
+                        type="password"
+                        className="custom-input mono"
+                        placeholder="Google Gemini API Key 입력 (AIza...)"
+                        defaultValue={geminiApiKey}
+                        id="geminiApiKeyInput"
+                        style={{ flex: 1, fontSize: "0.85rem" }}
+                      />
+                      <button
+                        type="button"
+                        className="btn-main"
+                        style={{
+                          padding: "8px 16px",
+                          fontSize: "0.85rem",
+                          background: "linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(192, 132, 252, 0.3) 100%)",
+                          borderColor: "rgba(168, 85, 247, 0.6)",
+                          color: "#d8b4fe",
+                        }}
+                        onClick={() => {
+                          const input = document.getElementById("geminiApiKeyInput") as HTMLInputElement;
+                          const val = input ? input.value.trim() : "";
+                          setGeminiApiKey(val);
+                          localStorage.setItem("synclink_gemini_api_key", val);
+                          showDialog({
+                            type: "success",
+                            title: "API 키 저장 완료",
+                            message: val
+                              ? "Google Gemini API 키가 안전하게 저장되었습니다! 이제 단축키(Ctrl+Space)나 상단 툴바에서 AI 클립보드를 사용할 수 있습니다."
+                              : "API 키가 삭제되었습니다.",
+                          });
+                        }}
+                      >
+                        저장
+                      </button>
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px", flexWrap: "wrap", gap: "8px" }}>
+                      <button
+                        type="button"
+                        className="btn-text"
+                        style={{ fontSize: "0.78rem", color: "#38bdf8", textDecoration: "underline", padding: 0, background: "none", border: "none", cursor: "pointer" }}
+                        onClick={() => openExternalLink("https://aistudio.google.com/app/apikey")}
+                      >
+                        👉 Google AI Studio에서 무료 API 키 발급받기 (1분 소요, 완전 무료)
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-main btn-secondary-dark"
+                        style={{ padding: "4px 10px", fontSize: "0.76rem" }}
+                        onClick={() => openAiAssistant("TypeError: Cannot read properties of undefined (reading 'map')")}
+                      >
+                        AI 도우미 테스트
+                      </button>
+                    </div>
+                  </div>
+
                   {/* 테마 설정 (다크 모드 / 라이트 모드) */}
                   <div className="input-field-group" style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid var(--card-border)" }}>
                     <label className="input-label">화면 테마 (Dark / Light Theme)</label>
@@ -3229,6 +3507,23 @@ function App() {
 
               <div className="toolbar-divider" />
 
+              {/* ✨ AI 스마트 클립보드 도우미 버튼 */}
+              <button
+                className="toolbar-btn"
+                style={{
+                  color: "#d8b4fe",
+                  borderColor: "rgba(168, 85, 247, 0.4)",
+                  background: "rgba(168, 85, 247, 0.15)",
+                }}
+                onClick={() => openAiAssistant()}
+                title="AI 스마트 클립보드 도우미 (Ctrl+Space)"
+              >
+                <Sparkles size={14} color="#c084fc" />
+                <span style={{ fontWeight: 600 }}>AI 클립보드</span>
+              </button>
+
+              <div className="toolbar-divider" />
+
               {/* 툴바 위치 변경 버튼 */}
               <div style={{ position: "relative" }}>
                 <button
@@ -3631,6 +3926,260 @@ function App() {
               >
                 저장
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────── ✨ Yoonikon AI Smart Clipboard Assistant Modal ─────────────────── */}
+      {isAiPanelOpen && (
+        <div
+          className="ai-modal-overlay"
+          onClick={() => setIsAiPanelOpen(false)}
+        >
+          <div
+            className="ai-modal-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="ai-modal-header">
+              <div className="ai-modal-brand">
+                <div className="ai-icon-badge">
+                  <Sparkles size={20} />
+                </div>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "var(--text-main)" }}>
+                      AI 스마트 클립보드 도우미
+                    </h3>
+                    <span
+                      style={{
+                        fontSize: "0.72rem",
+                        padding: "2px 7px",
+                        borderRadius: "5px",
+                        background:
+                          aiDetectedType === "error"
+                            ? "rgba(239, 68, 68, 0.2)"
+                            : aiDetectedType === "code"
+                            ? "rgba(56, 189, 248, 0.2)"
+                            : "rgba(168, 85, 247, 0.2)",
+                        color:
+                          aiDetectedType === "error"
+                            ? "#f87171"
+                            : aiDetectedType === "code"
+                            ? "#38bdf8"
+                            : "#c084fc",
+                        border:
+                          aiDetectedType === "error"
+                            ? "1px solid rgba(239, 68, 68, 0.4)"
+                            : aiDetectedType === "code"
+                            ? "1px solid rgba(56, 189, 248, 0.4)"
+                            : "1px solid rgba(168, 85, 247, 0.4)",
+                      }}
+                    >
+                      {aiDetectedType === "error"
+                        ? "🚨 에러 로그 감지"
+                        : aiDetectedType === "code"
+                        ? "💻 코드 스니펫 감지"
+                        : "📄 텍스트"}
+                    </span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: "0.78rem", color: "var(--text-muted)" }}>
+                    원격 및 로컬 클립보드 텍스트를 Google Gemini AI로 즉시 분석합니다
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn-icon-only"
+                onClick={() => setIsAiPanelOpen(false)}
+                title="닫기 (Esc)"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Clipboard Target Text Preview / Input */}
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-muted)" }}>
+                  분석 대상 텍스트 (클립보드)
+                </label>
+                <button
+                  type="button"
+                  className="btn-text"
+                  style={{ fontSize: "0.75rem", color: "#38bdf8", padding: 0, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}
+                  onClick={async () => {
+                    try {
+                      const txt = await invoke<string>("get_clipboard_text");
+                      if (txt) {
+                        setAiInputText(txt);
+                        setAiDetectedType(detectContentType(txt));
+                      }
+                    } catch {}
+                  }}
+                >
+                  <RefreshCw size={11} />
+                  <span>클립보드 다시 읽기</span>
+                </button>
+              </div>
+              <textarea
+                className="ai-input-preview"
+                style={{ width: "100%", height: "80px", resize: "vertical", boxSizing: "border-box" }}
+                value={aiInputText}
+                onChange={(e) => {
+                  setAiInputText(e.target.value);
+                  setAiDetectedType(detectContentType(e.target.value));
+                }}
+                placeholder="분석할 에러 로그, 코드, 외국어 텍스트를 입력하거나 복사(Ctrl+C)하세요."
+              />
+            </div>
+
+            {/* Quick Action Selector Tabs */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <div className="ai-pill-tabs">
+                <button
+                  type="button"
+                  className={`ai-pill-btn ${aiAction === "error" ? "active" : ""}`}
+                  onClick={() => {
+                    setAiAction("error");
+                    handleRunAi("error");
+                  }}
+                >
+                  <AlertCircle size={14} color="#f87171" />
+                  <span>🚨 에러 해결책 분석</span>
+                </button>
+                <button
+                  type="button"
+                  className={`ai-pill-btn ${aiAction === "translate" ? "active" : ""}`}
+                  onClick={() => {
+                    setAiAction("translate");
+                    handleRunAi("translate");
+                  }}
+                >
+                  <Globe size={14} color="#38bdf8" />
+                  <span>🌐 한국어 번역 & 요약</span>
+                </button>
+                <button
+                  type="button"
+                  className={`ai-pill-btn ${aiAction === "code" ? "active" : ""}`}
+                  onClick={() => {
+                    setAiAction("code");
+                    handleRunAi("code");
+                  }}
+                >
+                  <Code size={14} color="#34d399" />
+                  <span>💻 코드 설명 & 개선</span>
+                </button>
+                <button
+                  type="button"
+                  className={`ai-pill-btn ${aiAction === "custom" ? "active" : ""}`}
+                  onClick={() => setAiAction("custom")}
+                >
+                  <Sparkles size={14} color="#d8b4fe" />
+                  <span>✍️ 맞춤 질문</span>
+                </button>
+              </div>
+
+              {aiAction === "custom" && (
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <input
+                    type="text"
+                    className="custom-input"
+                    placeholder="예: 이 코드의 시간 복잡도를 알려줘, 또는 정규식으로 바꿔줘"
+                    value={aiCustomPrompt}
+                    onChange={(e) => setAiCustomPrompt(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleRunAi("custom");
+                    }}
+                    style={{ flex: 1, fontSize: "0.85rem" }}
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    className="btn-main btn-primary"
+                    style={{ padding: "6px 14px", fontSize: "0.82rem" }}
+                    onClick={() => handleRunAi("custom")}
+                    disabled={aiLoading}
+                  >
+                    질문하기
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* AI Result View Panel */}
+            {(aiOutputText || aiLoading || aiError) && (
+              <div className="ai-result-panel">
+                {aiLoading && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "#c084fc", padding: "16px 0" }}>
+                    <RefreshCw size={18} className="spin" />
+                    <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>Gemini AI가 초고속 분석 중입니다...</span>
+                  </div>
+                )}
+
+                {aiError && (
+                  <div style={{ color: "#fca5a5", fontSize: "0.85rem" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 700, marginBottom: "4px" }}>
+                      <AlertCircle size={15} color="#ef4444" />
+                      <span>분석 실패</span>
+                    </div>
+                    <div>{aiError}</div>
+                    {!geminiApiKey && (
+                      <button
+                        type="button"
+                        className="btn-main"
+                        style={{ marginTop: "10px", padding: "6px 12px", fontSize: "0.8rem", background: "rgba(168, 85, 247, 0.2)", borderColor: "rgba(168, 85, 247, 0.5)" }}
+                        onClick={() => {
+                          setIsAiPanelOpen(false);
+                          setActiveTab("settings");
+                        }}
+                      >
+                        [설정] 탭에서 무료 API 키 등록하기 👉
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {aiOutputText && !aiLoading && (
+                  <div>{aiOutputText}</div>
+                )}
+              </div>
+            )}
+
+            {/* Footer Buttons */}
+            <div className="ai-action-footer">
+              <span style={{ fontSize: "0.75rem", color: "var(--text-dim)" }}>
+                단축키: <b>Ctrl+Space</b> 또는 <b>Cmd+K</b>
+              </span>
+              <div style={{ display: "flex", gap: "8px" }}>
+                {aiOutputText && (
+                  <button
+                    type="button"
+                    className="btn-main"
+                    style={{
+                      padding: "8px 16px",
+                      fontSize: "0.85rem",
+                      background: "linear-gradient(135deg, rgba(34, 197, 94, 0.25) 0%, rgba(16, 185, 129, 0.25) 100%)",
+                      borderColor: "rgba(74, 222, 128, 0.5)",
+                      color: "#4ade80",
+                      fontWeight: 700,
+                    }}
+                    onClick={handleCopyAiResult}
+                  >
+                    <Copy size={14} />
+                    <span>결과 클립보드 복사</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn-main btn-secondary-dark"
+                  style={{ padding: "8px 14px", fontSize: "0.85rem" }}
+                  onClick={() => setIsAiPanelOpen(false)}
+                >
+                  닫기
+                </button>
+              </div>
             </div>
           </div>
         </div>
