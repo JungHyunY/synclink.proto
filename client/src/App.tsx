@@ -167,7 +167,7 @@ function formatDeviceId(id: string): string {
   return `${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)} ${cleaned.slice(6, 9)}`;
 }
 
-const CURRENT_VERSION = "1.0.16";
+const CURRENT_VERSION = "1.0.17";
 
 function compareVersions(v1: string, v2: string): number {
   const clean1 = (v1 || "").replace(/^v/, "").split(".").map(Number);
@@ -911,51 +911,41 @@ function App() {
     localStorage.setItem("synclink_auto_standby", autoHostStandby ? "true" : "false");
   }, [autoHostStandby]);
 
-  // 원격 연결 중 또는 호스트 세션 중 실수로 앱 닫기 방지 (Prevent Accidental Window Close)
+  // 원격 연결 중 실수로 앱 닫기 방지 (Prevent Accidental Window Close During Session)
   useEffect(() => {
     let unlistenClose: (() => void) | undefined;
     const setupCloseProtection = async () => {
       try {
         const appWindow = getCurrentWebviewWindow();
         unlistenClose = await appWindow.onCloseRequested(async (event) => {
-          // 1. 원격 제어 세션이 진행 중인 경우 (게스트 또는 호스트 접속 중)
+          // 원격 제어 세션이 진행 중인 경우 (게스트 또는 호스트 접속 중)에만 실수 방지 모달 표시
           if (isConnectedRef.current || isScreenCapturingRef.current) {
             event.preventDefault();
             showDialog({
               type: "warning",
               title: "원격 제어 세션 진행 중",
               message:
-                "현재 원격 접속이 활성화되어 있습니다.\n\n앱을 닫으면 원격 제어가 즉시 끊어지며 상대방이 다시 접속할 수 없게 됩니다.\n정말로 앱을 종료하시겠습니까?",
+                "현재 원격 접속이 활성화되어 있습니다.\n\n앱을 닫으면 원격 제어가 즉시 끊어집니다.\n정말로 앱을 종료하시겠습니까?",
               confirmText: "연결 끊고 종료",
               cancelText: "취소 (연결 유지)",
               onConfirm: async () => {
                 endSession();
-                setTimeout(() => {
-                  appWindow.destroy();
-                }, 150);
+                setTimeout(async () => {
+                  try {
+                    await invoke("close_window");
+                  } catch {
+                    try {
+                      await invoke("exit_app");
+                    } catch {
+                      await appWindow.destroy();
+                    }
+                  }
+                }, 100);
               },
             });
             return;
           }
-
-          // 2. 호스트 무인 원격 대기 중인 경우 (게스트 접속을 기다리는 호스트 PC)
-          if (isMainWindow && autoHostStandbyRef.current && isHostRef.current) {
-            event.preventDefault();
-            showDialog({
-              type: "warning",
-              title: "무인 원격 대기 중",
-              message:
-                "현재 이 PC는 외부 접속을 기다리는 '무인 원격 대기(Standby)' 상태입니다.\n\n앱을 완전히 닫으면 외부에서 이 PC에 접속할 수 없습니다.\n창을 닫는 대신 최소화하거나 백그라운드로 유지하는 것을 권장합니다.\n\n정말 종료하시겠습니까?",
-              confirmText: "대기 종료",
-              cancelText: "취소 (대기 유지)",
-              onConfirm: async () => {
-                setTimeout(() => {
-                  appWindow.destroy();
-                }, 150);
-              },
-            });
-            return;
-          }
+          // 일반 대기 상태에서는 별도 차단 없이 즉시 정상 종료
         });
       } catch (err) {
         console.warn("Failed to register onCloseRequested handler:", err);
@@ -1900,39 +1890,68 @@ function App() {
 
   // End Current Session
   const endSession = () => {
-    if (!isHostRef.current && sessionRoomId) {
-      socketRef.current?.emit("guest-disconnect", { roomId: sessionRoomId });
-    }
-    peerRef.current?.close();
-    peerRef.current = null;
-    flowChannelRef.current?.close();
-    flowChannelRef.current = null;
-    remoteStreamRef.current = null;
-    setRemoteMediaStream(null);
-    setIsConnected(false);
-    setIsBlackScreen(false);
-    setIsPrivacyCover(false);
-    setIsControllingFlowRemote(false);
-    if (flowModeRef.current === "flow") {
-      invoke("enable_kvm_mode", {
-        enabled: false,
-        direction: flowDirection,
-        screenWidth: 1920,
-        screenHeight: 1080,
-      }).catch(() => {});
-      invoke("release_kvm_control").catch(() => {});
-    }
-    setStatus("Ready");
-    setPing(null);
-    if (isMainWindow && isHostRef.current) {
-      setIsHostingActive(false);
-      isHostRef.current = false;
-      invoke("set_privacy_mode", { enabled: false }).catch(() => {});
-      invoke("restore_host_window").catch(() => {});
-    }
+    try {
+      // 1. 전체화면 상태인 경우 즉시 전체화면 해제
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
+      setIsFullscreen(false);
 
-    // Reset window back to fixed dashboard size
-    invoke("set_window_session_mode", { isSession: false }).catch(() => {});
+      // 2. 게스트 연결 종료 알림 전송
+      if (!isHostRef.current && sessionRoomId) {
+        socketRef.current?.emit("guest-disconnect", { roomId: sessionRoomId });
+      }
+
+      // 3. WebRTC 피어 및 채널 정리
+      peerRef.current?.close();
+      peerRef.current = null;
+      flowChannelRef.current?.close();
+      flowChannelRef.current = null;
+      remoteStreamRef.current = null;
+      setRemoteMediaStream(null);
+      setIsConnected(false);
+      setIsBlackScreen(false);
+      setIsPrivacyCover(false);
+      setIsControllingFlowRemote(false);
+
+      // 4. KVM 모드 정리
+      if (flowModeRef.current === "flow") {
+        invoke("enable_kvm_mode", {
+          enabled: false,
+          direction: flowDirection,
+          screenWidth: 1920,
+          screenHeight: 1080,
+        }).catch(() => {});
+        invoke("release_kvm_control").catch(() => {});
+      }
+
+      setStatus("Ready");
+      setPing(null);
+
+      // 5. 호스트 창 복구 (메인 창인 경우)
+      if (isMainWindow && isHostRef.current) {
+        setIsHostingActive(false);
+        isHostRef.current = false;
+        invoke("set_privacy_mode", { enabled: false }).catch(() => {});
+        invoke("restore_host_window").catch(() => {});
+      }
+
+      // 6. 메인 창은 대시보드 크기로 복구, 서브 윈도우(새 창 세션)는 세션 종료 시 창 자동 닫기
+      if (isMainWindow) {
+        invoke("set_window_session_mode", { isSession: false }).catch(() => {});
+      } else {
+        setTimeout(async () => {
+          try {
+            await invoke("close_window");
+          } catch {
+            const appWindow = getCurrentWebviewWindow();
+            appWindow.destroy().catch(() => {});
+          }
+        }, 100);
+      }
+    } catch (err) {
+      console.error("Error ending session:", err);
+    }
   };
 
   // Immediate Video Stream Attach (Reactive to remoteMediaStream arrival)
@@ -2382,6 +2401,42 @@ function App() {
                 <div className={`status-dot-sm ${isServerConnected ? "online" : "offline"}`} />
                 <span>{isServerConnected ? "시그널링 서버에 연결되었어요" : "서버가 오프라인이에요"}</span>
               </div>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await invoke("exit_app");
+                  } catch {
+                    try {
+                      await invoke("close_window");
+                    } catch {
+                      const appWindow = getCurrentWebviewWindow();
+                      appWindow.destroy().catch(() => {});
+                    }
+                  }
+                }}
+                className="nav-item"
+                style={{
+                  width: "100%",
+                  marginTop: "8px",
+                  padding: "7px 10px",
+                  fontSize: "0.8rem",
+                  color: "#f87171",
+                  background: "rgba(239, 68, 68, 0.08)",
+                  border: "1px solid rgba(239, 68, 68, 0.2)",
+                  borderRadius: "8px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "6px",
+                  cursor: "pointer",
+                }}
+                title="SyncLink 애플리케이션을 완전히 종료합니다"
+              >
+                <Power size={13} />
+                <span>앱 종료</span>
+              </button>
             </div>
           </div>
 
@@ -3875,7 +3930,16 @@ function App() {
               </button>
 
               {/* 세션 종료 */}
-              <button className="btn-main btn-danger-soft" style={{ padding: "6px 12px", fontSize: "0.85rem" }} onClick={endSession}>
+              <button
+                type="button"
+                className="btn-main btn-danger-soft"
+                style={{ padding: "6px 12px", fontSize: "0.85rem" }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  endSession();
+                }}
+                title="원격 세션을 종료합니다"
+              >
                 <Power size={14} />
                 <span>종료</span>
               </button>
@@ -3963,7 +4027,10 @@ function App() {
                     type="button"
                     className="btn-main btn-danger-soft"
                     style={{ flex: 1, padding: "10px", fontSize: "0.85rem" }}
-                    onClick={endSession}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      endSession();
+                    }}
                   >
                     Flow 세션 종료
                   </button>

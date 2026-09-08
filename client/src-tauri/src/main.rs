@@ -628,6 +628,16 @@ async fn restore_host_window(window: Window) {
 }
 
 #[command]
+fn close_window(window: Window) {
+    let _ = window.destroy();
+}
+
+#[command]
+fn exit_app(app_handle: AppHandle) {
+    app_handle.exit(0);
+}
+
+#[command]
 async fn open_new_window(app_handle: AppHandle, window: Window) -> Result<String, String> {
     let count = app_handle.webview_windows().len();
     if count >= 3 {
@@ -1060,7 +1070,9 @@ fn main() {
             get_window_count,
             restart_app,
             prevent_system_sleep,
-            wake_remote_display
+            wake_remote_display,
+            close_window,
+            exit_app
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
