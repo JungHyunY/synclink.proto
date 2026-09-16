@@ -1375,4 +1375,431 @@ video {
   margin-top: 4px;
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   ─── Yoonikon SyncLink Multi-Session Tabs & Dual Split View ───
+   ═══════════════════════════════════════════════════════════════════ */
+
+.synclink-app-root {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--bg-color);
+}
+
+/* ─── Top Session Tab Bar ─── */
+.session-tabbar-container {
+  height: 42px;
+  min-height: 42px;
+  background: var(--sidebar-bg);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--card-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  z-index: 9000;
+  user-select: none;
+}
+
+.session-tabbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.tabbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 8px;
+  border-right: 1px solid var(--card-border);
+  flex-shrink: 0;
+}
+
+.tabbar-brand-badge {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(107, 127, 66, 0.2);
+  color: var(--yds-olive-light);
+  border: 1px solid rgba(107, 127, 66, 0.4);
+}
+
+.session-tabs-scroll {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex: 1;
+}
+
+.session-tabs-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.session-tab-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.session-tab-item:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-main);
+}
+
+.session-tab-item.active {
+  background: rgba(107, 127, 66, 0.18);
+  border-color: rgba(107, 127, 66, 0.45);
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+.tab-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tab-title {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-ping {
+  font-size: 0.72rem;
+  font-family: var(--yds-font-mono, monospace);
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.tab-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  margin-left: 2px;
+  transition: all 0.15s ease;
+}
+
+.tab-close-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+.tab-add-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.tab-add-btn:hover {
+  background: rgba(107, 127, 66, 0.12);
+  border-color: rgba(107, 127, 66, 0.4);
+  color: var(--yds-olive-light);
+}
+
+.session-tabbar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.tabbar-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--card-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-main);
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.tabbar-action-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.tabbar-action-btn.active {
+  background: rgba(107, 127, 66, 0.2);
+  border-color: var(--yds-olive-light);
+  color: #f4f4f5;
+}
+
+.tabbar-action-btn.ai-btn {
+  background: rgba(168, 85, 247, 0.12);
+  border-color: rgba(168, 85, 247, 0.35);
+  color: #d8b4fe;
+}
+
+.tabbar-action-btn.ai-btn:hover {
+  background: rgba(168, 85, 247, 0.2);
+  border-color: rgba(168, 85, 247, 0.5);
+}
+
+.tabbar-recom-badge {
+  font-size: 0.65rem;
+  background: #22c55e;
+  color: #000;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 4px;
+  margin-left: 2px;
+}
+
+.tabbar-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 7px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tabbar-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-main);
+}
+
+.tabbar-server-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+}
+
+/* ─── Main Viewport Area (Calc height minus tab bar) ─── */
+.synclink-main-viewport {
+  flex: 1;
+  width: 100%;
+  height: calc(100vh - 42px);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+}
+
+/* ─── Dual Split View Layout (50:50 Side-by-Side) ─── */
+.dual-split-layout {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.split-pane-wrapper {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  background: #000;
+}
+
+.split-pane-wrapper.left {
+  border-right: 2px solid var(--card-border);
+}
+
+.split-pane-wrapper.active-focus {
+  box-shadow: inset 0 0 0 1.5px var(--yds-olive-light);
+}
+
+/* ─── Split Pane Header ─── */
+.split-pane-header {
+  height: 36px;
+  min-height: 36px;
+  background: rgba(15, 17, 19, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  z-index: 100;
+  user-select: none;
+}
+
+.pane-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.pane-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+}
+
+.pane-badge.active {
+  background: rgba(107, 127, 66, 0.3);
+  color: var(--yds-olive-light);
+  border: 1px solid rgba(107, 127, 66, 0.5);
+}
+
+.pane-device-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-main);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pane-ping-badge {
+  font-size: 0.72rem;
+  font-family: var(--yds-font-mono, monospace);
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.pane-focus-indicator {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.pane-header-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pane-header-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 7px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pane-header-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-main);
+}
+
+.pane-header-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.25);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+/* ─── Remote Viewport Container ─── */
+.remote-viewport-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  outline: none;
+}
+
+.remote-viewport-container.split-mode {
+  height: calc(100% - 36px);
+}
+
+.remote-viewport-container.focused {
+  outline: none;
+}
+
+.remote-viewport-container.unfocused {
+  opacity: 0.94;
+}
+
+/* ─── Shortcuts Dropdown Menu ─── */
+.shortcuts-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 6px;
+  padding: 6px;
+  width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 10002;
+  background: rgba(15, 23, 42, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(16px);
+}
+
+.shortcut-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #cbd5e1;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.shortcut-menu-item:hover {
+  background: rgba(107, 127, 66, 0.2);
+  border-color: rgba(107, 127, 66, 0.4);
+  color: #fff;
+}
+
 

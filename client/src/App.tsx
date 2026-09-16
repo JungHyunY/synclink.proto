@@ -51,6 +51,10 @@ import {
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import "./App.css";
+import { SessionTabBar } from "./components/SessionTabBar";
+import { RemoteViewport } from "./components/RemoteViewport";
+import { TabItem, LayoutMode, ActivePane, RemoteSession } from "./types/session";
+import { startSecondarySession } from "./services/secondarySession";
 
 const DEFAULT_SERVER_URL = "http://localhost:5963";
 const ICE_SERVERS = {
@@ -195,6 +199,15 @@ interface CustomDialogConfig {
 function App() {
   // Navigation
   const [activeTab, setActiveTab] = useState<"connect" | "host" | "devices" | "settings">("connect");
+
+  // ─── Multi-Session Tabs & Dual Split View State ───
+  const [activeSessionTabId, setActiveSessionTabId] = useState<string>("dashboard");
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>("single");
+  const [splitLeftTabId, setSplitLeftTabId] = useState<string>("dashboard");
+  const [splitRightTabId, setSplitRightTabId] = useState<string>("");
+  const [focusedPane, setFocusedPane] = useState<ActivePane>("left");
+  const [secondarySessions, setSecondarySessions] = useState<RemoteSession[]>([]);
+  const secondaryControllersRef = useRef<Map<string, { sendControl: (p: any) => void; close: () => void }>>(new Map());
 
   // Custom Modal Dialog State (replaces native browser alerts/confirms)
   const [dialogConfig, setDialogConfig] = useState<CustomDialogConfig | null>(null);
@@ -1524,6 +1537,8 @@ function App() {
         setIsHostMode(false);
         isHostRef.current = false;
         setStatus("Connecting WebRTC...");
+        setActiveSessionTabId("session_primary");
+        setSplitLeftTabId("session_primary");
 
         // Expand window to resizable remote desktop view (only in screen mode)
         if (flowModeRef.current !== "flow") {
@@ -1875,7 +1890,54 @@ function App() {
     }
   };
 
-  // Connect as Guest
+  // ─── Primary & Multi-Session Unified Computations ───
+  const primarySession: RemoteSession | null = isConnected
+    ? {
+        id: "session_primary",
+        roomId: sessionRoomId,
+        deviceName: sessionDeviceName || `PC ${sessionRoomId}`,
+        pin: targetPin,
+        mode: flowMode,
+        socket: socketRef.current,
+        peer: peerRef.current,
+        controlChannel: controlChannelRef.current,
+        flowChannel: flowChannelRef.current,
+        remoteStream: remoteMediaStream || remoteStreamRef.current,
+        status,
+        ping,
+        fps: sessionFps,
+        quality: sessionQuality,
+        monitor: sessionMonitor,
+        isBlackScreen,
+        guestCursor,
+        createdAt: Date.now(),
+      }
+    : null;
+
+  const allActiveSessions: RemoteSession[] = [
+    ...(primarySession ? [primarySession] : []),
+    ...secondarySessions,
+  ];
+
+  const sessionTabs: TabItem[] = [
+    {
+      id: "dashboard",
+      type: "dashboard",
+      title: "메인 대시보드",
+    },
+    ...allActiveSessions.map((s) => ({
+      id: s.id,
+      type: "session" as const,
+      title: s.deviceName || formatDeviceId(s.roomId),
+      subtitle: `기기 ID: ${formatDeviceId(s.roomId)}`,
+      roomId: s.roomId,
+      status: s.status,
+      ping: s.ping,
+      isConnected: s.status === "Connected",
+    })),
+  ];
+
+  // Connect as Guest (Smart Multi-Session Dispatcher)
   const connectToDevice = (target: string, pin: string) => {
     const cleanId = target.replace(/\s+/g, "");
     if (!cleanId) {
@@ -1886,6 +1948,26 @@ function App() {
       });
       return;
     }
+
+    // 이미 접속된 동일 기기가 있는지 확인
+    const alreadyConnected = allActiveSessions.find((s) => s.roomId === cleanId);
+    if (alreadyConnected) {
+      setActiveSessionTabId(alreadyConnected.id);
+      showDialog({
+        type: "info",
+        title: "이미 연결된 기기",
+        message: `이미 연결되어 있는 세션(${alreadyConnected.deviceName}) 탭으로 이동합니다.`,
+      });
+      return;
+    }
+
+    // 이미 기본 세션이 연결되어 있다면 -> 보조 동시 세션(Secondary Session)으로 연결!
+    if (isConnected) {
+      startSecondaryConnection(cleanId, pin);
+      return;
+    }
+
+    // 기본 세션 연결 시작
     setIsConnecting(true);
     setAuthError(null);
 
@@ -1894,6 +1976,137 @@ function App() {
       password: pin,
       mode: flowModeRef.current,
     });
+  };
+
+  const startSecondaryConnection = (targetRoomId: string, pin: string) => {
+    setIsConnecting(true);
+    const cleanUrl = normalizeServerUrl(serverUrl);
+
+    const controller = startSecondarySession({
+      serverUrl: cleanUrl,
+      targetRoomId,
+      targetPin: pin,
+      mode: "screen",
+      onStream: (stream) => {
+        setSecondarySessions((prev) =>
+          prev.map((s) => (s.roomId === targetRoomId ? { ...s, remoteStream: stream, status: "Connected" } : s))
+        );
+      },
+      onStatusChange: (newStatus) => {
+        setSecondarySessions((prev) =>
+          prev.map((s) => (s.roomId === targetRoomId ? { ...s, status: newStatus } : s))
+        );
+      },
+      onClose: () => {
+        handleCloseSessionTab(`session_${targetRoomId}`);
+      },
+      onPing: (latency) => {
+        setSecondarySessions((prev) =>
+          prev.map((s) => (s.roomId === targetRoomId ? { ...s, ping: latency } : s))
+        );
+      },
+    });
+
+    const newSession = controller.getSession();
+    secondaryControllersRef.current.set(newSession.id, controller);
+
+    setSecondarySessions((prev) => [...prev, newSession]);
+    setIsConnecting(false);
+
+    addRecentDevice(targetRoomId, `PC ${targetRoomId}`, pin);
+    if (saveToBookAfterConnect && !savedDevices.some((d) => d.id === targetRoomId)) {
+      addSavedDevice(targetRoomId, `PC ${targetRoomId}`, pin, "");
+    }
+
+    // 💡 두 화면을 동시에 옆에 둘 수 있도록 자동으로 나란히 2분할(Split View) 활성화!
+    setLayoutMode("split");
+    setSplitLeftTabId(primarySession ? primarySession.id : "dashboard");
+    setSplitRightTabId(newSession.id);
+    setActiveSessionTabId(newSession.id);
+    setFocusedPane("right");
+  };
+
+  // 탭 선택
+  const handleSelectSessionTab = (tabId: string) => {
+    setActiveSessionTabId(tabId);
+    if (layoutMode === "split") {
+      if (focusedPane === "left") {
+        setSplitLeftTabId(tabId);
+      } else {
+        setSplitRightTabId(tabId);
+      }
+    }
+  };
+
+  // 탭 닫기 (세션 종료)
+  const handleCloseSessionTab = (tabId: string) => {
+    if (tabId === "dashboard") return;
+
+    if (tabId === "session_primary") {
+      endSession();
+      setActiveSessionTabId("dashboard");
+      if (layoutMode === "split") {
+        if (secondarySessions.length > 0) {
+          setSplitLeftTabId("dashboard");
+          setSplitRightTabId(secondarySessions[0].id);
+        } else {
+          setLayoutMode("single");
+        }
+      }
+      return;
+    }
+
+    const controller = secondaryControllersRef.current.get(tabId);
+    if (controller) {
+      controller.close();
+      secondaryControllersRef.current.delete(tabId);
+    }
+    setSecondarySessions((prev) => prev.filter((s) => s.id !== tabId));
+
+    if (activeSessionTabId === tabId) {
+      setActiveSessionTabId(primarySession ? primarySession.id : "dashboard");
+    }
+
+    if (layoutMode === "split") {
+      if (splitRightTabId === tabId) {
+        setSplitRightTabId("");
+        setLayoutMode("single");
+      } else if (splitLeftTabId === tabId) {
+        setSplitLeftTabId("dashboard");
+      }
+    }
+  };
+
+  // 레이아웃 모드 토글 (단일 <-> 나란히 2분할)
+  const handleToggleLayoutMode = () => {
+    if (layoutMode === "single") {
+      setLayoutMode("split");
+      if (allActiveSessions.length >= 2) {
+        setSplitLeftTabId(allActiveSessions[0].id);
+        setSplitRightTabId(allActiveSessions[1].id);
+      } else if (allActiveSessions.length === 1) {
+        setSplitLeftTabId(allActiveSessions[0].id);
+        setSplitRightTabId("dashboard");
+      } else {
+        setSplitLeftTabId("dashboard");
+        setSplitRightTabId("dashboard");
+      }
+    } else {
+      setLayoutMode("single");
+    }
+  };
+
+  // 새 세션 연결 요청 (+ 버튼)
+  const handleNewConnectionRequest = () => {
+    setActiveSessionTabId("dashboard");
+    setActiveTab("connect");
+    if (layoutMode === "split") {
+      if (focusedPane === "right") {
+        setSplitRightTabId("dashboard");
+      } else {
+        setSplitLeftTabId("dashboard");
+      }
+    }
   };
 
   // Add Recent Device
@@ -2111,29 +2324,56 @@ function App() {
     }
   };
 
-  // Remote Key Event Dispatcher
+  // Remote Key Event Dispatcher (Routes to currently focused session in split view or active tab)
   const sendRemoteKeyEvent = (type: "keydown" | "keyup", key: string, code?: string) => {
-    if (isHostRef.current || !sessionRoomId) return;
+    if (isHostRef.current) return;
     const keyToSend = key === " " ? "space" : key;
-    sendControlEvent({
+    const payload = {
       type,
       key: keyToSend,
       code: code || undefined,
-    });
+    };
+
+    const targetSessionId = layoutMode === "split"
+      ? (focusedPane === "left" ? splitLeftTabId : splitRightTabId)
+      : activeSessionTabId;
+
+    if (targetSessionId === "session_primary" && isConnected) {
+      sendControlEvent(payload);
+    } else {
+      const secCtrl = secondaryControllersRef.current.get(targetSessionId);
+      if (secCtrl) {
+        secCtrl.sendControl(payload);
+      } else if (isConnected) {
+        sendControlEvent(payload);
+      }
+    }
   };
 
   // Remote Preset Shortcut Dispatcher (e.g., Ctrl+Alt+Del, Win, Alt+Tab)
   const sendRemoteShortcut = (keys: string[]) => {
-    if (isHostRef.current || !sessionRoomId) return;
-    sendControlEvent({
-      type: "shortcut",
-      keys,
-    });
+    if (isHostRef.current) return;
+    const payload = { type: "shortcut", keys };
+    const targetSessionId = layoutMode === "split"
+      ? (focusedPane === "left" ? splitLeftTabId : splitRightTabId)
+      : activeSessionTabId;
+
+    if (targetSessionId === "session_primary" && isConnected) {
+      sendControlEvent(payload);
+    } else {
+      const secCtrl = secondaryControllersRef.current.get(targetSessionId);
+      if (secCtrl) {
+        secCtrl.sendControl(payload);
+      } else if (isConnected) {
+        sendControlEvent(payload);
+      }
+    }
   };
 
   // Global Key Listener for Remote Control Session (Prevents focus drop & browser shortcut interception)
   useEffect(() => {
-    if (!isConnected || isHostMode || !sessionRoomId) return;
+    const hasAnyActiveSession = isConnected || secondarySessions.length > 0;
+    if (!hasAnyActiveSession || isHostMode) return;
 
     const onGlobalKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -2260,7 +2500,7 @@ function App() {
   };
 
   return (
-    <div className="container">
+    <div className="container synclink-app-root">
       {/* 프라이버시 블랙스크린 (호스트 커튼 모드) 오버레이 */}
       {isPrivacyCover && isHostMode && (
         <div className="privacy-cover-overlay">
@@ -2316,9 +2556,10 @@ function App() {
         }}
       />
 
-      {/* ─────────────────── MAIN DASHBOARD ─────────────────── */}
-      {!isConnected ? (
-        <div className="main-layout">
+      {/* ─────────────────── MULTI-SESSION TABS & VIEWPORT PIPELINE ─────────────────── */}
+      {(() => {
+        const dashboardView = (
+          <div className="main-layout" style={layoutMode === "split" ? { minWidth: "auto", overflow: "auto" } : undefined}>
           {/* 사이드바 네비게이션 */}
           <div className="sidebar">
             <div className="brand-section">
@@ -3619,9 +3860,11 @@ function App() {
             )}
           </div>
         </div>
-      ) : (
-        /* ─────────────────── IN-SESSION SCREEN (ACTIVE) ─────────────────── */
-        <div className="session-screen" ref={videoContainerRef}>
+      );
+
+      const primarySessionView = (
+          /* ─────────────────── IN-SESSION SCREEN (ACTIVE) ─────────────────── */
+          <div className="session-screen" ref={videoContainerRef}>
           {/* 상단 플로팅 글래스모피즘 툴바 (최소화 및 위치 변경 지원) */}
           {isToolbarMinimized ? (
             <div
@@ -4216,7 +4459,70 @@ function App() {
           </div>
         )}
         </div>
-      )}
+      );
+
+      const renderTabContent = (tabId: string, paneLabel?: ActivePane) => {
+        if (tabId === "dashboard" || !tabId) return dashboardView;
+        if (tabId === "session_primary") return isConnected ? primarySessionView : dashboardView;
+        const sec = secondarySessions.find((s) => s.id === tabId);
+        if (sec) {
+          return (
+            <RemoteViewport
+              session={sec}
+              isFocused={focusedPane === paneLabel || layoutMode === "single"}
+              onFocus={() => paneLabel && setFocusedPane(paneLabel)}
+              onClose={() => handleCloseSessionTab(tabId)}
+              onToggleFullscreen={toggleFullscreen}
+              isSplitView={layoutMode === "split"}
+              paneLabel={paneLabel}
+              onSendKeyEvent={(_sess, type, key, code) => sendRemoteKeyEvent(type, key, code)}
+            />
+          );
+        }
+        return dashboardView;
+      };
+
+      return (
+        <>
+          <SessionTabBar
+            tabs={sessionTabs}
+            activeTabId={activeSessionTabId}
+            onSelectTab={handleSelectSessionTab}
+            onCloseTab={handleCloseSessionTab}
+            onNewConnection={handleNewConnectionRequest}
+            layoutMode={layoutMode}
+            onToggleLayoutMode={handleToggleLayoutMode}
+            onOpenAiAssistant={() => openAiAssistant()}
+            theme={theme}
+            onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
+            isServerConnected={isServerConnected}
+          />
+          <div className="synclink-main-viewport">
+            {layoutMode === "split" ? (
+              <div className="dual-split-layout">
+                <div
+                  className={`split-pane-wrapper left ${focusedPane === "left" ? "active-focus" : ""}`}
+                  onClick={() => setFocusedPane("left")}
+                >
+                  {renderTabContent(splitLeftTabId || "dashboard", "left")}
+                </div>
+                <div
+                  className={`split-pane-wrapper right ${focusedPane === "right" ? "active-focus" : ""}`}
+                  onClick={() => setFocusedPane("right")}
+                >
+                  {renderTabContent(
+                    splitRightTabId || (allActiveSessions.length > 1 ? allActiveSessions[1].id : "dashboard"),
+                    "right"
+                  )}
+                </div>
+              </div>
+            ) : (
+              renderTabContent(activeSessionTabId)
+            )}
+          </div>
+        </>
+      );
+    })()}
 
       {/* ─────────────────── 기기 추가 모달 ─────────────────── */}
       {showAddModal && (
