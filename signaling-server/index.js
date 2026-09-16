@@ -203,12 +203,10 @@ io.on("connection", (socket) => {
     socket.to(payload.targetRoom).emit("quality-change", payload);
   });
 
-  // 8. RTT(지연시간) 측정을 위한 Ping (콜백 위치 유연성 보장)
-  socket.on("ping-check", (...args) => {
-    const callback = args.find((a) => typeof a === "function");
+  // 8. [신규] RTT(지연시간) 측정을 위한 Ping
+  socket.on("ping-check", (timestamp, callback) => {
     if (typeof callback === "function") {
-      const payload = args.find((a) => typeof a !== "function");
-      callback(payload !== undefined ? payload : Date.now());
+      callback(timestamp);
     }
   });
 

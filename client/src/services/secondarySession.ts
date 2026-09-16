@@ -215,7 +215,7 @@ export function startSecondarySession({
   pingInterval = setInterval(() => {
     if (socket?.connected) {
       const start = Date.now();
-      socket.emit("ping-check", () => {
+      socket.emit("ping-check", start, () => {
         const latency = Date.now() - start;
         sessionObj.ping = latency;
         onPing(latency);
