@@ -246,6 +246,17 @@ export const RemoteViewport: React.FC<RemoteViewportProps> = ({
               <Monitor size={13} />
             </button>
 
+            {onToggleFullscreen && (
+              <button
+                type="button"
+                className="pane-header-btn"
+                onClick={onToggleFullscreen}
+                title="전체화면"
+              >
+                <Maximize2 size={13} />
+              </button>
+            )}
+
             {onClose && (
               <button
                 type="button"

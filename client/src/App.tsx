@@ -2109,6 +2109,68 @@ function App() {
     }
   };
 
+  // 좌우 패널 맞바꾸기 (Swap Split Panes)
+  const handleSwapSplitPanes = () => {
+    const tempLeft = splitLeftTabId;
+    setSplitLeftTabId(splitRightTabId || "dashboard");
+    setSplitRightTabId(tempLeft || "dashboard");
+  };
+
+  // ─── Multi-Session Tab & Split View Keyboard Shortcuts ───
+  useEffect(() => {
+    const handleTabShortcuts = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return;
+      }
+
+      const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+
+      // 1. Ctrl + \ : 단일 화면 <-> 나란히 2분할(Split View) 토글
+      if (isCtrlOrCmd && (e.key === "\\" || e.code === "Backslash")) {
+        e.preventDefault();
+        handleToggleLayoutMode();
+        return;
+      }
+
+      // 2. Ctrl + Shift + S : 2분할 뷰 좌우 화면 맞바꾸기
+      if (isCtrlOrCmd && e.shiftKey && (e.key === "S" || e.key === "s")) {
+        e.preventDefault();
+        handleSwapSplitPanes();
+        return;
+      }
+
+      // 3. Ctrl + T : 새 연결 탭 열기
+      if (isCtrlOrCmd && !e.shiftKey && (e.key === "t" || e.key === "T")) {
+        e.preventDefault();
+        handleNewConnectionRequest();
+        return;
+      }
+
+      // 4. Ctrl + W : 현재 활성 세션 탭 닫기
+      if (isCtrlOrCmd && !e.shiftKey && (e.key === "w" || e.key === "W")) {
+        if (activeSessionTabId !== "dashboard") {
+          e.preventDefault();
+          handleCloseSessionTab(activeSessionTabId);
+          return;
+        }
+      }
+
+      // 5. Ctrl + 1 ~ 9 : 탭 바로 가기
+      if (isCtrlOrCmd && !e.shiftKey) {
+        const num = parseInt(e.key, 10);
+        if (!isNaN(num) && num >= 1 && num <= sessionTabs.length) {
+          e.preventDefault();
+          handleSelectSessionTab(sessionTabs[num - 1].id);
+          return;
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleTabShortcuts);
+    return () => window.removeEventListener("keydown", handleTabShortcuts);
+  }, [layoutMode, activeSessionTabId, splitLeftTabId, splitRightTabId, sessionTabs]);
+
   // Add Recent Device
   const addRecentDevice = (id: string, name?: string, pin?: string) => {
     setRecentDevices((prev) => {
@@ -4499,7 +4561,46 @@ function App() {
           />
           <div className="synclink-main-viewport">
             {layoutMode === "split" ? (
-              <div className="dual-split-layout">
+              <div className="dual-split-layout" style={{ position: "relative" }}>
+                {/* 2분할 뷰 중앙 미니 플로팅 제어 바 */}
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "8px",
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    zIndex: 1000,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    background: "rgba(15, 17, 19, 0.88)",
+                    backdropFilter: "blur(12px)",
+                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                    borderRadius: "20px",
+                    padding: "3px 8px",
+                    boxShadow: "0 4px 15px rgba(0, 0, 0, 0.5)",
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="pane-header-btn"
+                    onClick={handleSwapSplitPanes}
+                    title="좌우 화면 위치 맞바꾸기 (단축키: Ctrl+Shift+S)"
+                    style={{ fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "4px" }}
+                  >
+                    <span>⇄ 맞바꾸기</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="pane-header-btn"
+                    onClick={handleToggleLayoutMode}
+                    title="단일 화면으로 전환 (단축키: Ctrl+\)"
+                    style={{ fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "4px" }}
+                  >
+                    <span>▢ 단일 화면</span>
+                  </button>
+                </div>
+
                 <div
                   className={`split-pane-wrapper left ${focusedPane === "left" ? "active-focus" : ""}`}
                   onClick={() => setFocusedPane("left")}
