@@ -427,6 +427,9 @@ async fn start_screen_capture(window: Window, monitor_index: usize, fps: Option<
     println!("📸 Starting capture for Monitor {} (Session {}, {} FPS, {}% Quality)", monitor_index, my_session_id, initial_fps, initial_quality);
 
     thread::spawn(move || {
+        let mut last_frame_buffer: Vec<u8> = Vec::new();
+        let mut static_frame_count: u32 = 0;
+
         loop {
             let current_global_id = CAPTURE_SESSION_ID.load(Ordering::SeqCst);
             if current_global_id != my_session_id {
@@ -444,6 +447,33 @@ async fn start_screen_capture(window: Window, monitor_index: usize, fps: Option<
                         let width = image.width();
                         let height = image.height();
                         let raw_data = image.as_raw();
+
+                        let current_fps = CAPTURE_FPS.load(Ordering::Relaxed).max(10);
+
+                        // 정지 화면 감지 (Zero-Cost Idle Optimization)
+                        let is_identical = !last_frame_buffer.is_empty()
+                            && last_frame_buffer.len() == raw_data.len()
+                            && last_frame_buffer.as_slice() == raw_data;
+
+                        if is_identical {
+                            static_frame_count += 1;
+                            // 화면 변화가 없을 때는 불필요한 소프트웨어 JPEG 인코딩 및 IPC 전송을 생략하고,
+                            // WebRTC 활성 유지용 하트비트 프레임만 약 2초마다 1회 전송하여 유휴 CPU 점유율을 대폭 절감
+                            let heartbeat_interval = (current_fps * 2) as u32;
+                            if static_frame_count < heartbeat_interval {
+                                let frame_target_duration = Duration::from_millis((1000 / current_fps) as u64);
+                                let elapsed = start_time.elapsed();
+                                if elapsed < frame_target_duration {
+                                    thread::sleep(frame_target_duration - elapsed);
+                                }
+                                continue;
+                            }
+                            static_frame_count = 0;
+                        } else {
+                            static_frame_count = 0;
+                            last_frame_buffer.clear();
+                            last_frame_buffer.extend_from_slice(raw_data);
+                        }
 
                         let quality = CAPTURE_QUALITY.load(Ordering::Relaxed) as u8;
                         let mut buffer = Cursor::new(Vec::new());

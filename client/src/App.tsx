@@ -359,6 +359,7 @@ function App() {
   });
   const [isControllingFlowRemote, setIsControllingFlowRemote] = useState(false);
   const flowChannelRef = useRef<RTCDataChannel | null>(null);
+  const controlChannelRef = useRef<RTCDataChannel | null>(null);
   const flowModeRef = useRef<"screen" | "flow">(flowMode);
   useEffect(() => {
     flowModeRef.current = flowMode;
@@ -1089,6 +1090,10 @@ function App() {
     connectedGuestIdRef.current = null;
     peerRef.current?.close();
     peerRef.current = null;
+    controlChannelRef.current?.close();
+    controlChannelRef.current = null;
+    flowChannelRef.current?.close();
+    flowChannelRef.current = null;
     setIsConnected(false);
     setIsPrivacyCover(false);
     invoke("set_privacy_mode", { enabled: false }).catch(() => {});
@@ -1110,6 +1115,96 @@ function App() {
       setIsHostMode(false);
       setStatus("Ready");
     }
+  };
+
+  // Unified Remote Control Event Executor (Host side: executes OS input from DataChannel or WebSocket)
+  const executeControlEvent = async (payload: any) => {
+    // 오직 메인 창만 원격 입력(키보드/마우스)을 OS에 실행 (서브 창이 열려 있어도 중복 입력 원천 차단)
+    if (!isMainWindow) return;
+    if (isHostRef.current) {
+      try {
+        if (payload.type === "mousemove") {
+          if (payload.monitorIndex !== undefined && payload.monitorIndex !== activeMonitorRef.current) {
+            activeMonitorRef.current = payload.monitorIndex;
+            setHostMonitorIndex(payload.monitorIndex);
+            await invoke("start_screen_capture", {
+              monitorIndex: payload.monitorIndex,
+              fps: hostFps,
+              quality: hostQuality,
+            });
+          }
+          await invoke("remote_mouse_move", {
+            x: payload.x,
+            y: payload.y,
+            monitorIndex: activeMonitorRef.current,
+          });
+        } else if (payload.type === "click") {
+          await invoke("remote_mouse_click", {
+            button: payload.button || "left",
+            x: payload.x,
+            y: payload.y,
+            monitorIndex: activeMonitorRef.current,
+          });
+        } else if (payload.type === "mousedown") {
+          await invoke("remote_mouse_down", {
+            button: payload.button || "left",
+            x: payload.x,
+            y: payload.y,
+            monitorIndex: activeMonitorRef.current,
+          });
+        } else if (payload.type === "mouseup") {
+          await invoke("remote_mouse_up", {
+            button: payload.button || "left",
+            x: payload.x,
+            y: payload.y,
+            monitorIndex: activeMonitorRef.current,
+          });
+        } else if (payload.type === "keydown" || payload.type === "keyup") {
+          const state = payload.type === "keydown" ? "down" : "up";
+          await invoke("remote_keyboard_event", { state, key: payload.key, code: payload.code || null });
+        } else if (payload.type === "shortcut") {
+          await invoke("remote_shortcut", { keys: payload.keys });
+        } else if (payload.type === "switch-monitor") {
+          activeMonitorRef.current = payload.monitorIndex;
+          setHostMonitorIndex(payload.monitorIndex);
+          await invoke("start_screen_capture", {
+            monitorIndex: payload.monitorIndex,
+            fps: hostFps,
+            quality: hostQuality,
+          });
+        } else if (payload.type === "toggle-blackscreen") {
+          setIsPrivacyCover(payload.enabled);
+          invoke("set_privacy_mode", { enabled: payload.enabled }).catch(() => {});
+        }
+      } catch (err) {
+        console.error("Control handler error:", err);
+      }
+    }
+  };
+
+  // Setup WebRTC Remote Control DataChannel (Ultra-low latency direct P2P for mouse/keyboard)
+  const setupControlChannel = (channel: RTCDataChannel) => {
+    controlChannelRef.current = channel;
+    channel.onopen = () => {
+      console.log("⚡ WebRTC DataChannel (Control) opened successfully!");
+    };
+    channel.onclose = () => {
+      console.log("⚡ WebRTC DataChannel (Control) closed");
+      if (controlChannelRef.current === channel) {
+        controlChannelRef.current = null;
+      }
+    };
+    channel.onerror = (err) => {
+      console.error("Control DataChannel error:", err);
+    };
+    channel.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        executeControlEvent(payload);
+      } catch (err) {
+        console.error("Control channel message parse error:", err);
+      }
+    };
   };
 
   // Setup WebRTC Flow DataChannel
@@ -1175,13 +1270,18 @@ function App() {
   const createPeerConnection = (targetId: string) => {
     const peer = new RTCPeerConnection(ICE_SERVERS);
 
-    // Setup DataChannel for Flow Mode
-    const channel = peer.createDataChannel("synclink-flow", { ordered: false, maxRetransmits: 0 });
-    setupFlowChannel(channel);
+    // Setup DataChannels (Flow mode & Remote Control mode)
+    const flowChannel = peer.createDataChannel("synclink-flow", { ordered: false, maxRetransmits: 0 });
+    setupFlowChannel(flowChannel);
+
+    const ctrlChannel = peer.createDataChannel("synclink-control", { ordered: true });
+    setupControlChannel(ctrlChannel);
 
     peer.ondatachannel = (e) => {
       if (e.channel.label === "synclink-flow") {
         setupFlowChannel(e.channel);
+      } else if (e.channel.label === "synclink-control") {
+        setupControlChannel(e.channel);
       }
     };
 
@@ -1557,70 +1657,8 @@ function App() {
       }
     });
 
-    // 🎮 Control Events
-    socket.on("control-event", async (payload) => {
-      // 오직 메인 창만 원격 입력(키보드/마우스)을 OS에 실행 (서브 창이 열려 있어도 중복 입력 원천 차단)
-      if (!isMainWindow) return;
-      if (isHostRef.current) {
-        try {
-          if (payload.type === "mousemove") {
-            if (payload.monitorIndex !== undefined && payload.monitorIndex !== activeMonitorRef.current) {
-              activeMonitorRef.current = payload.monitorIndex;
-              setHostMonitorIndex(payload.monitorIndex);
-              await invoke("start_screen_capture", {
-                monitorIndex: payload.monitorIndex,
-                fps: hostFps,
-                quality: hostQuality,
-              });
-            }
-            await invoke("remote_mouse_move", {
-              x: payload.x,
-              y: payload.y,
-              monitorIndex: activeMonitorRef.current,
-            });
-          } else if (payload.type === "click") {
-            await invoke("remote_mouse_click", {
-              button: payload.button || "left",
-              x: payload.x,
-              y: payload.y,
-              monitorIndex: activeMonitorRef.current,
-            });
-          } else if (payload.type === "mousedown") {
-            await invoke("remote_mouse_down", {
-              button: payload.button || "left",
-              x: payload.x,
-              y: payload.y,
-              monitorIndex: activeMonitorRef.current,
-            });
-          } else if (payload.type === "mouseup") {
-            await invoke("remote_mouse_up", {
-              button: payload.button || "left",
-              x: payload.x,
-              y: payload.y,
-              monitorIndex: activeMonitorRef.current,
-            });
-          } else if (payload.type === "keydown" || payload.type === "keyup") {
-            const state = payload.type === "keydown" ? "down" : "up";
-            await invoke("remote_keyboard_event", { state, key: payload.key, code: payload.code || null });
-          } else if (payload.type === "shortcut") {
-            await invoke("remote_shortcut", { keys: payload.keys });
-          } else if (payload.type === "switch-monitor") {
-            activeMonitorRef.current = payload.monitorIndex;
-            setHostMonitorIndex(payload.monitorIndex);
-            await invoke("start_screen_capture", {
-              monitorIndex: payload.monitorIndex,
-              fps: hostFps,
-              quality: hostQuality,
-            });
-          } else if (payload.type === "toggle-blackscreen") {
-            setIsPrivacyCover(payload.enabled);
-            invoke("set_privacy_mode", { enabled: payload.enabled }).catch(() => {});
-          }
-        } catch (err) {
-          console.error("Control handler error:", err);
-        }
-      }
-    });
+    // 🎮 Control Events (WebSocket Fallback Handler)
+    socket.on("control-event", executeControlEvent);
 
     // 📋 Clipboard Sync Event
     socket.on("clipboard-sync", async (payload: { text: string }) => {
@@ -1820,6 +1858,10 @@ function App() {
     setIsConnected(false);
     peerRef.current?.close();
     peerRef.current = null;
+    controlChannelRef.current?.close();
+    controlChannelRef.current = null;
+    flowChannelRef.current?.close();
+    flowChannelRef.current = null;
     if (isScreenCapturingRef.current) {
       await invoke("stop_screen_capture").catch(() => {});
       isScreenCapturingRef.current = false;
@@ -1907,6 +1949,8 @@ function App() {
       peerRef.current = null;
       flowChannelRef.current?.close();
       flowChannelRef.current = null;
+      controlChannelRef.current?.close();
+      controlChannelRef.current = null;
       remoteStreamRef.current = null;
       setRemoteMediaStream(null);
       setIsConnected(false);
@@ -1969,6 +2013,22 @@ function App() {
     }
   }, [isConnected, isHostMode, remoteMediaStream]);
 
+  // Send remote control event: Direct WebRTC DataChannel (P2P ~1-3ms) with WebSocket fallback
+  const sendControlEvent = (payload: any) => {
+    if (controlChannelRef.current && controlChannelRef.current.readyState === "open") {
+      try {
+        controlChannelRef.current.send(JSON.stringify(payload));
+        return;
+      } catch (e) {
+        console.warn("DataChannel send failed, falling back to WebSocket:", e);
+      }
+    }
+    socketRef.current?.emit("control-event", {
+      ...payload,
+      targetRoom: sessionRoomId,
+    });
+  };
+
   // Guest Input Handlers (Full Mouse Down, Up, Drag, Right-click & Long-press Support)
   const handleRemoteInput = (e: React.MouseEvent, type: string) => {
     if (isHostRef.current) return;
@@ -2013,8 +2073,7 @@ function App() {
     const buttonName = e.button === 2 ? "right" : e.button === 1 ? "middle" : "left";
 
     if (type === "mousemove") {
-      socketRef.current?.emit("control-event", {
-        targetRoom: sessionRoomId,
+      sendControlEvent({
         type: "mousemove",
         x,
         y,
@@ -2022,8 +2081,7 @@ function App() {
       });
     } else if (type === "mousedown") {
       setGuestCursor((prev) => ({ ...prev, clicking: true }));
-      socketRef.current?.emit("control-event", {
-        targetRoom: sessionRoomId,
+      sendControlEvent({
         type: "mousedown",
         button: buttonName,
         x,
@@ -2032,8 +2090,7 @@ function App() {
       });
     } else if (type === "mouseup") {
       setGuestCursor((prev) => ({ ...prev, clicking: false }));
-      socketRef.current?.emit("control-event", {
-        targetRoom: sessionRoomId,
+      sendControlEvent({
         type: "mouseup",
         button: buttonName,
         x,
@@ -2044,8 +2101,7 @@ function App() {
       e.preventDefault();
       e.stopPropagation();
       // Safe fallback if mousedown/mouseup wasn't already triggered by browser
-      socketRef.current?.emit("control-event", {
-        targetRoom: sessionRoomId,
+      sendControlEvent({
         type: "click",
         button: "right",
         x,
@@ -2059,8 +2115,7 @@ function App() {
   const sendRemoteKeyEvent = (type: "keydown" | "keyup", key: string, code?: string) => {
     if (isHostRef.current || !sessionRoomId) return;
     const keyToSend = key === " " ? "space" : key;
-    socketRef.current?.emit("control-event", {
-      targetRoom: sessionRoomId,
+    sendControlEvent({
       type,
       key: keyToSend,
       code: code || undefined,
@@ -2070,8 +2125,7 @@ function App() {
   // Remote Preset Shortcut Dispatcher (e.g., Ctrl+Alt+Del, Win, Alt+Tab)
   const sendRemoteShortcut = (keys: string[]) => {
     if (isHostRef.current || !sessionRoomId) return;
-    socketRef.current?.emit("control-event", {
-      targetRoom: sessionRoomId,
+    sendControlEvent({
       type: "shortcut",
       keys,
     });
@@ -2138,8 +2192,7 @@ function App() {
     const onGlobalMouseUp = (e: MouseEvent) => {
       setGuestCursor((prev) => ({ ...prev, clicking: false }));
       const buttonName = e.button === 2 ? "right" : e.button === 1 ? "middle" : "left";
-      socketRef.current?.emit("control-event", {
-        targetRoom: sessionRoomId,
+      sendControlEvent({
         type: "mouseup",
         button: buttonName,
         monitorIndex: sessionMonitor,
@@ -2173,8 +2226,7 @@ function App() {
   // Switch Remote Monitor
   const switchRemoteMonitor = (newIndex: number) => {
     setSessionMonitor(newIndex);
-    socketRef.current?.emit("control-event", {
-      targetRoom: sessionRoomId,
+    sendControlEvent({
       type: "switch-monitor",
       monitorIndex: newIndex,
     });
@@ -2183,8 +2235,7 @@ function App() {
   // Toggle Host Privacy Black Screen (Curtain Mode)
   const toggleBlackScreen = (enable: boolean) => {
     setIsBlackScreen(enable);
-    socketRef.current?.emit("control-event", {
-      targetRoom: sessionRoomId,
+    sendControlEvent({
       type: "toggle-blackscreen",
       enabled: enable,
     });

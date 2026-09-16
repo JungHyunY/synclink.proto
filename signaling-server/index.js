@@ -186,9 +186,8 @@ io.on("connection", (socket) => {
     io.to(payload.target).emit("ice-candidate", payload);
   });
 
-  // 5. 마우스 / 키보드 제어 신호 중계
+  // 5. 마우스 / 키보드 제어 신호 중계 (초저지연을 위해 고빈도 콘솔 I/O 블로킹 제거)
   socket.on("control-event", (payload) => {
-    console.log(`🎮 Control: ${payload.type} (x:${payload.x?.toFixed(2)}, y:${payload.y?.toFixed(2)}) -> Room: ${payload.targetRoom}`);
     socket.to(payload.targetRoom).emit("control-event", payload);
   });
 

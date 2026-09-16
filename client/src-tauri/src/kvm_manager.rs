@@ -18,10 +18,28 @@ extern "system" {
     fn GetSystemMetrics(nIndex: i32) -> i32;
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct ScreenBounds {
+    pub min_x: f64,
+    pub min_y: f64,
+    pub max_x: f64,
+    pub max_y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
 #[cfg(target_os = "windows")]
 const SM_CXSCREEN: i32 = 0;
 #[cfg(target_os = "windows")]
 const SM_CYSCREEN: i32 = 1;
+#[cfg(target_os = "windows")]
+const SM_XVIRTUALSCREEN: i32 = 76;
+#[cfg(target_os = "windows")]
+const SM_YVIRTUALSCREEN: i32 = 77;
+#[cfg(target_os = "windows")]
+const SM_CXVIRTUALSCREEN: i32 = 78;
+#[cfg(target_os = "windows")]
+const SM_CYVIRTUALSCREEN: i32 = 79;
 
 #[cfg(target_os = "macos")]
 #[repr(C)]
@@ -41,13 +59,34 @@ extern "C" {
     fn CGDisplayPixelsHigh(display: u32) -> usize;
 }
 
-pub fn get_os_screen_size() -> (f64, f64) {
+pub fn get_virtual_screen_bounds() -> ScreenBounds {
     #[cfg(target_os = "windows")]
     unsafe {
+        let vx = GetSystemMetrics(SM_XVIRTUALSCREEN);
+        let vy = GetSystemMetrics(SM_YVIRTUALSCREEN);
+        let vw = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+        let vh = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+        if vw > 0 && vh > 0 {
+            return ScreenBounds {
+                min_x: vx as f64,
+                min_y: vy as f64,
+                max_x: (vx + vw) as f64,
+                max_y: (vy + vh) as f64,
+                width: vw as f64,
+                height: vh as f64,
+            };
+        }
         let w = GetSystemMetrics(SM_CXSCREEN);
         let h = GetSystemMetrics(SM_CYSCREEN);
         if w > 0 && h > 0 {
-            return (w as f64, h as f64);
+            return ScreenBounds {
+                min_x: 0.0,
+                min_y: 0.0,
+                max_x: w as f64,
+                max_y: h as f64,
+                width: w as f64,
+                height: h as f64,
+            };
         }
     }
     #[cfg(target_os = "macos")]
@@ -56,10 +95,29 @@ pub fn get_os_screen_size() -> (f64, f64) {
         let w = CGDisplayPixelsWide(d);
         let h = CGDisplayPixelsHigh(d);
         if w > 0 && h > 0 {
-            return (w as f64, h as f64);
+            return ScreenBounds {
+                min_x: 0.0,
+                min_y: 0.0,
+                max_x: w as f64,
+                max_y: h as f64,
+                width: w as f64,
+                height: h as f64,
+            };
         }
     }
-    (1920.0, 1080.0)
+    ScreenBounds {
+        min_x: 0.0,
+        min_y: 0.0,
+        max_x: 1920.0,
+        max_y: 1080.0,
+        width: 1920.0,
+        height: 1080.0,
+    }
+}
+
+pub fn get_os_screen_size() -> (f64, f64) {
+    let b = get_virtual_screen_bounds();
+    (b.width, b.height)
 }
 
 pub fn get_os_cursor_pos() -> Option<(f64, f64)> {
@@ -154,20 +212,20 @@ pub fn init_kvm(app_handle: AppHandle) {
                 continue;
             }
 
-            // Always query the actual OS display resolution
-            let (sw, sh) = get_os_screen_size();
+            // Always query the actual OS display resolution & multi-monitor virtual screen bounds
+            let bounds = get_virtual_screen_bounds();
 
             if let Some((cur_x, cur_y)) = get_os_cursor_pos() {
                 if !is_controlling {
                     anchor_pos = None;
 
-                    // Check if mouse hits the configured edge of the primary monitor (with 6px tolerance margin)
+                    // Check if mouse hits the configured edge of the entire virtual screen (with 6px tolerance margin)
                     let edge_margin = 6.0;
                     let crossed = match dir.as_str() {
-                        "right" => cur_x >= (sw - edge_margin),
-                        "left" => cur_x <= edge_margin,
-                        "top" => cur_y <= edge_margin,
-                        "bottom" => cur_y >= (sh - edge_margin),
+                        "right" => cur_x >= (bounds.max_x - edge_margin),
+                        "left" => cur_x <= (bounds.min_x + edge_margin),
+                        "top" => cur_y <= (bounds.min_y + edge_margin),
+                        "bottom" => cur_y >= (bounds.max_y - edge_margin),
                         _ => false,
                     };
 
@@ -182,17 +240,17 @@ pub fn init_kvm(app_handle: AppHandle) {
 
                         // Store the edge boundary where cursor crossed
                         let anchor = match dir.as_str() {
-                            "right" => (sw - 2.0, cur_y.clamp(0.0, sh)),
-                            "left" => (2.0, cur_y.clamp(0.0, sh)),
-                            "top" => (cur_x.clamp(0.0, sw), 2.0),
-                            "bottom" => (cur_x.clamp(0.0, sw), sh - 2.0),
+                            "right" => (bounds.max_x - 2.0, cur_y.clamp(bounds.min_y, bounds.max_y)),
+                            "left" => (bounds.min_x + 2.0, cur_y.clamp(bounds.min_y, bounds.max_y)),
+                            "top" => (cur_x.clamp(bounds.min_x, bounds.max_x), bounds.min_y + 2.0),
+                            "bottom" => (cur_x.clamp(bounds.min_x, bounds.max_x), bounds.max_y - 2.0),
                             _ => (cur_x, cur_y),
                         };
                         anchor_pos = Some(anchor);
 
                         // Notify frontend
-                        let norm_y = (cur_y / sh.max(1.0)).clamp(0.0, 1.0);
-                        let norm_x = (cur_x / sw.max(1.0)).clamp(0.0, 1.0);
+                        let norm_y = ((cur_y - bounds.min_y) / bounds.height.max(1.0)).clamp(0.0, 1.0);
+                        let norm_x = ((cur_x - bounds.min_x) / bounds.width.max(1.0)).clamp(0.0, 1.0);
                         let _ = app_clone.emit("kvm-entered", serde_json::json!({
                             "direction": dir,
                             "normalizedX": norm_x,
@@ -221,13 +279,13 @@ pub fn init_kvm(app_handle: AppHandle) {
 
                             // Place cursor comfortably inside local monitor so it doesn't immediately re-cross
                             let return_x = match dir.as_str() {
-                                "right" => (sw - 40.0).max(0.0),
-                                "left" => 40.0,
+                                "right" => (bounds.max_x - 40.0).max(bounds.min_x),
+                                "left" => (bounds.min_x + 40.0).min(bounds.max_x),
                                 _ => cur_x,
                             };
                             let return_y = match dir.as_str() {
-                                "top" => 40.0,
-                                "bottom" => (sh - 40.0).max(0.0),
+                                "top" => (bounds.min_y + 40.0).min(bounds.max_y),
+                                "bottom" => (bounds.max_y - 40.0).max(bounds.min_y),
                                 _ => cur_y,
                             };
                             set_os_cursor_pos(return_x, return_y);
@@ -255,8 +313,7 @@ pub fn init_kvm(app_handle: AppHandle) {
         }
     });
 
-    // 2. Global Input Hook (Clicks & Keys) while controlling remote
-    #[cfg(target_os = "windows")]
+    // 2. Global Input Hook (Clicks & Keys) while controlling remote (Cross-platform: Windows & macOS)
     {
         let app_clone_input = app_handle.clone();
         thread::spawn(move || {
