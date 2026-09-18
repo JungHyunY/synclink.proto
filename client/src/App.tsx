@@ -40,7 +40,6 @@ import {
   ChevronUp,
   ChevronDown,
   Move,
-  CopyPlus,
   CheckCircle2,
   XCircle,
   Info,
@@ -423,29 +422,34 @@ function App() {
     }
   }, []);
 
-  const handleOpenNewWindow = async () => {
-    try {
-      await invoke("open_new_window");
-    } catch (err: any) {
-      console.warn("새 창 열기 오류:", err);
-      showDialog({
-        type: "warning",
-        title: "새 창 열기 제한",
-        message: typeof err === "string" ? err : (err?.message || "동시에 최대 3개의 창까지만 열 수 있습니다."),
-      });
+  // 새 세션 연결 요청 (새 탭 모드 / 대시보드로 이동하여 추가 연결 준비)
+  const handleNewConnectionRequest = () => {
+    setActiveSessionTabId("dashboard");
+    setActiveTab("connect");
+    if (layoutMode === "split") {
+      if (focusedPane === "right") {
+        setSplitRightTabId("dashboard");
+      } else {
+        setSplitLeftTabId("dashboard");
+      }
     }
   };
 
-  // Global Shortcut for Opening a New Session Window (Ctrl+Shift+N or Cmd+Shift+N)
+  // Global Shortcut for Opening a New Session Tab (Ctrl+T, Ctrl+Shift+N or Cmd+Shift+N)
   useEffect(() => {
-    const handleNewWindowShortcut = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "N" || e.key === "n")) {
+    const handleNewTabShortcut = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return;
+      }
+      const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+      if (isCtrlOrCmd && ((e.key === "t" || e.key === "T") || (e.shiftKey && (e.key === "N" || e.key === "n")))) {
         e.preventDefault();
-        handleOpenNewWindow();
+        handleNewConnectionRequest();
       }
     };
-    window.addEventListener("keydown", handleNewWindowShortcut);
-    return () => window.removeEventListener("keydown", handleNewWindowShortcut);
+    window.addEventListener("keydown", handleNewTabShortcut);
+    return () => window.removeEventListener("keydown", handleNewTabShortcut);
   }, []);
 
   // ─── AI Smart Clipboard Assistant Logic ───
@@ -2096,18 +2100,7 @@ function App() {
     }
   };
 
-  // 새 세션 연결 요청 (+ 버튼)
-  const handleNewConnectionRequest = () => {
-    setActiveSessionTabId("dashboard");
-    setActiveTab("connect");
-    if (layoutMode === "split") {
-      if (focusedPane === "right") {
-        setSplitRightTabId("dashboard");
-      } else {
-        setSplitLeftTabId("dashboard");
-      }
-    }
-  };
+
 
   // 좌우 패널 맞바꾸기 (Swap Split Panes)
   const handleSwapSplitPanes = () => {
@@ -2663,7 +2656,7 @@ function App() {
                 <span>설정 (Settings)</span>
               </button>
 
-              {/* 새 창 열기 버튼 */}
+              {/* 새 세션 탭 열기 버튼 */}
               <div style={{ marginTop: "12px", paddingTop: "10px", borderTop: "1px solid rgba(255, 255, 255, 0.08)" }}>
                 <button
                   type="button"
@@ -2674,11 +2667,11 @@ function App() {
                     color: "var(--accent-glow)",
                     justifyContent: "flex-start",
                   }}
-                  onClick={handleOpenNewWindow}
-                  title="새 창을 열어 여러 대의 PC를 동시에 제어할 수 있습니다 (최대 3개, 단축키: Ctrl+Shift+N)"
+                  onClick={handleNewConnectionRequest}
+                  title="새 세션 연결 탭을 추가하여 여러 대의 PC를 탭/분할 뷰로 동시에 제어합니다 (단축키: Ctrl+T)"
                 >
-                  <CopyPlus size={18} />
-                  <span>새 창 열기 (최대 3개)</span>
+                  <Plus size={18} />
+                  <span>새 세션 탭 (Ctrl+T)</span>
                 </button>
 
                 <button
@@ -2826,11 +2819,11 @@ function App() {
                       type="button"
                       className="btn-main"
                       style={{ padding: "8px 14px", fontSize: "0.85rem", gap: "6px" }}
-                      onClick={handleOpenNewWindow}
-                      title="새 창을 열어 여러 대의 PC를 동시에 제어할 수 있습니다 (최대 3개)"
+                      onClick={handleNewConnectionRequest}
+                      title="새 세션 연결 탭을 열어 여러 대의 PC를 탭/분할 화면으로 동시에 원격 제어합니다 (단축키: Ctrl+T)"
                     >
-                      <CopyPlus size={15} />
-                      <span>+ 새 창 열기</span>
+                      <Plus size={15} />
+                      <span>+ 새 세션 탭</span>
                     </button>
                   </div>
                 </div>
@@ -4266,14 +4259,14 @@ function App() {
                 )}
               </div>
 
-              {/* 새 창 열기 (최대 3대 동시 제어) */}
+              {/* 새 탭 열기 (다른 PC 동시 제어) */}
               <button
                 className="toolbar-btn"
-                onClick={handleOpenNewWindow}
-                title="새 세션 창 열기 (최대 3대 동시 원격 제어)"
+                onClick={handleNewConnectionRequest}
+                title="새 세션 탭 열기 (대시보드로 이동하여 추가 PC 동시 연결/분할 제어, 단축키: Ctrl+T)"
               >
-                <CopyPlus size={14} />
-                <span>새 창</span>
+                <Plus size={14} />
+                <span>새 탭</span>
               </button>
 
               {/* 툴바 최소화 버튼 */}
