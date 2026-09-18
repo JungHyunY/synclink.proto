@@ -113,10 +113,10 @@ SyncLink는 완전 무료 오픈소스(MIT)로 개발되고 있습니다. SyncLi
 - ☕ **Ko-fi**: 수수료 없는 간편 1회성 팁 ([ko-fi.com/tpp6347](https://ko-fi.com/tpp6347))
 - 🐙 **GitHub Sponsors**: GitHub 공식 정기/1회성 스폰서 ([github.com/sponsors/JungHyunY](https://github.com/sponsors/JungHyunY))
 - ₿ **Crypto 암호화폐 지원**:
-  - Bitcoin (Native SegWit): `bc1qh00smz004sy85wyl28v77tenkt3ckl6eaep7fd`
-  - Ethereum (ERC-20): `0x64Cf6B68A6Ff34288e89172950a2d00102337a84`
-  - Tether USDT (Tron TRC-20): `TKAF41JpuQrHbKTnsQa9svJE2T192Hvsc2`
-  - Solana / USDC (Solana): `2emNNZzVVWQc3FQ2wk9M6qXUQmW8AKdjjL174fXR28Tu`
+  - Bitcoin (Bitcoin 네트워크): `1GLmERxFPSVZ6f7Sb71i2gcnfsBVE1hgHH`
+  - Ethereum (Ethereum 네트워크 / ERC-20): `0x587131ab08876de4abecf0af54d4ee4a9b2a45cb`
+  - Tether USDT (Tron 네트워크 / TRC-20): `TWKthRWqNkaBeh8ota4Fv7ZSFRDDU2uM1Z`
+  - Solana / USDC (솔라나 네트워크): `9P9FucxWbRu7yjLzUf6o2b8WcpaR4QLEzYQv7ypHci7K`
   *(반드시 각 코인의 지정된 네트워크를 확인 후 전송해 주세요)*
 
 ---
