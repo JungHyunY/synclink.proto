@@ -368,6 +368,12 @@ function App() {
   const [showShortcutsMenu, setShowShortcutsMenu] = useState(false);
   const [isAutoStartEnabled, setIsAutoStartEnabled] = useState(false);
 
+  // ─── 지능형 지수 백오프 자동 재연결 (Exponential Backoff Auto-Reconnect) State & Refs ───
+  const reconnectAttemptsRef = useRef(0);
+  const reconnectTimeoutRef = useRef<any>(null);
+  const isExplicitDisconnectRef = useRef(false);
+  const [reconnectNotice, setReconnectNotice] = useState<string | null>(null);
+
   // Dark / Light Theme State
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     return (localStorage.getItem("synclink_theme") as "dark" | "light") || "dark";
@@ -1378,13 +1384,50 @@ function App() {
       if (peer.connectionState === "connected") {
         setStatus("Connected");
         setIsConnected(true);
-        // 주의: macOS WebKit은 창이 Dock으로 최소화되면 Canvas 렌더링 컨텍스트를 0 FPS로 정지시키므로,
-        // 호스트 창을 강제로 최소화하지 않고 ON AIR 대시보드 상태를 유지합니다.
+        reconnectAttemptsRef.current = 0;
+        setReconnectNotice(null);
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+          reconnectTimeoutRef.current = null;
+        }
       } else if (
         peer.connectionState === "disconnected" ||
-        peer.connectionState === "failed" ||
-        peer.connectionState === "closed"
+        peer.connectionState === "failed"
       ) {
+        if (isHostRef.current) {
+          handleHostGuestDisconnected();
+        } else if (!isExplicitDisconnectRef.current && targetId && targetPin) {
+          // 지능형 지수 백오프 자동 재연결 루틴 (1.5s, 3s, 6s)
+          if (reconnectAttemptsRef.current < 3) {
+            reconnectAttemptsRef.current += 1;
+            const attempt = reconnectAttemptsRef.current;
+            const delay = Math.min(1500 * Math.pow(2, attempt - 1), 6000);
+            const notice = `네트워크 불안정 감지: ${delay / 1000}초 후 자동 복구 시도 (${attempt}/3)...`;
+            console.warn(`[SyncLink] ${notice}`);
+            setStatus("Reconnecting");
+            setReconnectNotice(notice);
+
+            if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+            reconnectTimeoutRef.current = setTimeout(() => {
+              if (!isExplicitDisconnectRef.current) {
+                try {
+                  peerRef.current?.close();
+                  peerRef.current = null;
+                } catch {}
+                connectToDevice(targetId, targetPin);
+              }
+            }, delay);
+          } else {
+            console.warn("[SyncLink] 최대 재연결 시도 횟수(3회) 초과");
+            setReconnectNotice("재연결 실패. 세션을 종료합니다.");
+            setTimeout(() => {
+              endSession();
+            }, 1800);
+          }
+        } else {
+          endSession();
+        }
+      } else if (peer.connectionState === "closed") {
         if (isHostRef.current) {
           handleHostGuestDisconnected();
         } else {
@@ -2008,6 +2051,13 @@ function App() {
     }
 
     // 기본 세션 연결 시작
+    isExplicitDisconnectRef.current = false;
+    reconnectAttemptsRef.current = 0;
+    setReconnectNotice(null);
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
     setIsConnecting(true);
     setAuthError(null);
 
@@ -2237,6 +2287,14 @@ function App() {
   // End Current Session
   const endSession = () => {
     try {
+      isExplicitDisconnectRef.current = true;
+      reconnectAttemptsRef.current = 0;
+      setReconnectNotice(null);
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+
       // 1. 전체화면 상태인 경우 즉시 전체화면 해제
       if (document.fullscreenElement) {
         document.exitFullscreen().catch(() => {});
@@ -3960,6 +4018,48 @@ function App() {
       const primarySessionView = (
           /* ─────────────────── IN-SESSION SCREEN (ACTIVE) ─────────────────── */
           <div className="session-screen" ref={videoContainerRef}>
+          {/* 지능형 재연결 안내 배너 */}
+          {reconnectNotice && (
+            <div
+              style={{
+                position: "absolute",
+                top: "16px",
+                left: "50%",
+                transform: "translateX(-50%)",
+                zIndex: 9999,
+                background: "rgba(220, 38, 38, 0.92)",
+                backdropFilter: "blur(8px)",
+                color: "#fff",
+                padding: "8px 16px",
+                borderRadius: "20px",
+                fontSize: "0.85rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
+                animation: "pulse 2s infinite",
+              }}
+            >
+              <Activity className="animate-spin" size={16} />
+              <span>{reconnectNotice}</span>
+              <button
+                onClick={() => endSession()}
+                style={{
+                  background: "rgba(255, 255, 255, 0.25)",
+                  border: "none",
+                  color: "#fff",
+                  borderRadius: "12px",
+                  padding: "2px 8px",
+                  fontSize: "0.75rem",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                }}
+              >
+                취소
+              </button>
+            </div>
+          )}
+
           {/* 상단 플로팅 글래스모피즘 툴바 (최소화 및 위치 변경 지원) */}
           {isToolbarMinimized ? (
             <div
