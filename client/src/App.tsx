@@ -46,12 +46,14 @@ import {
   Sparkles,
   Globe,
   Code,
+  Heart,
 } from "lucide-react";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import "./App.css";
 import { SessionTabBar } from "./components/SessionTabBar";
 import { RemoteViewport } from "./components/RemoteViewport";
+import { SupportModal, SupportLinksConfig } from "./components/SupportModal";
 import { TabItem, LayoutMode, ActivePane, RemoteSession } from "./types/session";
 import { startSecondarySession } from "./services/secondarySession";
 
@@ -64,9 +66,42 @@ const ICE_SERVERS = {
   ],
 };
 
-// ─── 서포트 & 파트너십 링크 ───
-const SUPPORT_LINKS = {
-  buyMeACoffee: "https://buymeacoffee.com/tpp6347", // Buy Me a Coffee 공식 후원 링크
+// ─── 서포트 & 파트너십 다채널 링크 (OmniRoute 스타일 다면화) ───
+const SUPPORT_LINKS: SupportLinksConfig = {
+  githubRepo: "https://github.com/JungHyunY/synclink.proto",
+  githubSponsors: "https://github.com/sponsors/JungHyunY",
+  buyMeACoffee: "https://buymeacoffee.com/tpp6347",
+  kofi: "https://ko-fi.com/tpp6347",
+  crypto: [
+    {
+      coin: "BTC",
+      name: "Bitcoin",
+      network: "Native SegWit",
+      address: "bc1qh00smz004sy85wyl28v77tenkt3ckl6eaep7fd",
+      badgeColor: "#f7931a",
+    },
+    {
+      coin: "ETH",
+      name: "Ethereum",
+      network: "ERC-20",
+      address: "0x64Cf6B68A6Ff34288e89172950a2d00102337a84",
+      badgeColor: "#627eea",
+    },
+    {
+      coin: "USDT",
+      name: "Tether USD",
+      network: "TRC-20 (Tron)",
+      address: "TKAF41JpuQrHbKTnsQa9svJE2T192Hvsc2",
+      badgeColor: "#26a17b",
+    },
+    {
+      coin: "SOL",
+      name: "Solana / USDC",
+      network: "Solana",
+      address: "2emNNZzVVWQc3FQ2wk9M6qXUQmW8AKdjjL174fXR28Tu",
+      badgeColor: "#14f195",
+    },
+  ],
 };
 
 const openExternalLink = async (url: string) => {
@@ -210,6 +245,7 @@ function App() {
 
   // Custom Modal Dialog State (replaces native browser alerts/confirms)
   const [dialogConfig, setDialogConfig] = useState<CustomDialogConfig | null>(null);
+  const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
 
   const showDialog = (options: {
     title?: string;
@@ -2694,13 +2730,13 @@ function App() {
             </div>
 
             <div className="sidebar-footer">
-              {/* Buy Me a Coffee 공식 미니 배너 */}
+              {/* 다채널 오픈소스 후원 & 기여 배너 (OmniRoute 스타일) */}
               <div
-                onClick={() => openExternalLink(SUPPORT_LINKS.buyMeACoffee)}
-                title="개발자에게 커피 한 잔 선물하기 (Buy Me a Coffee)"
+                onClick={() => setIsSupportModalOpen(true)}
+                title="SyncLink 후원 및 개발 지원 (GitHub Star, 커피, Crypto 등)"
                 style={{
-                  background: "rgba(255, 221, 0, 0.08)",
-                  border: "1px solid rgba(255, 221, 0, 0.28)",
+                  background: "rgba(107, 127, 66, 0.12)",
+                  border: "1px solid rgba(107, 127, 66, 0.35)",
                   borderRadius: "10px",
                   padding: "9px 12px",
                   display: "flex",
@@ -2711,13 +2747,13 @@ function App() {
                   transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "rgba(255, 221, 0, 0.16)";
-                  e.currentTarget.style.borderColor = "rgba(255, 221, 0, 0.5)";
+                  e.currentTarget.style.background = "rgba(107, 127, 66, 0.22)";
+                  e.currentTarget.style.borderColor = "var(--accent-glow, #a3e635)";
                   e.currentTarget.style.transform = "translateY(-1px)";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "rgba(255, 221, 0, 0.08)";
-                  e.currentTarget.style.borderColor = "rgba(255, 221, 0, 0.28)";
+                  e.currentTarget.style.background = "rgba(107, 127, 66, 0.12)";
+                  e.currentTarget.style.borderColor = "rgba(107, 127, 66, 0.35)";
                   e.currentTarget.style.transform = "translateY(0)";
                 }}
               >
@@ -2727,21 +2763,25 @@ function App() {
                       width: "26px",
                       height: "26px",
                       borderRadius: "6px",
-                      background: "#FFDD00",
+                      background: "var(--accent-glow, #a3e635)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       color: "#000",
+                      fontSize: "13px",
                       flexShrink: 0,
                     }}
                   >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M20.216 6.415l-.132-.666c-.119-.597-.388-1.156-1.01-1.378-.602-.217-1.385-.181-2.428-.181H4.636c-.954 0-1.74.032-2.348.243-.616.216-.902.776-1.026 1.381l-.872 4.417c-.366 1.849.208 3.731 1.545 5.051 1.258 1.242 3.018 1.838 4.887 1.838h8.556c1.869 0 3.629-.596 4.887-1.838 1.337-1.32 1.911-3.202 1.545-5.051l-.594-3.216zm-3.284 3.518h-2.133v-1.07h2.133v1.07zm0-2.14h-2.133V6.723h2.133v1.07zm-3.2 2.14h-2.133v-1.07h2.133v1.07zm0-2.14h-2.133V6.723h2.133v1.07zm-3.2 2.14H8.4v-1.07h2.132v1.07zm0-2.14H8.4V6.723h2.132v1.07zM23.99 8.21c-.044-.225-.13-.443-.263-.637-.216-.317-.557-.525-.951-.577l-1.082-.143.435 2.193c.196.993-.058 2.01-.699 2.788-.475.577-1.144.93-1.886 1.025l.235 1.189c1.233-.186 2.338-.828 3.092-1.777.949-1.196 1.326-2.736 1.119-4.068z" />
-                    </svg>
+                    💚
                   </div>
-                  <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "#fef08a" }}>Buy me a coffee</span>
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "#fff" }}>개발자 후원 & 기여</span>
+                    <span style={{ fontSize: "0.68rem", color: "var(--text-muted)", marginTop: "1px" }}>
+                      Star · 커피 · Crypto 💛
+                    </span>
+                  </div>
                 </div>
-                <ExternalLink size={12} color="#fef08a" style={{ opacity: 0.8 }} />
+                <ExternalLink size={13} color="var(--accent-glow, #a3e635)" />
               </div>
 
               <div className="server-status">
@@ -3832,7 +3872,7 @@ function App() {
                   </div>
                 </div>
 
-                {/* Buy Me a Coffee 공식 후원 배너 */}
+                {/* 다채널 오픈소스 후원 & 기여 배너 (OmniRoute 스타일) */}
                 <div
                   className="glass-card"
                   style={{
@@ -3842,23 +3882,23 @@ function App() {
                     alignItems: "center",
                     justifyContent: "space-between",
                     gap: "16px",
-                    background: "rgba(255, 221, 0, 0.05)",
-                    border: "1px solid rgba(255, 221, 0, 0.25)",
+                    background: "rgba(107, 127, 66, 0.08)",
+                    border: "1px solid rgba(107, 127, 66, 0.3)",
                     cursor: "pointer",
                     transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
                   }}
-                  onClick={() => openExternalLink(SUPPORT_LINKS.buyMeACoffee)}
+                  onClick={() => setIsSupportModalOpen(true)}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "rgba(255, 221, 0, 0.1)";
-                    e.currentTarget.style.borderColor = "rgba(255, 221, 0, 0.45)";
+                    e.currentTarget.style.background = "rgba(107, 127, 66, 0.16)";
+                    e.currentTarget.style.borderColor = "var(--accent-glow, #a3e635)";
                     e.currentTarget.style.transform = "translateY(-1px)";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "rgba(255, 221, 0, 0.05)";
-                    e.currentTarget.style.borderColor = "rgba(255, 221, 0, 0.25)";
+                    e.currentTarget.style.background = "rgba(107, 127, 66, 0.08)";
+                    e.currentTarget.style.borderColor = "rgba(107, 127, 66, 0.3)";
                     e.currentTarget.style.transform = "translateY(0)";
                   }}
-                  title="Buy Me a Coffee 후원 페이지 열기"
+                  title="SyncLink 다채널 후원 옵션 열기 (Star, 커피, Ko-fi, Sponsors, Crypto)"
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                     <div
@@ -3866,34 +3906,32 @@ function App() {
                         width: "36px",
                         height: "36px",
                         borderRadius: "10px",
-                        background: "#FFDD00",
+                        background: "var(--accent-glow, #a3e635)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         color: "#000",
                         flexShrink: 0,
-                        boxShadow: "0 2px 8px rgba(255, 221, 0, 0.35)",
+                        boxShadow: "0 2px 8px rgba(163, 230, 53, 0.35)",
                       }}
                     >
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M20.216 6.415l-.132-.666c-.119-.597-.388-1.156-1.01-1.378-.602-.217-1.385-.181-2.428-.181H4.636c-.954 0-1.74.032-2.348.243-.616.216-.902.776-1.026 1.381l-.872 4.417c-.366 1.849.208 3.731 1.545 5.051 1.258 1.242 3.018 1.838 4.887 1.838h8.556c1.869 0 3.629-.596 4.887-1.838 1.337-1.32 1.911-3.202 1.545-5.051l-.594-3.216zm-3.284 3.518h-2.133v-1.07h2.133v1.07zm0-2.14h-2.133V6.723h2.133v1.07zm-3.2 2.14h-2.133v-1.07h2.133v1.07zm0-2.14h-2.133V6.723h2.133v1.07zm-3.2 2.14H8.4v-1.07h2.132v1.07zm0-2.14H8.4V6.723h2.132v1.07zM23.99 8.21c-.044-.225-.13-.443-.263-.637-.216-.317-.557-.525-.951-.577l-1.082-.143.435 2.193c.196.993-.058 2.01-.699 2.788-.475.577-1.144.93-1.886 1.025l.235 1.189c1.233-.186 2.338-.828 3.092-1.777.949-1.196 1.326-2.736 1.119-4.068z" />
-                      </svg>
+                      <Heart size={20} fill="#000" />
                     </div>
                     <div>
-                      <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#fef08a" }}>
-                        개발자에게 커피 한 잔 선물하기
+                      <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#fff" }}>
+                        오픈소스 개발 후원 및 지원 (다채널 옵션)
                       </div>
                       <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "2px" }}>
-                        SyncLink의 무료 운영과 오픈소스 개발을 따뜻하게 응원해 주세요
+                        GitHub Star · Buy Me a Coffee · Ko-fi · Sponsors · Crypto 다중 체인
                       </div>
                     </div>
                   </div>
                   <button
                     className="btn-main"
                     style={{
-                      padding: "6px 14px",
+                      padding: "7px 14px",
                       fontSize: "0.8rem",
-                      background: "#FFDD00",
+                      background: "var(--accent-glow, #a3e635)",
                       color: "#000",
                       fontWeight: 700,
                       border: "none",
@@ -3901,13 +3939,15 @@ function App() {
                       alignItems: "center",
                       gap: "6px",
                       flexShrink: 0,
+                      borderRadius: "8px",
+                      cursor: "pointer",
                     }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      openExternalLink(SUPPORT_LINKS.buyMeACoffee);
+                      setIsSupportModalOpen(true);
                     }}
                   >
-                    <span>Buy me a coffee</span>
+                    <span>후원 옵션 보기</span>
                     <ExternalLink size={13} color="#000" />
                   </button>
                 </div>
@@ -5232,6 +5272,14 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* 다채널 후원 & 기여 모달 (OmniRoute 스타일) */}
+      <SupportModal
+        isOpen={isSupportModalOpen}
+        onClose={() => setIsSupportModalOpen(false)}
+        links={SUPPORT_LINKS}
+        onOpenLink={openExternalLink}
+      />
     </div>
   );
 }

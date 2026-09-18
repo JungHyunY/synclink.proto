@@ -104,5 +104,22 @@ npm run tauri dev
 
 ---
 
+## 💚 Support SyncLink (후원 및 기여)
+
+SyncLink는 완전 무료 오픈소스(MIT)로 개발되고 있습니다. SyncLink가 업무와 일상에 도움이 되셨다면 원하시는 방식으로 응원해 주세요.
+
+- ⭐ **Star the repo**: 비용 없는 무료 후원 ([GitHub 저장소 Star](https://github.com/JungHyunY/synclink.proto))
+- 🧋 **Buy Me a Coffee**: 개발자에게 커피 한 잔 응원 ([buymeacoffee.com/tpp6347](https://buymeacoffee.com/tpp6347))
+- ☕ **Ko-fi**: 수수료 없는 간편 1회성 팁 ([ko-fi.com/tpp6347](https://ko-fi.com/tpp6347))
+- 🐙 **GitHub Sponsors**: GitHub 공식 정기/1회성 스폰서 ([github.com/sponsors/JungHyunY](https://github.com/sponsors/JungHyunY))
+- ₿ **Crypto 암호화폐 지원**:
+  - Bitcoin (Native SegWit): `bc1qh00smz004sy85wyl28v77tenkt3ckl6eaep7fd`
+  - Ethereum (ERC-20): `0x64Cf6B68A6Ff34288e89172950a2d00102337a84`
+  - Tether USDT (Tron TRC-20): `TKAF41JpuQrHbKTnsQa9svJE2T192Hvsc2`
+  - Solana / USDC (Solana): `2emNNZzVVWQc3FQ2wk9M6qXUQmW8AKdjjL174fXR28Tu`
+  *(반드시 각 코인의 지정된 네트워크를 확인 후 전송해 주세요)*
+
+---
+
 ## 📜 라이선스
 MIT License
