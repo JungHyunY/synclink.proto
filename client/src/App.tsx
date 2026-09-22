@@ -47,6 +47,7 @@ import {
   Globe,
   Code,
   Heart,
+  HelpCircle,
 } from "lucide-react";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -54,6 +55,7 @@ import "./App.css";
 import { SessionTabBar } from "./components/SessionTabBar";
 import { RemoteViewport } from "./components/RemoteViewport";
 import { SupportModal, SupportLinksConfig } from "./components/SupportModal";
+import { GuideModal } from "./components/GuideModal";
 import { TabItem, LayoutMode, ActivePane, RemoteSession } from "./types/session";
 import { startSecondarySession } from "./services/secondarySession";
 
@@ -246,6 +248,10 @@ function App() {
   // Custom Modal Dialog State (replaces native browser alerts/confirms)
   const [dialogConfig, setDialogConfig] = useState<CustomDialogConfig | null>(null);
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
+  const [isGuideModalOpen, setIsGuideModalOpen] = useState(() => {
+    // 최초 실행 여부 판별 (로컬스토리지에 본 기록이 없으면 자동으로 띄움)
+    return localStorage.getItem("synclink_tutorial_seen") !== "true";
+  });
 
   const showDialog = (options: {
     title?: string;
@@ -2784,6 +2790,23 @@ function App() {
                   <Sparkles size={18} color="#c084fc" />
                   <span style={{ fontWeight: 600 }}>AI 클립보드 (Ctrl+Space)</span>
                 </button>
+
+                <button
+                  type="button"
+                  className="nav-item"
+                  style={{
+                    background: "rgba(56, 189, 248, 0.1)",
+                    border: "1px solid rgba(56, 189, 248, 0.3)",
+                    color: "#7dd3fc",
+                    justifyContent: "flex-start",
+                    marginTop: "6px",
+                  }}
+                  onClick={() => setIsGuideModalOpen(true)}
+                  title="SyncLink 초기 사용법 및 기능 가이드 열기"
+                >
+                  <HelpCircle size={18} color="#38bdf8" />
+                  <span style={{ fontWeight: 600 }}>사용 가이드</span>
+                </button>
               </div>
             </div>
 
@@ -2896,6 +2919,23 @@ function App() {
                     <p className="content-subtitle">접속할 컴퓨터의 9자리 기기 ID와 PIN 비밀번호를 입력해 주세요.</p>
                   </div>
                   <div style={{ display: "flex", gap: "8px", flexShrink: 0, flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      className="btn-main"
+                      style={{
+                        padding: "8px 14px",
+                        fontSize: "0.85rem",
+                        gap: "6px",
+                        background: "rgba(56, 189, 248, 0.12)",
+                        borderColor: "rgba(56, 189, 248, 0.35)",
+                        color: "#7dd3fc",
+                      }}
+                      onClick={() => setIsGuideModalOpen(true)}
+                      title="SyncLink 초기 사용법 및 기능 가이드 열기"
+                    >
+                      <HelpCircle size={15} color="#38bdf8" />
+                      <span style={{ fontWeight: 600 }}>사용 가이드</span>
+                    </button>
                     <button
                       type="button"
                       className="btn-main"
@@ -5379,6 +5419,17 @@ function App() {
         onClose={() => setIsSupportModalOpen(false)}
         links={SUPPORT_LINKS}
         onOpenLink={openExternalLink}
+      />
+
+      {/* SyncLink 초기 시작 사용 가이드 / 튜토리얼 모달 */}
+      <GuideModal
+        isOpen={isGuideModalOpen}
+        onClose={() => setIsGuideModalOpen(false)}
+        onOpenExternalLink={openExternalLink}
+        onNavigateTab={(tab) => {
+          setActiveTab(tab);
+          setIsGuideModalOpen(false);
+        }}
       />
     </div>
   );
