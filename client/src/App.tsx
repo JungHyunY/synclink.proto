@@ -59,7 +59,7 @@ import { GuideModal } from "./components/GuideModal";
 import { TabItem, LayoutMode, ActivePane, RemoteSession } from "./types/session";
 import { startSecondarySession } from "./services/secondarySession";
 
-const DEFAULT_SERVER_URL = "http://localhost:5963";
+const DEFAULT_SERVER_URL = "http://183.111.166.141:5963";
 const ICE_SERVERS = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
@@ -3618,6 +3618,17 @@ function App() {
                           </>
                         )}
                       </button>
+                      <button
+                        className="btn-main btn-secondary-dark"
+                        style={{ padding: "6px 12px", fontSize: "0.8rem", color: "#a3e635", borderColor: "rgba(163, 230, 53, 0.4)" }}
+                        onClick={() => {
+                          const url = "http://183.111.166.141:5963";
+                          setServerUrl(url);
+                          localStorage.setItem("synclink_server_url", url);
+                        }}
+                      >
+                        사내 서버 (183.111.166.141)
+                      </button>
                       <button className="btn-main btn-secondary-dark" style={{ padding: "6px 12px", fontSize: "0.8rem" }} onClick={() => setServerUrl("http://localhost:5963")}>
                         로컬호스트 (5963)
                       </button>
@@ -3625,13 +3636,13 @@ function App() {
                         className="btn-main btn-secondary-dark"
                         style={{ padding: "6px 12px", fontSize: "0.8rem", color: "#fca5a5" }}
                         onClick={() => {
-                          setServerUrl("");
-                          localStorage.removeItem("synclink_server_url");
+                          setServerUrl("http://183.111.166.141:5963");
+                          localStorage.setItem("synclink_server_url", "http://183.111.166.141:5963");
                           setServerTestResult({ status: "idle", message: "" });
                         }}
-                        title="서버 주소를 초기화하고 초기 설정 화면으로 돌아가요"
+                        title="서버 주소를 사내 기본 서버로 재설정해요"
                       >
-                        서버 설정 초기화
+                        사내 서버로 초기화
                       </button>
                     </div>
 
@@ -5266,6 +5277,19 @@ function App() {
                 <button
                   type="button"
                   className="btn-main btn-secondary-dark"
+                  style={{ flex: 1, padding: "8px 10px", fontSize: "0.8rem", color: "#a3e635", borderColor: "rgba(163, 230, 53, 0.4)" }}
+                  onClick={() => {
+                    const input = document.getElementById("initialServerInput") as HTMLInputElement;
+                    if (input) input.value = "http://183.111.166.141:5963";
+                    setServerUrl("http://183.111.166.141:5963");
+                    localStorage.setItem("synclink_server_url", "http://183.111.166.141:5963");
+                  }}
+                >
+                  사내 서버
+                </button>
+                <button
+                  type="button"
+                  className="btn-main btn-secondary-dark"
                   style={{ flex: 1, padding: "8px 10px", fontSize: "0.8rem" }}
                   onClick={() => {
                     const input = document.getElementById("initialServerInput") as HTMLInputElement;
@@ -5274,7 +5298,7 @@ function App() {
                     localStorage.setItem("synclink_server_url", "http://localhost:5963");
                   }}
                 >
-                  로컬호스트 (5963)
+                  로컬 (5963)
                 </button>
               </div>
 
