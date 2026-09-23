@@ -963,6 +963,7 @@ function App() {
   const activeKeysRef = useRef<Set<string>>(new Set());
   const isConnectedRef = useRef(false);
   const isHostingActiveRef = useRef(false);
+  const dynamicIceServersRef = useRef<RTCConfiguration>(ICE_SERVERS);
 
   useEffect(() => {
     isConnectedRef.current = isConnected;
@@ -1333,7 +1334,7 @@ function App() {
 
   // WebRTC Peer Connection Factory
   const createPeerConnection = (targetId: string) => {
-    const peer = new RTCPeerConnection(ICE_SERVERS);
+    const peer = new RTCPeerConnection(dynamicIceServersRef.current || ICE_SERVERS);
 
     // Setup DataChannels (Flow mode & Remote Control mode)
     const flowChannel = peer.createDataChannel("synclink-flow", { ordered: false, maxRetransmits: 0 });
@@ -1616,9 +1617,12 @@ function App() {
     });
 
     // 🔑 Guest Auth Response
-    socket.on("auth-response", async (res: { success: boolean; error?: string; roomId?: string; deviceName?: string; hostSocketId?: string }) => {
+    socket.on("auth-response", async (res: { success: boolean; error?: string; roomId?: string; deviceName?: string; hostSocketId?: string; iceServers?: any[] }) => {
       setIsConnecting(false);
       if (res.success && res.roomId) {
+        if (res.iceServers && res.iceServers.length > 0) {
+          dynamicIceServersRef.current = { iceServers: res.iceServers };
+        }
         setAuthError(null);
         setSessionRoomId(res.roomId);
         setSessionDeviceName(res.deviceName || "Remote PC");
