@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import {
   Laptop,
   Home,
@@ -141,7 +141,7 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
           onClick={onOpenAiAssistant}
           title="AI 스마트 클립보드 도우미 열기 (단축키: Ctrl+Space)"
         >
-          <Sparkles size={14} color="#c084fc" />
+          <Sparkles size={14} color="#e5b144" />
           <span>AI 클립보드</span>
         </button>
 

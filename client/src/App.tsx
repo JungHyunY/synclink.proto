@@ -985,24 +985,26 @@ function App() {
       try {
         const appWindow = getCurrentWebviewWindow();
         unlistenClose = await appWindow.onCloseRequested(async (event) => {
+          // 항상 기본 창 닫기를 방지하고 트레이로 최소화
+          event.preventDefault();
+
           // 원격 제어 세션이 진행 중인 경우 (게스트 또는 호스트 접속 중)에만 실수 방지 모달 표시
           if (isConnectedRef.current || isScreenCapturingRef.current) {
-            event.preventDefault();
             showDialog({
               type: "warning",
               title: "원격 제어 세션 진행 중",
               message:
-                "현재 원격 접속이 활성화되어 있습니다.\n\n앱을 닫으면 원격 제어가 즉시 끊어집니다.\n정말로 앱을 종료하시겠습니까?",
-              confirmText: "연결 끊고 종료",
+                "현재 원격 접속이 활성화되어 있습니다.\n\n창을 닫으면 원격 제어가 즉시 끊어지고 시스템 트레이로 최소화됩니다.\n계속 진행하시겠습니까?",
+              confirmText: "연결 끊고 트레이로 최소화",
               cancelText: "취소 (연결 유지)",
               onConfirm: async () => {
                 endSession();
                 setTimeout(async () => {
                   try {
-                    await invoke("close_window");
+                    await invoke("hide_to_tray");
                   } catch {
                     try {
-                      await invoke("exit_app");
+                      await appWindow.hide();
                     } catch {
                       await appWindow.destroy();
                     }
@@ -1012,7 +1014,13 @@ function App() {
             });
             return;
           }
-          // 일반 대기 상태에서는 별도 차단 없이 즉시 정상 종료
+
+          // 일반 대기 상태: 닫기 버튼 클릭 시 즉시 시스템 트레이로 최소화
+          try {
+            await invoke("hide_to_tray");
+          } catch {
+            await appWindow.hide().catch(() => {});
+          }
         });
       } catch (err) {
         console.warn("Failed to register onCloseRequested handler:", err);
@@ -2729,14 +2737,14 @@ function App() {
                   width: "40px",
                   height: "40px",
                   borderRadius: "10px",
-                  boxShadow: "0 0 15px rgba(107, 127, 66, 0.35)",
-                  border: "1px solid rgba(107, 127, 66, 0.4)",
+                  boxShadow: "0 0 15px rgba(0, 91, 75, 0.35)",
+                  border: "1px solid rgba(0, 91, 75, 0.4)",
                   objectFit: "cover",
                 }}
               />
               <div>
                 <h2 className="brand-title">Yoonikon SyncLink</h2>
-                <span className="brand-badge" style={{ background: "rgba(107, 127, 66, 0.15)", color: "#8a9a5b", border: "1px solid rgba(107, 127, 66, 0.4)" }}>
+                <span className="brand-badge" style={{ background: "rgba(0, 91, 75, 0.15)", color: "#3da591", border: "1px solid rgba(0, 91, 75, 0.4)" }}>
                   TACTICAL SUITE
                 </span>
               </div>
@@ -2766,8 +2774,8 @@ function App() {
                   type="button"
                   className="nav-item"
                   style={{
-                    background: "rgba(107, 127, 66, 0.15)",
-                    border: "1px dashed rgba(107, 127, 66, 0.4)",
+                    background: "rgba(0, 91, 75, 0.15)",
+                    border: "1px dashed rgba(0, 91, 75, 0.4)",
                     color: "var(--accent-glow)",
                     justifyContent: "flex-start",
                   }}
@@ -2782,16 +2790,16 @@ function App() {
                   type="button"
                   className="nav-item"
                   style={{
-                    background: "rgba(168, 85, 247, 0.12)",
-                    border: "1px solid rgba(168, 85, 247, 0.35)",
-                    color: "#d8b4fe",
+                    background: "rgba(0, 91, 75, 0.12)",
+                    border: "1px solid rgba(0, 91, 75, 0.35)",
+                    color: "#ffedcb",
                     justifyContent: "flex-start",
                     marginTop: "6px",
                   }}
                   onClick={() => openAiAssistant()}
                   title="AI 스마트 클립보드 도우미 열기 (단축키: Ctrl+Space)"
                 >
-                  <Sparkles size={18} color="#c084fc" />
+                  <Sparkles size={18} color="#e5b144" />
                   <span style={{ fontWeight: 600 }}>AI 클립보드 (Ctrl+Space)</span>
                 </button>
 
@@ -2820,8 +2828,8 @@ function App() {
                 onClick={() => setIsSupportModalOpen(true)}
                 title="SyncLink 후원 및 개발 지원 (GitHub Star, 커피, Crypto 등)"
                 style={{
-                  background: "rgba(107, 127, 66, 0.12)",
-                  border: "1px solid rgba(107, 127, 66, 0.35)",
+                  background: "rgba(0, 91, 75, 0.12)",
+                  border: "1px solid rgba(0, 91, 75, 0.35)",
                   borderRadius: "10px",
                   padding: "9px 12px",
                   display: "flex",
@@ -2832,13 +2840,13 @@ function App() {
                   transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "rgba(107, 127, 66, 0.22)";
+                  e.currentTarget.style.background = "rgba(0, 91, 75, 0.22)";
                   e.currentTarget.style.borderColor = "var(--accent-glow, #a3e635)";
                   e.currentTarget.style.transform = "translateY(-1px)";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "rgba(107, 127, 66, 0.12)";
-                  e.currentTarget.style.borderColor = "rgba(107, 127, 66, 0.35)";
+                  e.currentTarget.style.background = "rgba(0, 91, 75, 0.12)";
+                  e.currentTarget.style.borderColor = "rgba(0, 91, 75, 0.35)";
                   e.currentTarget.style.transform = "translateY(0)";
                 }}
               >
@@ -2947,14 +2955,14 @@ function App() {
                         padding: "8px 14px",
                         fontSize: "0.85rem",
                         gap: "6px",
-                        background: "rgba(168, 85, 247, 0.15)",
-                        borderColor: "rgba(168, 85, 247, 0.4)",
-                        color: "#d8b4fe",
+                        background: "rgba(0, 91, 75, 0.15)",
+                        borderColor: "rgba(0, 91, 75, 0.4)",
+                        color: "#ffedcb",
                       }}
                       onClick={() => openAiAssistant()}
                       title="클립보드 텍스트 에러 분석, 코드 변환, 번역 도우미 (단축키: Ctrl+Space)"
                     >
-                      <Sparkles size={15} color="#c084fc" />
+                      <Sparkles size={15} color="#e5b144" />
                       <span style={{ fontWeight: 600 }}>AI 클립보드</span>
                     </button>
                     <button
@@ -2975,7 +2983,7 @@ function App() {
                   <div className="glass-card">
                     <div className="card-title-row">
                       <h3 className="card-title">
-                        <Monitor size={20} color="#8a9a5b" />
+                        <Monitor size={20} color="#3da591" />
                         새 세션 연결하기
                       </h3>
                     </div>
@@ -3334,7 +3342,7 @@ function App() {
                           type="button"
                           style={{
                             fontSize: "0.72rem",
-                            color: "#8a9a5b",
+                            color: "#3da591",
                             background: "none",
                             border: "none",
                             cursor: "pointer",
@@ -3383,7 +3391,7 @@ function App() {
                     </div>
 
                     <div style={{ padding: "12px 14px", background: "rgba(255, 255, 255, 0.03)", borderRadius: "10px", border: "1px solid var(--card-border)", fontSize: "0.85rem", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "10px" }}>
-                      <Monitor size={18} color="#8a9a5b" />
+                      <Monitor size={18} color="#3da591" />
                       <span>원격 접속 시 주 모니터가 자동으로 공유되고, 게스트가 세션 중에 모니터를 자유롭게 바꿀 수 있어요.</span>
                     </div>
 
@@ -3535,7 +3543,7 @@ function App() {
                                   }}
                                   title="기기 이름 변경하기"
                                 >
-                                  <Edit2 size={13} color="#8a9a5b" />
+                                  <Edit2 size={13} color="#3da591" />
                                 </button>
                               </div>
                             )}
@@ -3757,8 +3765,8 @@ function App() {
                   {/* ✨ AI 스마트 클립보드 설정 (Google Gemini) */}
                   <div className="input-field-group" style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid var(--card-border)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                      <label className="input-label" style={{ display: "flex", alignItems: "center", gap: "6px", color: "#d8b4fe", fontWeight: 700, margin: 0 }}>
-                        <Sparkles size={16} color="#c084fc" />
+                      <label className="input-label" style={{ display: "flex", alignItems: "center", gap: "6px", color: "#ffedcb", fontWeight: 700, margin: 0 }}>
+                        <Sparkles size={16} color="#e5b144" />
                         AI 스마트 클립보드 (Google Gemini)
                       </label>
                       <span
@@ -3794,9 +3802,9 @@ function App() {
                         style={{
                           padding: "8px 16px",
                           fontSize: "0.85rem",
-                          background: "linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(192, 132, 252, 0.3) 100%)",
-                          borderColor: "rgba(168, 85, 247, 0.6)",
-                          color: "#d8b4fe",
+                          background: "linear-gradient(135deg, rgba(0, 91, 75, 0.4) 0%, rgba(61, 165, 145, 0.25) 100%)",
+                          borderColor: "rgba(0, 91, 75, 0.6)",
+                          color: "#ffedcb",
                         }}
                         onClick={() => {
                           const input = document.getElementById("geminiApiKeyInput") as HTMLInputElement;
@@ -3953,7 +3961,7 @@ function App() {
                       </div>
                       <button
                         className="btn-main"
-                        style={{ padding: "6px 14px", fontSize: "0.8rem", background: "linear-gradient(135deg, #6b7f42 0%, #8a9a5b 100%)", color: "white", border: "none" }}
+                        style={{ padding: "6px 14px", fontSize: "0.8rem", background: "linear-gradient(135deg, #005b4b 0%, #3da591 100%)", color: "white", border: "none" }}
                         onClick={handleInstallUpdate}
                         disabled={isInstallingUpdate}
                       >
@@ -3973,7 +3981,7 @@ function App() {
                     개인 VPS 또는 홈 서버에 직접 시그널링 서버를 띄워 독립적인 사설 원격망을 운영할 수 있어요.
                     리눅스 터미널에서 아래 명령어를 실행하면 <b>자동 설치 및 백그라운드 구동</b>이 완료됩니다.
                   </p>
-                  <div style={{ background: "rgba(0,0,0,0.4)", padding: "10px 14px", borderRadius: "8px", fontFamily: "monospace", fontSize: "0.75rem", color: "#8a9a5b", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
+                  <div style={{ background: "rgba(0,0,0,0.4)", padding: "10px 14px", borderRadius: "8px", fontFamily: "monospace", fontSize: "0.75rem", color: "#3da591", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
                     <span style={{ wordBreak: "break-all" }}>curl -fsSL https://raw.githubusercontent.com/JungHyunY/synclink.proto/main/signaling-server/install.sh | sudo bash</span>
                     <button
                       className="btn-icon-only"
@@ -3995,20 +4003,20 @@ function App() {
                     alignItems: "center",
                     justifyContent: "space-between",
                     gap: "16px",
-                    background: "rgba(107, 127, 66, 0.08)",
-                    border: "1px solid rgba(107, 127, 66, 0.3)",
+                    background: "rgba(0, 91, 75, 0.08)",
+                    border: "1px solid rgba(0, 91, 75, 0.3)",
                     cursor: "pointer",
                     transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
                   }}
                   onClick={() => setIsSupportModalOpen(true)}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "rgba(107, 127, 66, 0.16)";
+                    e.currentTarget.style.background = "rgba(0, 91, 75, 0.16)";
                     e.currentTarget.style.borderColor = "var(--accent-glow, #a3e635)";
                     e.currentTarget.style.transform = "translateY(-1px)";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "rgba(107, 127, 66, 0.08)";
-                    e.currentTarget.style.borderColor = "rgba(107, 127, 66, 0.3)";
+                    e.currentTarget.style.background = "rgba(0, 91, 75, 0.08)";
+                    e.currentTarget.style.borderColor = "rgba(0, 91, 75, 0.3)";
                     e.currentTarget.style.transform = "translateY(0)";
                   }}
                   title="SyncLink 다채널 후원 옵션 열기 (Star, 커피, Ko-fi, Sponsors, Crypto)"
@@ -4150,7 +4158,7 @@ function App() {
               )}
 
               {flowMode === "flow" && (
-                <div className="toolbar-badge" style={{ background: "rgba(107, 127, 66, 0.2)", color: "#8a9a5b", border: "1px solid rgba(107, 127, 66, 0.4)" }}>
+                <div className="toolbar-badge" style={{ background: "rgba(0, 91, 75, 0.2)", color: "#3da591", border: "1px solid rgba(0, 91, 75, 0.4)" }}>
                   <Activity size={14} />
                   <span>SyncLink Flow (KVM)</span>
                 </div>
@@ -4368,14 +4376,14 @@ function App() {
               <button
                 className="toolbar-btn"
                 style={{
-                  color: "#d8b4fe",
-                  borderColor: "rgba(168, 85, 247, 0.4)",
-                  background: "rgba(168, 85, 247, 0.15)",
+                  color: "#ffedcb",
+                  borderColor: "rgba(0, 91, 75, 0.4)",
+                  background: "rgba(0, 91, 75, 0.15)",
                 }}
                 onClick={() => openAiAssistant()}
                 title="AI 스마트 클립보드 도우미 (Ctrl+Space)"
               >
-                <Sparkles size={14} color="#c084fc" />
+                <Sparkles size={14} color="#e5b144" />
                 <span style={{ fontWeight: 600 }}>AI 클립보드</span>
               </button>
 
@@ -4496,7 +4504,7 @@ function App() {
               <div className="flow-status-card">
                 <div className="radar-wrapper">
                   <div className="radar-pulse" />
-                  <div className="radar-core" style={{ background: "rgba(107, 127, 66, 0.2)", color: "#8a9a5b" }}>
+                  <div className="radar-core" style={{ background: "rgba(0, 91, 75, 0.2)", color: "#3da591" }}>
                     <Activity size={36} />
                   </div>
                 </div>
@@ -4946,19 +4954,19 @@ function App() {
                             ? "rgba(239, 68, 68, 0.2)"
                             : aiDetectedType === "code"
                             ? "rgba(56, 189, 248, 0.2)"
-                            : "rgba(168, 85, 247, 0.2)",
+                            : "rgba(0, 91, 75, 0.2)",
                         color:
                           aiDetectedType === "error"
                             ? "#f87171"
                             : aiDetectedType === "code"
                             ? "#38bdf8"
-                            : "#c084fc",
+                            : "#e5b144",
                         border:
                           aiDetectedType === "error"
                             ? "1px solid rgba(239, 68, 68, 0.4)"
                             : aiDetectedType === "code"
                             ? "1px solid rgba(56, 189, 248, 0.4)"
-                            : "1px solid rgba(168, 85, 247, 0.4)",
+                            : "1px solid rgba(0, 91, 75, 0.4)",
                       }}
                     >
                       {aiDetectedType === "error"
@@ -5060,7 +5068,7 @@ function App() {
                   className={`ai-pill-btn ${aiAction === "custom" ? "active" : ""}`}
                   onClick={() => setAiAction("custom")}
                 >
-                  <Sparkles size={14} color="#d8b4fe" />
+                  <Sparkles size={14} color="#ffedcb" />
                   <span>✍️ 맞춤 질문</span>
                 </button>
               </div>
@@ -5096,7 +5104,7 @@ function App() {
             {(aiOutputText || aiLoading || aiError) && (
               <div className="ai-result-panel">
                 {aiLoading && (
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "#c084fc", padding: "16px 0" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "#e5b144", padding: "16px 0" }}>
                     <RefreshCw size={18} className="spin" />
                     <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>Gemini AI가 초고속 분석 중입니다...</span>
                   </div>
@@ -5113,7 +5121,7 @@ function App() {
                       <button
                         type="button"
                         className="btn-main"
-                        style={{ marginTop: "10px", padding: "6px 12px", fontSize: "0.8rem", background: "rgba(168, 85, 247, 0.2)", borderColor: "rgba(168, 85, 247, 0.5)" }}
+                        style={{ marginTop: "10px", padding: "6px 12px", fontSize: "0.8rem", background: "rgba(0, 91, 75, 0.2)", borderColor: "rgba(0, 91, 75, 0.5)" }}
                         onClick={() => {
                           setIsAiPanelOpen(false);
                           setActiveTab("settings");
@@ -5204,7 +5212,7 @@ function App() {
                   width: "46px",
                   height: "46px",
                   borderRadius: "14px",
-                  background: "linear-gradient(135deg, #6b7f42 0%, #8a9a5b 100%)",
+                  background: "linear-gradient(135deg, #005b4b 0%, #3da591 100%)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -5362,7 +5370,7 @@ function App() {
               )}
 
               <div style={{ background: "rgba(0, 0, 0, 0.35)", borderRadius: "10px", padding: "12px", marginBottom: "22px", border: "1px solid rgba(255, 255, 255, 0.08)" }}>
-                <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#8a9a5b", marginBottom: "4px" }}>💡 아직 시그널링 서버가 없으신가요?</div>
+                <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#3da591", marginBottom: "4px" }}>💡 아직 시그널링 서버가 없으신가요?</div>
                 <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", lineHeight: 1.4 }}>
                   윈도우는 <span style={{ color: "#38bdf8", fontWeight: 600 }}>signaling-server/start-windows.bat</span> 더블 클릭, 또는 터미널에서:
                 </div>

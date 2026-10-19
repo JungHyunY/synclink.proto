@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import {
   X,
   Star,
@@ -103,8 +103,8 @@ export const SupportModal: React.FC<SupportModalProps> = ({
                 width: "36px",
                 height: "36px",
                 borderRadius: "10px",
-                background: "rgba(107, 127, 66, 0.2)",
-                border: "1px solid rgba(107, 127, 66, 0.4)",
+                background: "rgba(0, 91, 75, 0.2)",
+                border: "1px solid rgba(0, 91, 75, 0.4)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",

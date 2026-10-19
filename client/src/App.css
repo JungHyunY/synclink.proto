@@ -1,16 +1,21 @@
 :root {
-  /* Yoonikon Design System (YDS) Tactical HUD Tokens - Dark (Default) */
-  --yds-olive-core: #6b7f42;
-  --yds-olive-light: #8a9a5b;
-  --yds-olive-hover: #556832;
-  --yds-titanium-dark: #0f1113;
+  /* Yoonikon Design System (YDS) 4-Color Tactical HUD Tokens - Dark (Default) */
+  --yds-palette-ivory: #f6f1eb;
+  --yds-palette-stone: #beb9b3;
+  --yds-palette-gold: #ffedcb;
+  --yds-palette-teal: #005b4b;
+
+  --yds-olive-core: #005b4b;
+  --yds-olive-light: #3da591;
+  --yds-olive-hover: #005042;
+  --yds-titanium-dark: #100f0e;
   --yds-titanium-surface: #18181b;
   --yds-titanium-card: #1e2024;
   --yds-titanium-border: #27272a;
-  --yds-gold-accent: #dda15e;
+  --yds-gold-accent: #ffedcb;
 
-  --bg-color: #0f1113;
-  --bg-radial: radial-gradient(circle at 50% 0%, #1e2024 0%, #0f1113 80%);
+  --bg-color: #100f0e;
+  --bg-radial: radial-gradient(circle at 50% 0%, #1e2024 0%, #100f0e 80%);
   --sidebar-bg: rgba(24, 24, 27, 0.95);
   --card-bg: rgba(30, 32, 36, 0.85);
   --card-border: #27272a;
@@ -18,62 +23,67 @@
   --input-bg: rgba(0, 0, 0, 0.35);
   --input-focus-bg: rgba(0, 0, 0, 0.5);
   
-  --primary: #6b7f42;
-  --primary-gradient: linear-gradient(135deg, #6b7f42 0%, #8a9a5b 100%);
-  --primary-hover: #556832;
-  --accent: #dda15e;
-  --success: #6b7f42;
-  --warning: #dda15e;
+  --primary: #005b4b;
+  --primary-gradient: linear-gradient(135deg, #005b4b 0%, #3da591 100%);
+  --primary-hover: #005042;
+  --accent: #ffedcb;
+  --success: #005b4b;
+  --warning: #ffedcb;
   --danger: #ef4444;
   
-  --text-main: #f4f4f5;
-  --text-muted: #a1a1aa;
-  --text-dim: #71717a;
-  --brand-title-color: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+  --text-main: #f6f1eb;
+  --text-muted: #beb9b3;
+  --text-dim: #88837d;
+  --brand-title-color: linear-gradient(135deg, #ffffff 0%, #beb9b3 100%);
   
   --glass-bg: rgba(24, 24, 27, 0.92);
-  --glass-border: rgba(107, 127, 66, 0.25);
-  --shadow-lg: 0 20px 40px -15px rgba(15, 17, 19, 0.8);
-  --shadow-glow: 0 0 24px rgba(107, 127, 66, 0.35);
+  --glass-border: rgba(0, 91, 75, 0.3);
+  --shadow-lg: 0 20px 40px -15px rgba(16, 15, 14, 0.8);
+  --shadow-glow: 0 0 24px rgba(0, 91, 75, 0.4);
 }
 
 [data-theme="light"] {
-  /* Yoonikon Design System (YDS) Tactical HUD Tokens - Light Clean */
-  --yds-olive-core: #556832;
-  --yds-olive-light: #6b7f42;
-  --yds-olive-hover: #3e4c24;
-  --yds-titanium-dark: #f8fafc;
-  --yds-titanium-surface: #ffffff;
-  --yds-titanium-card: #f1f5f9;
-  --yds-titanium-border: #e2e8f0;
-  --yds-gold-accent: #b45309;
+  /* Yoonikon Design System (YDS) 4-Color Tactical HUD Tokens - Light Clean */
+  --yds-palette-ivory: #f6f1eb;
+  --yds-palette-stone: #beb9b3;
+  --yds-palette-gold: #ffedcb;
+  --yds-palette-teal: #005b4b;
 
-  --bg-color: #f8fafc;
-  --bg-radial: radial-gradient(circle at 50% 0%, #ffffff 0%, #edf2f7 85%);
-  --sidebar-bg: rgba(255, 255, 255, 0.96);
+  --yds-olive-core: #005b4b;
+  --yds-olive-light: #3da591;
+  --yds-olive-hover: #005042;
+  --yds-titanium-dark: #f6f1eb;
+  --yds-titanium-surface: #ffffff;
+  --yds-titanium-card: #f6f1eb;
+  --yds-titanium-border: #beb9b3;
+  --yds-gold-accent: #c58f2c;
+
+  --bg-color: #f6f1eb;
+  --bg-radial: radial-gradient(circle at 50% 0%, #ffffff 0%, #ede8e1 85%);
+  --sidebar-bg: rgba(246, 241, 235, 0.96);
   --card-bg: rgba(255, 255, 255, 0.92);
-  --card-border: #e2e8f0;
-  --card-hover: rgba(241, 245, 249, 0.98);
-  --input-bg: #f1f5f9;
+  --card-border: #beb9b3;
+  --card-hover: rgba(246, 241, 235, 0.98);
+  --input-bg: #ede8e1;
   --input-focus-bg: #ffffff;
   
-  --primary: #556832;
-  --primary-gradient: linear-gradient(135deg, #556832 0%, #6b7f42 100%);
-  --primary-hover: #3e4c24;
-  --accent: #b45309;
-  --success: #16a34a;
-  --warning: #d97706;
+  --primary: #005b4b;
+  --primary-gradient: linear-gradient(135deg, #005b4b 0%, #3da591 100%);
+  --primary-hover: #005042;
+  --accent: #c58f2c;
+  --success: #005b4b;
+  --warning: #c58f2c;
   --danger: #dc2626;
   
-  --text-main: #0f172a;
-  --text-muted: #64748b;
-  --text-dim: #94a3b8;
-  --brand-title-color: linear-gradient(135deg, #0f172a 0%, #334155 100%);
+  --text-main: #100f0e;
+  --text-muted: #524d49;
+  --text-dim: #88837d;
+  --brand-title-color: linear-gradient(135deg, #100f0e 0%, #524d49 100%);
   
   --glass-bg: rgba(255, 255, 255, 0.95);
-  --glass-border: rgba(107, 127, 66, 0.3);
+  --glass-border: rgba(0, 91, 75, 0.35);
   --shadow-lg: 0 10px 30px -10px rgba(0, 0, 0, 0.08);
-  --shadow-glow: 0 0 20px rgba(107, 127, 66, 0.2);
+  --shadow-glow: 0 0 20px rgba(0, 91, 75, 0.25);
 }
 
 * {
@@ -159,11 +169,11 @@ body {
 .brand-badge {
   font-size: 0.65rem;
   font-weight: 700;
-  background: rgba(107, 127, 66, 0.2);
-  color: #8a9a5b;
+  background: rgba(0, 91, 75, 0.2);
+  color: #3da591;
   padding: 2px 6px;
   border-radius: 4px;
-  border: 1px solid rgba(107, 127, 66, 0.3);
+  border: 1px solid rgba(0, 91, 75, 0.3);
   text-transform: uppercase;
 }
 
@@ -199,7 +209,7 @@ body {
 .nav-item.active {
   background: var(--primary-gradient);
   color: #ffffff;
-  box-shadow: 0 4px 15px rgba(107, 127, 66, 0.3);
+  box-shadow: 0 4px 15px rgba(0, 91, 75, 0.3);
 }
 
 .sidebar-footer {
@@ -252,7 +262,7 @@ body {
 
 .carbon-ad-box:hover {
   background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(107, 127, 66, 0.35);
+  border-color: rgba(0, 91, 75, 0.35);
   transform: translateY(-2px);
   box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
 }
@@ -267,13 +277,13 @@ body {
   width: 38px;
   height: 38px;
   border-radius: 8px;
-  background: rgba(107, 127, 66, 0.12);
+  background: rgba(0, 91, 75, 0.12);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #8a9a5b;
+  color: #3da591;
   flex-shrink: 0;
-  border: 1px solid rgba(107, 127, 66, 0.2);
+  border: 1px solid rgba(0, 91, 75, 0.2);
 }
 
 .carbon-ad-text {
@@ -313,7 +323,7 @@ body {
 }
 
 .carbon-ad-box:hover .carbon-ad-ext {
-  color: #8a9a5b;
+  color: #3da591;
 }
 
 /* --- Privacy Black Screen Overlay (Host Curtain Mode) --- */
@@ -440,7 +450,7 @@ body {
 .custom-input:focus {
   border-color: var(--primary);
   background: var(--input-focus-bg);
-  box-shadow: 0 0 0 3px rgba(107, 127, 66, 0.2);
+  box-shadow: 0 0 0 3px rgba(0, 91, 75, 0.2);
 }
 
 .custom-input.large-id {
@@ -484,12 +494,12 @@ body {
 .btn-primary-glow {
   background: var(--primary-gradient);
   color: white;
-  box-shadow: 0 4px 15px rgba(107, 127, 66, 0.35);
+  box-shadow: 0 4px 15px rgba(0, 91, 75, 0.35);
 }
 
 .btn-primary-glow:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(107, 127, 66, 0.5);
+  box-shadow: 0 6px 20px rgba(0, 91, 75, 0.5);
 }
 
 .btn-secondary-dark {
@@ -544,7 +554,7 @@ body {
 
 .device-card:hover {
   background: var(--card-hover);
-  border-color: rgba(107, 127, 66, 0.4);
+  border-color: rgba(0, 91, 75, 0.4);
   transform: translateY(-2px);
 }
 
@@ -558,8 +568,8 @@ body {
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: rgba(107, 127, 66, 0.12);
-  color: #8a9a5b;
+  background: rgba(0, 91, 75, 0.12);
+  color: #3da591;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -583,8 +593,8 @@ body {
   align-items: center;
   gap: 20px;
   padding: 30px;
-  background: rgba(107, 127, 66, 0.05);
-  border: 1px solid rgba(107, 127, 66, 0.2);
+  background: rgba(0, 91, 75, 0.05);
+  border: 1px solid rgba(0, 91, 75, 0.2);
   border-radius: 20px;
 }
 
@@ -602,7 +612,7 @@ body {
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  background: rgba(107, 127, 66, 0.25);
+  background: rgba(0, 91, 75, 0.25);
   animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
 
@@ -757,8 +767,8 @@ body {
 }
 
 .toolbar-btn.active {
-  background: rgba(107, 127, 66, 0.2);
-  color: #8a9a5b;
+  background: rgba(0, 91, 75, 0.2);
+  color: #3da591;
 }
 
 .shortcut-item-btn {
@@ -777,8 +787,8 @@ body {
 }
 
 .shortcut-item-btn:hover {
-  background: rgba(107, 127, 66, 0.2);
-  color: #8a9a5b;
+  background: rgba(0, 91, 75, 0.2);
+  color: #3da591;
 }
 
 .shortcut-key {
@@ -821,7 +831,7 @@ body {
 }
 
 .video-wrapper:focus {
-  box-shadow: inset 0 0 0 2px rgba(107, 127, 66, 0.5);
+  box-shadow: inset 0 0 0 2px rgba(0, 91, 75, 0.5);
 }
 
 video {
@@ -890,16 +900,16 @@ video {
 }
 
 .mode-pill.active {
-  background: rgba(107, 127, 66, 0.2);
-  color: #8a9a5b;
-  border: 1px solid rgba(107, 127, 66, 0.45);
+  background: rgba(0, 91, 75, 0.2);
+  color: #3da591;
+  border: 1px solid rgba(0, 91, 75, 0.45);
   font-weight: 600;
-  box-shadow: 0 2px 8px rgba(107, 127, 66, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 91, 75, 0.2);
 }
 
 .flow-settings-box {
-  background: rgba(107, 127, 66, 0.04);
-  border: 1px dashed rgba(107, 127, 66, 0.35);
+  background: rgba(0, 91, 75, 0.04);
+  border: 1px dashed rgba(0, 91, 75, 0.35);
   border-radius: 14px;
   padding: 16px;
   margin-bottom: 16px;
@@ -941,9 +951,9 @@ video {
 }
 
 .flow-dir-btn.active {
-  background: rgba(107, 127, 66, 0.22);
-  border-color: #8a9a5b;
-  color: #8a9a5b;
+  background: rgba(0, 91, 75, 0.22);
+  border-color: #3da591;
+  color: #3da591;
   font-weight: 600;
 }
 
@@ -979,9 +989,9 @@ video {
 }
 
 .preview-screen.local {
-  background: rgba(107, 127, 66, 0.15);
-  border-color: rgba(107, 127, 66, 0.4);
-  color: #8a9a5b;
+  background: rgba(0, 91, 75, 0.15);
+  border-color: rgba(0, 91, 75, 0.4);
+  color: #3da591;
 }
 
 .preview-screen.remote {
@@ -1045,9 +1055,9 @@ video {
 }
 
 .flow-indicator-badge.local-standby {
-  background: rgba(107, 127, 66, 0.18);
-  color: #8a9a5b;
-  border: 1px solid rgba(107, 127, 66, 0.4);
+  background: rgba(0, 91, 75, 0.18);
+  color: #3da591;
+  border: 1px solid rgba(0, 91, 75, 0.4);
 }
 
 @keyframes pulse-border {
@@ -1170,7 +1180,7 @@ video {
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 16px;
   padding: 24px;
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 25px rgba(107, 127, 66, 0.2);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 25px rgba(0, 91, 75, 0.2);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -1266,9 +1276,9 @@ video {
 .ai-modal-card {
   width: 100%;
   max-width: 680px;
-  background: #0B132B;
-  border: 1px solid rgba(168, 85, 247, 0.35);
-  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.85), 0 0 35px rgba(168, 85, 247, 0.18);
+  background: var(--sidebar-bg, #18181b);
+  border: 1px solid rgba(0, 91, 75, 0.45);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.85), 0 0 35px rgba(0, 91, 75, 0.25);
   border-radius: 20px;
   padding: 24px 26px;
   display: flex;
@@ -1294,13 +1304,13 @@ video {
   width: 38px;
   height: 38px;
   border-radius: 12px;
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(236, 72, 153, 0.3) 100%);
-  border: 1px solid rgba(168, 85, 247, 0.5);
+  background: linear-gradient(135deg, rgba(0, 91, 75, 0.4) 0%, rgba(255, 237, 203, 0.2) 100%);
+  border: 1px solid rgba(0, 91, 75, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #c084fc;
-  box-shadow: 0 0 16px rgba(168, 85, 247, 0.35);
+  color: #e5b144;
+  box-shadow: 0 0 16px rgba(0, 91, 75, 0.35);
 }
 
 .ai-pill-tabs {
@@ -1334,9 +1344,9 @@ video {
 }
 
 .ai-pill-btn.active {
-  background: rgba(168, 85, 247, 0.22);
-  border-color: rgba(168, 85, 247, 0.5);
-  color: #d8b4fe;
+  background: rgba(0, 91, 75, 0.22);
+  border-color: rgba(0, 91, 75, 0.5);
+  color: #ffedcb;
 }
 
 .ai-input-preview {
@@ -1355,7 +1365,7 @@ video {
 
 .ai-result-panel {
   background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(168, 85, 247, 0.25);
+  border: 1px solid rgba(0, 91, 75, 0.25);
   border-radius: 12px;
   padding: 16px;
   max-height: 280px;
@@ -1426,9 +1436,9 @@ video {
   letter-spacing: 0.08em;
   padding: 2px 7px;
   border-radius: 6px;
-  background: rgba(107, 127, 66, 0.2);
+  background: rgba(0, 91, 75, 0.2);
   color: var(--yds-olive-light);
-  border: 1px solid rgba(107, 127, 66, 0.4);
+  border: 1px solid rgba(0, 91, 75, 0.4);
 }
 
 .session-tabs-scroll {
@@ -1466,8 +1476,8 @@ video {
 }
 
 .session-tab-item.active {
-  background: rgba(107, 127, 66, 0.18);
-  border-color: rgba(107, 127, 66, 0.45);
+  background: rgba(0, 91, 75, 0.18);
+  border-color: rgba(0, 91, 75, 0.45);
   color: var(--text-main);
   font-weight: 600;
 }
@@ -1529,8 +1539,8 @@ video {
 }
 
 .tab-add-btn:hover {
-  background: rgba(107, 127, 66, 0.12);
-  border-color: rgba(107, 127, 66, 0.4);
+  background: rgba(0, 91, 75, 0.12);
+  border-color: rgba(0, 91, 75, 0.4);
   color: var(--yds-olive-light);
 }
 
@@ -1562,20 +1572,20 @@ video {
 }
 
 .tabbar-action-btn.active {
-  background: rgba(107, 127, 66, 0.2);
+  background: rgba(0, 91, 75, 0.2);
   border-color: var(--yds-olive-light);
   color: #f4f4f5;
 }
 
 .tabbar-action-btn.ai-btn {
-  background: rgba(168, 85, 247, 0.12);
-  border-color: rgba(168, 85, 247, 0.35);
-  color: #d8b4fe;
+  background: rgba(0, 91, 75, 0.12);
+  border-color: rgba(0, 91, 75, 0.35);
+  color: #ffedcb;
 }
 
 .tabbar-action-btn.ai-btn:hover {
-  background: rgba(168, 85, 247, 0.2);
-  border-color: rgba(168, 85, 247, 0.5);
+  background: rgba(0, 91, 75, 0.2);
+  border-color: rgba(0, 91, 75, 0.5);
 }
 
 .tabbar-recom-badge {
@@ -1680,9 +1690,9 @@ video {
 }
 
 .pane-badge.active {
-  background: rgba(107, 127, 66, 0.3);
+  background: rgba(0, 91, 75, 0.3);
   color: var(--yds-olive-light);
-  border: 1px solid rgba(107, 127, 66, 0.5);
+  border: 1px solid rgba(0, 91, 75, 0.5);
 }
 
 .pane-device-name {
@@ -1797,8 +1807,8 @@ video {
 }
 
 .shortcut-menu-item:hover {
-  background: rgba(107, 127, 66, 0.2);
-  border-color: rgba(107, 127, 66, 0.4);
+  background: rgba(0, 91, 75, 0.2);
+  border-color: rgba(0, 91, 75, 0.4);
   color: #fff;
 }
 

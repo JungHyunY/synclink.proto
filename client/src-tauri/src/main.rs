@@ -658,6 +658,11 @@ async fn restore_host_window(window: Window) {
 }
 
 #[command]
+fn hide_to_tray(window: Window) {
+    let _ = window.hide();
+}
+
+#[command]
 fn close_window(window: Window) {
     let _ = window.destroy();
 }
@@ -1102,6 +1107,7 @@ fn main() {
             prevent_system_sleep,
             wake_remote_display,
             close_window,
+            hide_to_tray,
             exit_app
         ])
         .run(tauri::generate_context!())

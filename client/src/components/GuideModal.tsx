@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import {
   X,
   Server,
@@ -71,14 +71,14 @@ export const GuideModal: React.FC<GuideModalProps> = ({
   const steps: GuideStep[] = [
     {
       badge: "1단계 · 길잡이 서버 준비",
-      badgeColor: "#8a9a5b",
+      badgeColor: "#3da591",
       title: "시그널링 서버 (Signaling Server) 켜기",
       subtitle: "P2P 직접 연결을 안내해 줄 초경량 중계 서버가 필요합니다.",
       description:
         "SyncLink는 영상 스트리밍을 외부 서버를 거치지 않고 내 PC와 상대 PC 간 다이렉트로 통신합니다. 단, 처음에 서로를 찾기 위한 주소 교환(Signaling)용 서버 1개가 네트워크 안에 켜져 있어야 합니다.",
       points: [
         {
-          icon: <Server size={18} color="#8a9a5b" />,
+          icon: <Server size={18} color="#3da591" />,
           title: "윈도우에서 가장 편하게 켤 때",
           detail:
             "signaling-server 폴더 안의 'start-windows.bat'을 더블 클릭하면 자동으로 필요한 패키지를 받고 5963 포트를 열어줍니다.",
@@ -103,7 +103,7 @@ export const GuideModal: React.FC<GuideModalProps> = ({
         "화면을 원격 제어받을 컴퓨터에서 [내 PC 호스팅]을 켜두고, 접속할 컴퓨터에서 해당 기기 ID와 PIN 비밀번호를 입력해 접속합니다.",
       points: [
         {
-          icon: <Laptop size={18} color="#8a9a5b" />,
+          icon: <Laptop size={18} color="#3da591" />,
           title: "화면 공유 PC (Host)",
           detail:
             "[내 PC 호스팅] 탭에서 '호스팅 대기 시작'을 켭니다. 화면에 표시되는 9자리 기기 ID와 4자리 PIN 번호를 확인하세요.",
@@ -121,7 +121,7 @@ export const GuideModal: React.FC<GuideModalProps> = ({
     },
     {
       badge: "3단계 · 두 가지 제어 모드",
-      badgeColor: "#a855f7",
+      badgeColor: "#005b4b",
       title: "화면 제어 vs SyncLink Flow (가상 KVM)",
       subtitle: "사용 환경에 맞춰 최적의 동작 모드를 선택하세요.",
       description:
@@ -134,7 +134,7 @@ export const GuideModal: React.FC<GuideModalProps> = ({
             "TeamViewer처럼 원격 PC의 실제 화면을 보면서 마우스·키보드를 조작합니다. 최대 60FPS 및 멀티 모니터 전환을 지원합니다.",
         },
         {
-          icon: <Waves size={18} color="#a855f7" />,
+          icon: <Waves size={18} color="#005b4b" />,
           title: "🌊 SyncLink Flow (가상 KVM 모드)",
           detail:
             "모니터 가장자리로 마우스를 밀면 옆 PC로 스무스하게 커서가 넘어갑니다. 윈도우와 맥북을 책상에 나란히 두고 하나의 마우스/키보드로 두 PC를 동시 조작할 때 최적입니다.",
@@ -151,7 +151,7 @@ export const GuideModal: React.FC<GuideModalProps> = ({
         "복사한 터미널 오류 로그를 즉시 분석하고, 여러 대의 PC를 한 화면에서 탭 및 화면 분할로 동시에 관제하세요.",
       points: [
         {
-          icon: <Sparkles size={18} color="#c084fc" />,
+          icon: <Sparkles size={18} color="#e5b144" />,
           title: "✨ AI 스마트 클립보드 (Ctrl+Space)",
           detail:
             "터미널 에러 로그를 복사(Ctrl+C)한 뒤 단축키를 누르면 Google Gemini AI가 즉시 원인을 분석하고 해결 명령어를 제안합니다.",
@@ -222,8 +222,8 @@ export const GuideModal: React.FC<GuideModalProps> = ({
                 width: "40px",
                 height: "40px",
                 borderRadius: "12px",
-                background: "rgba(107, 127, 66, 0.22)",
-                border: "1px solid rgba(107, 127, 66, 0.45)",
+                background: "rgba(0, 91, 75, 0.22)",
+                border: "1px solid rgba(0, 91, 75, 0.45)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -251,8 +251,8 @@ export const GuideModal: React.FC<GuideModalProps> = ({
                     fontWeight: 700,
                     padding: "2px 8px",
                     borderRadius: "20px",
-                    background: "rgba(107, 127, 66, 0.2)",
-                    border: "1px solid rgba(107, 127, 66, 0.4)",
+                    background: "rgba(0, 91, 75, 0.2)",
+                    border: "1px solid rgba(0, 91, 75, 0.4)",
                     color: "var(--accent-glow, #a3e635)",
                   }}
                 >
@@ -456,7 +456,7 @@ export const GuideModal: React.FC<GuideModalProps> = ({
               }}
             >
               <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
-                <span style={{ fontSize: "0.72rem", color: "#8a9a5b", fontWeight: 700 }}>
+                <span style={{ fontSize: "0.72rem", color: "#3da591", fontWeight: 700 }}>
                   터미널로 서버 직접 켜기 (수동 실행)
                 </span>
                 <span
@@ -490,8 +490,8 @@ export const GuideModal: React.FC<GuideModalProps> = ({
           {currentStep.tip && (
             <div
               style={{
-                background: "rgba(107, 127, 66, 0.12)",
-                border: "1px solid rgba(107, 127, 66, 0.35)",
+                background: "rgba(0, 91, 75, 0.12)",
+                border: "1px solid rgba(0, 91, 75, 0.35)",
                 borderRadius: "12px",
                 padding: "12px 16px",
                 fontSize: "0.82rem",
