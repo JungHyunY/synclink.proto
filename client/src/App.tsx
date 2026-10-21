@@ -1,3 +1,4 @@
+import packageJson from "../package.json";
 import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import { invoke } from "@tauri-apps/api/core";
@@ -207,7 +208,7 @@ function formatDeviceId(id: string): string {
   return `${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)} ${cleaned.slice(6, 9)}`;
 }
 
-const CURRENT_VERSION = "1.0.17";
+const CURRENT_VERSION = packageJson.version;
 
 function compareVersions(v1: string, v2: string): number {
   const clean1 = (v1 || "").replace(/^v/, "").split(".").map(Number);

@@ -109,7 +109,7 @@ const requestHandler = (req, res) => {
       JSON.stringify({
         status: "ok",
         service: "synclink-signaling",
-        version: "1.0.18",
+        version: "1.0.19",
         roomsOnline: rooms.size,
         protocol: isHttps ? "https" : "http",
         timestamp: Date.now(),
@@ -173,7 +173,7 @@ server.listen(PORT, "0.0.0.0", () => {
   }
 
   console.log("\n=======================================================");
-  console.log(`  🚀 Yoonikon SyncLink Signaling Server v1.0.18 [${isHttps ? "WSS/HTTPS" : "WS/HTTP"}]`);
+  console.log(`  🚀 Yoonikon SyncLink Signaling Server v1.0.19 [${isHttps ? "WSS/HTTPS" : "WS/HTTP"}]`);
   console.log("=======================================================");
   console.log(`  📡 [Local Host]  ${protocol}://localhost:${PORT}`);
   if (ips.length > 0) {
