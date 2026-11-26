@@ -1,25 +1,25 @@
 :root {
-  /* SyncLink Enterprise Design System (EDS) Tokens - Dark (Default) */
+  /* SyncLink Enterprise Design System (EDS / YDS v2.0) Tokens - Dark (Default) */
   --yds-olive-core: #2563eb;
-  --yds-olive-light: #60a5fa;
+  --yds-olive-light: #3b82f6;
   --yds-olive-hover: #1d4ed8;
-  --yds-titanium-dark: #0f172a;
-  --yds-titanium-surface: #1e293b;
-  --yds-titanium-card: #1e293b;
-  --yds-titanium-border: #334155;
+  --yds-titanium-dark: #090d16;
+  --yds-titanium-surface: #0f172a;
+  --yds-titanium-card: #131d31;
+  --yds-titanium-border: rgba(255, 255, 255, 0.08);
   --yds-gold-accent: #38bdf8;
 
-  --bg-color: #0b0f17;
-  --bg-radial: radial-gradient(circle at 50% 0%, #1e293b 0%, #0b0f17 80%);
-  --sidebar-bg: rgba(17, 24, 39, 0.95);
-  --card-bg: rgba(30, 41, 59, 0.85);
-  --card-border: #334155;
-  --card-hover: rgba(51, 65, 85, 0.95);
-  --input-bg: rgba(0, 0, 0, 0.35);
-  --input-focus-bg: rgba(0, 0, 0, 0.5);
+  --bg-color: #090d16;
+  --bg-radial: #090d16;
+  --sidebar-bg: #0b1120;
+  --card-bg: #0f172a;
+  --card-border: rgba(255, 255, 255, 0.08);
+  --card-hover: #131d31;
+  --input-bg: rgba(15, 23, 42, 0.8);
+  --input-focus-bg: #0f172a;
   
   --primary: #2563eb;
-  --primary-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+  --primary-gradient: #2563eb;
   --primary-hover: #1d4ed8;
   --accent: #38bdf8;
   --success: #10b981;
@@ -29,16 +29,16 @@
   --text-main: #f8fafc;
   --text-muted: #94a3b8;
   --text-dim: #64748b;
-  --brand-title-color: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+  --brand-title-color: #f8fafc;
   
-  --glass-bg: rgba(17, 24, 39, 0.92);
-  --glass-border: rgba(59, 130, 246, 0.25);
-  --shadow-lg: 0 20px 40px -15px rgba(0, 0, 0, 0.7);
-  --shadow-glow: 0 0 24px rgba(37, 99, 235, 0.25);
+  --glass-bg: #0b1120;
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-glow: none;
 }
 
 [data-theme="light"] {
-  /* SyncLink Enterprise Design System (EDS) Tokens - Light Clean */
+  /* SyncLink Enterprise Design System (EDS / BDS v2.0) Tokens - Light Clean */
   --yds-olive-core: #2563eb;
   --yds-olive-light: #3b82f6;
   --yds-olive-hover: #1d4ed8;
@@ -49,16 +49,16 @@
   --yds-gold-accent: #0284c7;
 
   --bg-color: #f8fafc;
-  --bg-radial: radial-gradient(circle at 50% 0%, #ffffff 0%, #f1f5f9 85%);
-  --sidebar-bg: rgba(255, 255, 255, 0.98);
-  --card-bg: rgba(255, 255, 255, 0.95);
+  --bg-radial: #f8fafc;
+  --sidebar-bg: #ffffff;
+  --card-bg: #ffffff;
   --card-border: #e2e8f0;
-  --card-hover: rgba(248, 250, 252, 0.98);
-  --input-bg: #f1f5f9;
+  --card-hover: #f1f5f9;
+  --input-bg: #f8fafc;
   --input-focus-bg: #ffffff;
   
   --primary: #2563eb;
-  --primary-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+  --primary-gradient: #2563eb;
   --primary-hover: #1d4ed8;
   --accent: #0284c7;
   --success: #059669;
@@ -68,12 +68,12 @@
   --text-main: #0f172a;
   --text-muted: #64748b;
   --text-dim: #94a3b8;
-  --brand-title-color: linear-gradient(135deg, #0f172a 0%, #334155 100%);
+  --brand-title-color: #0f172a;
   
-  --glass-bg: rgba(255, 255, 255, 0.96);
-  --glass-border: rgba(37, 99, 235, 0.2);
-  --shadow-lg: 0 10px 30px -10px rgba(0, 0, 0, 0.08);
-  --shadow-glow: 0 0 20px rgba(37, 99, 235, 0.15);
+  --glass-bg: #ffffff;
+  --glass-border: #e2e8f0;
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.05);
+  --shadow-glow: none;
 }
 
 * {
@@ -137,23 +137,21 @@ body {
 .brand-logo {
   width: 38px;
   height: 38px;
-  border-radius: 10px;
-  background: var(--primary-gradient);
+  border-radius: 8px;
+  background: var(--primary);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: var(--shadow-glow);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   color: white;
 }
 
 .brand-title {
-  font-size: 1.25rem;
-  font-weight: 800;
-  letter-spacing: -0.5px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.3px;
   margin: 0;
-  background: var(--brand-title-color);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--brand-title-color);
 }
 
 .brand-badge {
@@ -193,13 +191,11 @@ body {
 .nav-item:hover {
   background: rgba(255, 255, 255, 0.05);
   color: var(--text-main);
-  transform: translateX(2px);
 }
 
 .nav-item.active {
-  background: var(--primary-gradient);
+  background: var(--primary);
   color: #ffffff;
-  box-shadow: 0 4px 15px rgba(107, 127, 66, 0.3);
 }
 
 .sidebar-footer {
@@ -223,16 +219,15 @@ body {
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .status-dot-sm.online {
   background: var(--success);
-  box-shadow: 0 0 8px var(--success);
 }
 
 .status-dot-sm.offline {
   background: var(--danger);
-  box-shadow: 0 0 8px var(--danger);
 }
 
 /* --- Carbon Ads Minimal Card --- */
@@ -482,14 +477,13 @@ body {
 }
 
 .btn-primary-glow {
-  background: var(--primary-gradient);
+  background: var(--primary);
   color: white;
-  box-shadow: 0 4px 15px rgba(107, 127, 66, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .btn-primary-glow:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(107, 127, 66, 0.5);
+  background: var(--primary-hover);
 }
 
 .btn-secondary-dark {
@@ -590,33 +584,27 @@ body {
 
 .radar-wrapper {
   position: relative;
-  width: 100px;
-  height: 100px;
+  width: 72px;
+  height: 72px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .radar-pulse {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  background: rgba(107, 127, 66, 0.25);
-  animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+  display: none;
 }
 
 .radar-core {
-  position: absolute;
-  width: 60%;
-  height: 60%;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
-  background: var(--primary-gradient);
-  box-shadow: 0 0 25px var(--primary);
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--primary);
 }
 
 /* --- In-Session Top Toolbar --- */
@@ -1044,19 +1032,12 @@ video {
   background: rgba(239, 68, 68, 0.18);
   color: #f87171;
   border: 1px solid rgba(239, 68, 68, 0.4);
-  animation: pulse-border 1.5s infinite;
 }
 
 .flow-indicator-badge.local-standby {
   background: rgba(37, 99, 235, 0.18);
   color: var(--primary);
   border: 1px solid rgba(37, 99, 235, 0.4);
-}
-
-@keyframes pulse-border {
-  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-  70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
 }
 
 /* --- Flow KVM Conditions Guide --- */
@@ -1269,15 +1250,15 @@ video {
 .ai-modal-card {
   width: 100%;
   max-width: 680px;
-  background: #0B132B;
-  border: 1px solid rgba(168, 85, 247, 0.35);
-  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.85), 0 0 35px rgba(168, 85, 247, 0.18);
-  border-radius: 20px;
-  padding: 24px 26px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  border-radius: 12px;
+  padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  animation: zoomIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: zoomIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   color: var(--text-main);
 }
 
@@ -1294,16 +1275,15 @@ video {
 }
 
 .ai-icon-badge {
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(236, 72, 153, 0.3) 100%);
-  border: 1px solid rgba(168, 85, 247, 0.5);
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--card-border);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #c084fc;
-  box-shadow: 0 0 16px rgba(168, 85, 247, 0.35);
+  color: var(--primary);
 }
 
 .ai-pill-tabs {

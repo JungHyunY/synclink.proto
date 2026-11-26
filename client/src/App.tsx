@@ -864,7 +864,7 @@ function App() {
         showDialog({
           type: "success",
           title: "최신 버전 사용 중",
-          message: `현재 최신 버전(v${CURRENT_VERSION})을 사용하고 있어요! ✨\n새로운 업데이트가 없습니다.`,
+          message: `현재 최신 버전(v${CURRENT_VERSION})을 사용하고 있어요!\n새로운 업데이트가 없습니다.`,
           confirmText: "확인",
         });
       }
@@ -3131,51 +3131,48 @@ function App() {
                     display: "flex",
                     alignItems: "center",
                     gap: "16px",
-                    background: "linear-gradient(135deg, rgba(37, 99, 235, 0.16) 0%, rgba(168, 85, 247, 0.14) 100%)",
-                    border: "1px solid rgba(56, 189, 248, 0.28)",
-                    borderRadius: "14px",
-                    padding: "12px 18px",
+                    background: "var(--card-bg)",
+                    border: "1px solid var(--card-border)",
+                    borderRadius: "8px",
+                    padding: "14px 18px",
                     marginBottom: "20px",
                     position: "relative",
-                    overflow: "hidden",
-                    backdropFilter: "blur(12px)",
-                    boxShadow: "0 8px 24px rgba(0, 0, 0, 0.25)",
+                    boxShadow: "var(--shadow-lg)",
                   }}
                 >
                   <img
                     src="/synclink_unicorn.png"
-                    alt="Synci the Unicorn Mascot"
+                    alt="SyncLink Mascot"
                     style={{
-                      width: "60px",
-                      height: "60px",
-                      borderRadius: "14px",
+                      width: "52px",
+                      height: "52px",
+                      borderRadius: "8px",
                       objectFit: "cover",
-                      boxShadow: "0 0 16px rgba(56, 189, 248, 0.45)",
-                      border: "1.5px solid rgba(56, 189, 248, 0.6)",
+                      border: "1px solid var(--card-border)",
                       flexShrink: 0,
                     }}
                   />
                   <div style={{ flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px", flexWrap: "wrap" }}>
-                      <span style={{ fontSize: "0.95rem", fontWeight: 700, color: "#f8fafc" }}>
-                        반가워요! 공식 마스코트 싱키(Synci)예요 ✨
+                      <span style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-main)" }}>
+                        SyncLink 엔터프라이즈 원격 데스크톱
                       </span>
                       <span
                         style={{
                           fontSize: "0.68rem",
-                          fontWeight: 700,
-                          padding: "2px 7px",
+                          fontWeight: 600,
+                          padding: "2px 6px",
                           borderRadius: "4px",
-                          background: "rgba(56, 189, 248, 0.2)",
-                          color: "#38bdf8",
-                          border: "1px solid rgba(56, 189, 248, 0.45)",
+                          background: "rgba(37, 99, 235, 0.15)",
+                          color: "var(--primary)",
+                          border: "1px solid rgba(37, 99, 235, 0.3)",
                         }}
                       >
-                        ⚡ Ultra-Fast 60FPS &amp; AI
+                        P2P 60FPS Low-Latency
                       </span>
                     </div>
-                    <p style={{ margin: 0, fontSize: "0.82rem", color: "#cbd5e1", lineHeight: 1.45 }}>
-                      단일 원격 제어뿐만 아니라 <strong>2중 분할 화면(Ctrl+\)</strong>, <strong>KVM Flow</strong>, <strong>AI 클립보드 도우미(Ctrl+Space)</strong>까지 싱키와 함께 스마트하게 활용해보세요!
+                    <p style={{ margin: 0, fontSize: "0.82rem", color: "var(--text-muted)", lineHeight: 1.45 }}>
+                      단일 원격 제어뿐만 아니라 <strong>2중 분할 화면(Ctrl+\)</strong>, <strong>KVM Flow</strong>, <strong>AI 클립보드 도우미(Ctrl+Space)</strong>를 지원합니다.
                     </p>
                   </div>
                 </div>
@@ -3481,8 +3478,8 @@ function App() {
                     }}>
                       <div>
                         <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
-                          <span style={{ fontSize: "0.9rem", fontWeight: 700, color: autoHostStandby ? "#34d399" : "var(--text-main)" }}>
-                            ⚡ 무인 원격 접속 상시 대기 (Auto Standby)
+                          <span style={{ fontSize: "0.9rem", fontWeight: 700, color: autoHostStandby ? "var(--success)" : "var(--text-main)" }}>
+                            무인 원격 접속 상시 대기 (Auto Standby)
                           </span>
                         </div>
                         <p style={{ margin: 0, fontSize: "0.78rem", color: "var(--text-muted)", lineHeight: 1.4 }}>
@@ -3630,13 +3627,12 @@ function App() {
                     ) : autoHostStandby && isServerConnected ? (
                       <div className="host-active-box" style={{ width: "100%" }}>
                         <div className="radar-wrapper">
-                          <div className="radar-pulse" style={{ borderColor: "rgba(16, 185, 129, 0.5)" }} />
-                          <div className="radar-core" style={{ background: "linear-gradient(135deg, #059669 0%, #10b981 100%)", boxShadow: "0 0 25px rgba(16, 185, 129, 0.5)" }}>
-                            <Shield size={32} color="#ffffff" />
+                          <div className="radar-core" style={{ background: "rgba(16, 185, 129, 0.15)", borderColor: "rgba(16, 185, 129, 0.3)" }}>
+                            <Shield size={28} color="var(--success)" />
                           </div>
                         </div>
                         <div style={{ textAlign: "center" }}>
-                          <h3 style={{ margin: "0 0 6px 0", fontSize: "1.3rem", color: "#34d399" }}>무인 접속 대기 중</h3>
+                          <h3 style={{ margin: "0 0 6px 0", fontSize: "1.2rem", color: "var(--success)" }}>무인 접속 대기 중</h3>
                           <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", margin: "0 0 8px 0" }}>
                             외부에서 ID <b>{formatDeviceId(myDeviceId)}</b> 와 PIN으로 언제든 바로 접속할 수 있어요.
                           </p>
@@ -3964,24 +3960,24 @@ function App() {
                     </div>
                   </div>
 
-                  {/* ✨ AI 스마트 클립보드 설정 (Google Gemini) */}
+                  {/* AI 스마트 클립보드 설정 (Google Gemini) */}
                   <div className="input-field-group" style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid var(--card-border)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                      <label className="input-label" style={{ display: "flex", alignItems: "center", gap: "6px", color: "#d8b4fe", fontWeight: 700, margin: 0 }}>
-                        <Sparkles size={16} color="#c084fc" />
+                      <label className="input-label" style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--text-main)", fontWeight: 700, margin: 0 }}>
+                        <Sparkles size={16} color="var(--primary)" />
                         AI 스마트 클립보드 (Google Gemini)
                       </label>
                       <span
                         style={{
                           fontSize: "0.75rem",
                           padding: "2px 8px",
-                          borderRadius: "6px",
+                          borderRadius: "4px",
                           background: geminiApiKey ? "rgba(34, 197, 94, 0.15)" : "rgba(148, 163, 184, 0.15)",
                           color: geminiApiKey ? "#4ade80" : "var(--text-muted)",
                           border: geminiApiKey ? "1px solid rgba(74, 222, 128, 0.4)" : "1px solid rgba(148, 163, 184, 0.3)",
                         }}
                       >
-                        {geminiApiKey ? "API 키 등록 완료 ✅" : "미등록 (기능 비활성)"}
+                        {geminiApiKey ? "API 키 등록 완료" : "미등록 (기능 비활성)"}
                       </span>
                     </div>
 
@@ -4004,9 +4000,9 @@ function App() {
                         style={{
                           padding: "8px 16px",
                           fontSize: "0.85rem",
-                          background: "linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(192, 132, 252, 0.3) 100%)",
-                          borderColor: "rgba(168, 85, 247, 0.6)",
-                          color: "#d8b4fe",
+                          background: "var(--input-bg)",
+                          border: "1px solid var(--card-border)",
+                          color: "var(--text-main)",
                         }}
                         onClick={() => {
                           const input = document.getElementById("geminiApiKeyInput") as HTMLInputElement;
@@ -4065,10 +4061,9 @@ function App() {
                           gap: "8px",
                           cursor: "pointer",
                           transition: "all 0.2s ease",
-                          background: theme === "dark" ? "var(--primary-gradient)" : "var(--input-bg)",
+                          background: theme === "dark" ? "var(--primary)" : "var(--input-bg)",
                           color: theme === "dark" ? "#ffffff" : "var(--text-muted)",
                           border: theme === "dark" ? "1px solid var(--primary)" : "1px solid var(--card-border)",
-                          boxShadow: theme === "dark" ? "var(--shadow-glow)" : "none",
                         }}
                         onClick={() => setTheme("dark")}
                       >
@@ -4083,17 +4078,16 @@ function App() {
                           padding: "10px 14px",
                           fontSize: "0.85rem",
                           fontWeight: 600,
-                          borderRadius: "10px",
+                          borderRadius: "8px",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
                           gap: "8px",
                           cursor: "pointer",
                           transition: "all 0.2s ease",
-                          background: theme === "light" ? "var(--primary-gradient)" : "var(--input-bg)",
+                          background: theme === "light" ? "var(--primary)" : "var(--input-bg)",
                           color: theme === "light" ? "#ffffff" : "var(--text-muted)",
                           border: theme === "light" ? "1px solid var(--primary)" : "1px solid var(--card-border)",
-                          boxShadow: theme === "light" ? "var(--shadow-glow)" : "none",
                         }}
                         onClick={() => setTheme("light")}
                       >
@@ -4116,16 +4110,16 @@ function App() {
                     </p>
                     <ul style={{ margin: 0, paddingLeft: "18px" }}>
                       <li style={{ marginBottom: "6px" }}>
-                        <b>🔋 화면 꺼짐 vs 시스템 절전</b>: 모니터(화면)만 꺼지는 것은 괜찮지만, 컴퓨터 본체가 절전 모드에 들어가면 네트워크가 차단됩니다. Windows 전원 설정에서 <b>[절전 모드: 해당 없음(안 함)]</b>으로 설정하고 <b>[화면 끄기: 15분]</b> 등으로 맞추는 것을 권장합니다.
+                        <b>화면 꺼짐 vs 시스템 절전</b>: 모니터(화면)만 꺼지는 것은 괜찮지만, 컴퓨터 본체가 절전 모드에 들어가면 네트워크가 차단됩니다. Windows 전원 설정에서 <b>[절전 모드: 해당 없음(안 함)]</b>으로 설정하고 <b>[화면 끄기: 15분]</b> 등으로 맞추는 것을 권장합니다.
                       </li>
                       <li style={{ marginBottom: "6px" }}>
-                        <b>⚡ 자동 시스템 절전 방지 탑재</b>: SyncLink 호스트 대기 중에는 OS에 시스템 절전 방지(Power Keep-Alive)를 자동으로 선언하여 본체가 잠들지 않도록 보호합니다.
+                        <b>자동 시스템 절전 방지 탑재</b>: SyncLink 호스트 대기 중에는 OS에 시스템 절전 방지(Power Keep-Alive)를 자동으로 선언하여 본체가 잠들지 않도록 보호합니다.
                       </li>
                       <li style={{ marginBottom: "6px" }}>
-                        <b>💡 접속 시 모니터 자동 깨우기</b>: 게스트가 접속하는 순간 잠자던 모니터와 잠금화면을 자동으로 깨웁니다.
+                        <b>접속 시 모니터 자동 깨우기</b>: 게스트가 접속하는 순간 잠자던 모니터와 잠금화면을 자동으로 깨웁니다.
                       </li>
                       <li>
-                        <b>🔓 잠금 화면 원격 로그인</b>: PC가 잠금 화면에 있더라도 원격 화면에서 마우스를 클릭하거나 키보드를 누르면 비밀번호/PIN 입력창이 나타나며, 원격 키보드로 입력하여 정상 로그인할 수 있습니다.
+                        <b>잠금 화면 원격 로그인</b>: PC가 잠금 화면에 있더라도 원격 화면에서 마우스를 클릭하거나 키보드를 누르면 비밀번호/PIN 입력창이 나타나며, 원격 키보드로 입력하여 정상 로그인할 수 있습니다.
                       </li>
                     </ul>
                   </div>
@@ -4136,7 +4130,7 @@ function App() {
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div>
                       <h3 className="card-title" style={{ fontSize: "1rem", marginBottom: "4px" }}>
-                        <Shield size={18} color="#818cf8" />
+                        <Shield size={18} color="var(--primary)" />
                         버전 및 업데이트
                       </h3>
                       <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
@@ -4359,7 +4353,6 @@ function App() {
                 alignItems: "center",
                 gap: "10px",
                 boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
-                animation: "pulse 2s infinite",
               }}
             >
               <Activity className="animate-spin" size={16} />
@@ -4697,18 +4690,18 @@ function App() {
 
               <div className="toolbar-divider" />
 
-              {/* ✨ AI 스마트 클립보드 도우미 버튼 */}
+              {/* AI 스마트 클립보드 도우미 버튼 */}
               <button
                 className="toolbar-btn"
                 style={{
-                  color: "#d8b4fe",
-                  borderColor: "rgba(168, 85, 247, 0.4)",
-                  background: "rgba(168, 85, 247, 0.15)",
+                  color: "var(--text-main)",
+                  borderColor: "var(--card-border)",
+                  background: "var(--input-bg)",
                 }}
                 onClick={() => openAiAssistant()}
                 title="AI 스마트 클립보드 도우미 (Ctrl+Space)"
               >
-                <Sparkles size={14} color="#c084fc" />
+                <Sparkles size={14} color="var(--primary)" />
                 <span style={{ fontWeight: 600 }}>AI 클립보드</span>
               </button>
 

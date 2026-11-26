@@ -89,7 +89,7 @@ export const GuideModal: React.FC<GuideModalProps> = ({
             "기본적으로 사내 중앙 시그널링 서버(http://183.111.166.141:5963)가 자동 설정되어 있어 별도 설정 없이 바로 이용하실 수 있습니다.",
         },
       ],
-      tip: "💡 사내망 외부나 개인 환경에서 테스트할 때는 [설정] 탭에서 사내 서버 또는 '로컬 (5963)' 버튼으로 전환할 수 있습니다.",
+      tip: "사내망 외부나 개인 환경에서 테스트할 때는 [설정] 탭에서 사내 서버 또는 '로컬 (5963)' 버튼으로 전환할 수 있습니다.",
       actionHint: "설정 탭으로 바로 가기",
       targetTab: "settings",
     },
@@ -114,7 +114,7 @@ export const GuideModal: React.FC<GuideModalProps> = ({
             "[원격 접속] 탭에서 호스트 PC의 9자리 기기 ID와 PIN 번호를 넣고 '원격 접속 시작' 버튼을 누르면 1초 만에 화면이 열립니다.",
         },
       ],
-      tip: "🔐 자주 접속하는 PC는 주소록(Ctrl+D)에 저장해두면 PIN 번호 없이 원클릭으로 즉시 접속할 수 있습니다.",
+      tip: "자주 접속하는 PC는 주소록(Ctrl+D)에 저장해두면 PIN 번호 없이 원클릭으로 즉시 접속할 수 있습니다.",
       actionHint: "원격 접속 탭으로 바로 가기",
       targetTab: "connect",
     },
@@ -128,18 +128,18 @@ export const GuideModal: React.FC<GuideModalProps> = ({
       points: [
         {
           icon: <Monitor size={18} color="#38bdf8" />,
-          title: "🖥️ 화면 제어 모드 (Remote Screen)",
+          title: "화면 제어 모드 (Remote Screen)",
           detail:
             "TeamViewer처럼 원격 PC의 실제 화면을 보면서 마우스·키보드를 조작합니다. 최대 60FPS 및 멀티 모니터 전환을 지원합니다.",
         },
         {
           icon: <Waves size={18} color="#a855f7" />,
-          title: "🌊 SyncLink Flow (가상 KVM 모드)",
+          title: "SyncLink Flow (가상 KVM 모드)",
           detail:
             "모니터 가장자리로 마우스를 밀면 옆 PC로 스무스하게 커서가 넘어갑니다. 윈도우와 맥북을 책상에 나란히 두고 하나의 마우스/키보드로 두 PC를 동시 조작할 때 최적입니다.",
         },
       ],
-      tip: "📋 실시간 클립보드 공유가 기본 활성화되어 있어 윈도우에서 Ctrl+C 복사 후 맥북에서 Cmd+V로 바로 붙여넣을 수 있습니다.",
+      tip: "실시간 클립보드 공유가 기본 활성화되어 있어 윈도우에서 Ctrl+C 복사 후 맥북에서 Cmd+V로 바로 붙여넣을 수 있습니다.",
     },
     {
       badge: "4단계 · 프로 팁 & 특수 기능",
@@ -150,19 +150,19 @@ export const GuideModal: React.FC<GuideModalProps> = ({
         "복사한 터미널 오류 로그를 즉시 분석하고, 여러 대의 PC를 한 화면에서 탭 및 화면 분할로 동시에 관제하세요.",
       points: [
         {
-          icon: <Sparkles size={18} color="#c084fc" />,
-          title: "✨ AI 스마트 클립보드 (Ctrl+Space)",
+          icon: <Sparkles size={18} color="var(--primary)" />,
+          title: "AI 스마트 클립보드 (Ctrl+Space)",
           detail:
             "터미널 에러 로그를 복사(Ctrl+C)한 뒤 단축키를 누르면 Google Gemini AI가 즉시 원인을 분석하고 해결 명령어를 제안합니다.",
         },
         {
           icon: <Layers size={18} color="#34d399" />,
-          title: "🪟 멀티 세션 탭 & 화면 분할 (Ctrl+T)",
+          title: "멀티 세션 탭 & 화면 분할 (Ctrl+T)",
           detail:
             "상단 탭 바에서 새 세션을 열어 최대 3대의 컴퓨터를 동시에 띄우거나, 좌우 2분할 뷰로 나란히 놓고 모니터링할 수 있습니다.",
         },
       ],
-      tip: "💡 맥북(macOS)에서 키보드/마우스 제어가 안 될 경우 '시스템 설정 > 개인정보 보호 및 보안 > 손쉬운 사용' 권한을 허용해주세요.",
+      tip: "맥북(macOS)에서 키보드/마우스 제어가 안 될 경우 '시스템 설정 > 개인정보 보호 및 보안 > 손쉬운 사용' 권한을 허용해주세요.",
     },
   ];
 
@@ -211,8 +211,7 @@ export const GuideModal: React.FC<GuideModalProps> = ({
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            background:
-              "linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0) 100%)",
+            background: "var(--card-bg)",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -220,12 +219,11 @@ export const GuideModal: React.FC<GuideModalProps> = ({
               src="/synclink_unicorn_thumb.png"
               alt="Synci"
               style={{
-                width: "42px",
-                height: "42px",
-                borderRadius: "12px",
+                width: "40px",
+                height: "40px",
+                borderRadius: "8px",
                 objectFit: "cover",
-                border: "1.5px solid rgba(56, 189, 248, 0.55)",
-                boxShadow: "0 0 14px rgba(56, 189, 248, 0.4)",
+                border: "1px solid var(--card-border)",
                 flexShrink: 0,
               }}
             />
@@ -234,23 +232,23 @@ export const GuideModal: React.FC<GuideModalProps> = ({
                 <h3
                   style={{
                     margin: 0,
-                    fontSize: "1.15rem",
-                    fontWeight: 800,
-                    color: "#fff",
+                    fontSize: "1.1rem",
+                    fontWeight: 700,
+                    color: "var(--text-main)",
                     letterSpacing: "-0.3px",
                   }}
                 >
-                  싱키와 함께하는 빠른 시작 가이드
+                  SyncLink 빠른 시작 가이드
                 </h3>
                 <span
                   style={{
                     fontSize: "0.7rem",
                     fontWeight: 700,
                     padding: "2px 8px",
-                    borderRadius: "20px",
-                    background: "rgba(107, 127, 66, 0.2)",
-                    border: "1px solid rgba(107, 127, 66, 0.4)",
-                    color: "var(--accent-glow, #a3e635)",
+                    borderRadius: "4px",
+                    background: "rgba(37, 99, 235, 0.15)",
+                    border: "1px solid rgba(37, 99, 235, 0.3)",
+                    color: "var(--primary)",
                   }}
                 >
                   {currentStepIndex + 1} / {steps.length}
@@ -310,9 +308,9 @@ export const GuideModal: React.FC<GuideModalProps> = ({
                 borderRadius: "2px",
                 backgroundColor:
                   idx === currentStepIndex
-                    ? "var(--accent-glow, #a3e635)"
+                    ? "var(--primary)"
                     : idx < currentStepIndex
-                    ? "rgba(163, 230, 53, 0.4)"
+                    ? "rgba(37, 99, 235, 0.4)"
                     : "rgba(255, 255, 255, 0.1)",
                 cursor: "pointer",
                 transition: "all 0.2s ease",
@@ -365,7 +363,7 @@ export const GuideModal: React.FC<GuideModalProps> = ({
               style={{
                 margin: "4px 0 0",
                 fontSize: "0.88rem",
-                color: "var(--accent-glow, #a3e635)",
+                color: "var(--primary)",
                 fontWeight: 500,
               }}
             >
@@ -627,7 +625,7 @@ export const GuideModal: React.FC<GuideModalProps> = ({
                   padding: "8px 22px",
                   fontSize: "0.85rem",
                   gap: "6px",
-                  background: "var(--primary-gradient)",
+                  background: "var(--primary)",
                 }}
                 onClick={handleFinish}
               >
