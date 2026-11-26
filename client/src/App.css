@@ -1,89 +1,79 @@
 :root {
-  /* Yoonikon Design System (YDS) 4-Color Tactical HUD Tokens - Dark (Default) */
-  --yds-palette-ivory: #f6f1eb;
-  --yds-palette-stone: #beb9b3;
-  --yds-palette-gold: #ffedcb;
-  --yds-palette-teal: #005b4b;
+  /* SyncLink Enterprise Design System (EDS) Tokens - Dark (Default) */
+  --yds-olive-core: #2563eb;
+  --yds-olive-light: #60a5fa;
+  --yds-olive-hover: #1d4ed8;
+  --yds-titanium-dark: #0f172a;
+  --yds-titanium-surface: #1e293b;
+  --yds-titanium-card: #1e293b;
+  --yds-titanium-border: #334155;
+  --yds-gold-accent: #38bdf8;
 
-  --yds-olive-core: #005b4b;
-  --yds-olive-light: #3da591;
-  --yds-olive-hover: #005042;
-  --yds-titanium-dark: #100f0e;
-  --yds-titanium-surface: #18181b;
-  --yds-titanium-card: #1e2024;
-  --yds-titanium-border: #27272a;
-  --yds-gold-accent: #ffedcb;
-
-  --bg-color: #100f0e;
-  --bg-radial: radial-gradient(circle at 50% 0%, #1e2024 0%, #100f0e 80%);
-  --sidebar-bg: rgba(24, 24, 27, 0.95);
-  --card-bg: rgba(30, 32, 36, 0.85);
-  --card-border: #27272a;
-  --card-hover: rgba(45, 51, 59, 0.95);
+  --bg-color: #0b0f17;
+  --bg-radial: radial-gradient(circle at 50% 0%, #1e293b 0%, #0b0f17 80%);
+  --sidebar-bg: rgba(17, 24, 39, 0.95);
+  --card-bg: rgba(30, 41, 59, 0.85);
+  --card-border: #334155;
+  --card-hover: rgba(51, 65, 85, 0.95);
   --input-bg: rgba(0, 0, 0, 0.35);
   --input-focus-bg: rgba(0, 0, 0, 0.5);
   
-  --primary: #005b4b;
-  --primary-gradient: linear-gradient(135deg, #005b4b 0%, #3da591 100%);
-  --primary-hover: #005042;
-  --accent: #ffedcb;
-  --success: #005b4b;
-  --warning: #ffedcb;
+  --primary: #2563eb;
+  --primary-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+  --primary-hover: #1d4ed8;
+  --accent: #38bdf8;
+  --success: #10b981;
+  --warning: #f59e0b;
   --danger: #ef4444;
   
-  --text-main: #f6f1eb;
-  --text-muted: #beb9b3;
-  --text-dim: #88837d;
-  --brand-title-color: linear-gradient(135deg, #ffffff 0%, #beb9b3 100%);
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+  --brand-title-color: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
   
-  --glass-bg: rgba(24, 24, 27, 0.92);
-  --glass-border: rgba(0, 91, 75, 0.3);
-  --shadow-lg: 0 20px 40px -15px rgba(16, 15, 14, 0.8);
-  --shadow-glow: 0 0 24px rgba(0, 91, 75, 0.4);
+  --glass-bg: rgba(17, 24, 39, 0.92);
+  --glass-border: rgba(59, 130, 246, 0.25);
+  --shadow-lg: 0 20px 40px -15px rgba(0, 0, 0, 0.7);
+  --shadow-glow: 0 0 24px rgba(37, 99, 235, 0.25);
 }
 
 [data-theme="light"] {
-  /* Yoonikon Design System (YDS) 4-Color Tactical HUD Tokens - Light Clean */
-  --yds-palette-ivory: #f6f1eb;
-  --yds-palette-stone: #beb9b3;
-  --yds-palette-gold: #ffedcb;
-  --yds-palette-teal: #005b4b;
-
-  --yds-olive-core: #005b4b;
-  --yds-olive-light: #3da591;
-  --yds-olive-hover: #005042;
-  --yds-titanium-dark: #f6f1eb;
+  /* SyncLink Enterprise Design System (EDS) Tokens - Light Clean */
+  --yds-olive-core: #2563eb;
+  --yds-olive-light: #3b82f6;
+  --yds-olive-hover: #1d4ed8;
+  --yds-titanium-dark: #f8fafc;
   --yds-titanium-surface: #ffffff;
-  --yds-titanium-card: #f6f1eb;
-  --yds-titanium-border: #beb9b3;
-  --yds-gold-accent: #c58f2c;
+  --yds-titanium-card: #ffffff;
+  --yds-titanium-border: #e2e8f0;
+  --yds-gold-accent: #0284c7;
 
-  --bg-color: #f6f1eb;
-  --bg-radial: radial-gradient(circle at 50% 0%, #ffffff 0%, #ede8e1 85%);
-  --sidebar-bg: rgba(246, 241, 235, 0.96);
-  --card-bg: rgba(255, 255, 255, 0.92);
-  --card-border: #beb9b3;
-  --card-hover: rgba(246, 241, 235, 0.98);
-  --input-bg: #ede8e1;
+  --bg-color: #f8fafc;
+  --bg-radial: radial-gradient(circle at 50% 0%, #ffffff 0%, #f1f5f9 85%);
+  --sidebar-bg: rgba(255, 255, 255, 0.98);
+  --card-bg: rgba(255, 255, 255, 0.95);
+  --card-border: #e2e8f0;
+  --card-hover: rgba(248, 250, 252, 0.98);
+  --input-bg: #f1f5f9;
   --input-focus-bg: #ffffff;
   
-  --primary: #005b4b;
-  --primary-gradient: linear-gradient(135deg, #005b4b 0%, #3da591 100%);
-  --primary-hover: #005042;
-  --accent: #c58f2c;
-  --success: #005b4b;
-  --warning: #c58f2c;
+  --primary: #2563eb;
+  --primary-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+  --primary-hover: #1d4ed8;
+  --accent: #0284c7;
+  --success: #059669;
+  --warning: #d97706;
   --danger: #dc2626;
   
-  --text-main: #100f0e;
-  --text-muted: #524d49;
-  --text-dim: #88837d;
-  --brand-title-color: linear-gradient(135deg, #100f0e 0%, #524d49 100%);
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --text-dim: #94a3b8;
+  --brand-title-color: linear-gradient(135deg, #0f172a 0%, #334155 100%);
   
-  --glass-bg: rgba(255, 255, 255, 0.95);
-  --glass-border: rgba(0, 91, 75, 0.35);
+  --glass-bg: rgba(255, 255, 255, 0.96);
+  --glass-border: rgba(37, 99, 235, 0.2);
   --shadow-lg: 0 10px 30px -10px rgba(0, 0, 0, 0.08);
-  --shadow-glow: 0 0 20px rgba(0, 91, 75, 0.25);
+  --shadow-glow: 0 0 20px rgba(37, 99, 235, 0.15);
 }
 
 * {
@@ -169,11 +159,11 @@ body {
 .brand-badge {
   font-size: 0.65rem;
   font-weight: 700;
-  background: rgba(0, 91, 75, 0.2);
-  color: #3da591;
+  background: rgba(37, 99, 235, 0.15);
+  color: var(--primary);
   padding: 2px 6px;
   border-radius: 4px;
-  border: 1px solid rgba(0, 91, 75, 0.3);
+  border: 1px solid rgba(37, 99, 235, 0.35);
   text-transform: uppercase;
 }
 
@@ -209,7 +199,7 @@ body {
 .nav-item.active {
   background: var(--primary-gradient);
   color: #ffffff;
-  box-shadow: 0 4px 15px rgba(0, 91, 75, 0.3);
+  box-shadow: 0 4px 15px rgba(107, 127, 66, 0.3);
 }
 
 .sidebar-footer {
@@ -262,7 +252,7 @@ body {
 
 .carbon-ad-box:hover {
   background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(0, 91, 75, 0.35);
+  border-color: rgba(107, 127, 66, 0.35);
   transform: translateY(-2px);
   box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
 }
@@ -277,13 +267,13 @@ body {
   width: 38px;
   height: 38px;
   border-radius: 8px;
-  background: rgba(0, 91, 75, 0.12);
+  background: rgba(37, 99, 235, 0.12);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #3da591;
+  color: var(--primary);
   flex-shrink: 0;
-  border: 1px solid rgba(0, 91, 75, 0.2);
+  border: 1px solid rgba(37, 99, 235, 0.2);
 }
 
 .carbon-ad-text {
@@ -323,7 +313,7 @@ body {
 }
 
 .carbon-ad-box:hover .carbon-ad-ext {
-  color: #3da591;
+  color: var(--primary);
 }
 
 /* --- Privacy Black Screen Overlay (Host Curtain Mode) --- */
@@ -450,7 +440,7 @@ body {
 .custom-input:focus {
   border-color: var(--primary);
   background: var(--input-focus-bg);
-  box-shadow: 0 0 0 3px rgba(0, 91, 75, 0.2);
+  box-shadow: 0 0 0 3px rgba(107, 127, 66, 0.2);
 }
 
 .custom-input.large-id {
@@ -494,12 +484,12 @@ body {
 .btn-primary-glow {
   background: var(--primary-gradient);
   color: white;
-  box-shadow: 0 4px 15px rgba(0, 91, 75, 0.35);
+  box-shadow: 0 4px 15px rgba(107, 127, 66, 0.35);
 }
 
 .btn-primary-glow:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 91, 75, 0.5);
+  box-shadow: 0 6px 20px rgba(107, 127, 66, 0.5);
 }
 
 .btn-secondary-dark {
@@ -554,7 +544,7 @@ body {
 
 .device-card:hover {
   background: var(--card-hover);
-  border-color: rgba(0, 91, 75, 0.4);
+  border-color: rgba(107, 127, 66, 0.4);
   transform: translateY(-2px);
 }
 
@@ -568,8 +558,8 @@ body {
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: rgba(0, 91, 75, 0.12);
-  color: #3da591;
+  background: rgba(37, 99, 235, 0.12);
+  color: var(--primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -593,8 +583,8 @@ body {
   align-items: center;
   gap: 20px;
   padding: 30px;
-  background: rgba(0, 91, 75, 0.05);
-  border: 1px solid rgba(0, 91, 75, 0.2);
+  background: rgba(107, 127, 66, 0.05);
+  border: 1px solid rgba(107, 127, 66, 0.2);
   border-radius: 20px;
 }
 
@@ -612,7 +602,7 @@ body {
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  background: rgba(0, 91, 75, 0.25);
+  background: rgba(107, 127, 66, 0.25);
   animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
 
@@ -767,8 +757,8 @@ body {
 }
 
 .toolbar-btn.active {
-  background: rgba(0, 91, 75, 0.2);
-  color: #3da591;
+  background: rgba(37, 99, 235, 0.2);
+  color: var(--primary);
 }
 
 .shortcut-item-btn {
@@ -787,8 +777,8 @@ body {
 }
 
 .shortcut-item-btn:hover {
-  background: rgba(0, 91, 75, 0.2);
-  color: #3da591;
+  background: rgba(37, 99, 235, 0.15);
+  color: var(--primary);
 }
 
 .shortcut-key {
@@ -831,7 +821,7 @@ body {
 }
 
 .video-wrapper:focus {
-  box-shadow: inset 0 0 0 2px rgba(0, 91, 75, 0.5);
+  box-shadow: inset 0 0 0 2px rgba(107, 127, 66, 0.5);
 }
 
 video {
@@ -839,6 +829,9 @@ video {
   height: 100%;
   object-fit: contain;
   pointer-events: auto;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
 }
 
 /* --- Toast / Alert Banner --- */
@@ -900,16 +893,16 @@ video {
 }
 
 .mode-pill.active {
-  background: rgba(0, 91, 75, 0.2);
-  color: #3da591;
-  border: 1px solid rgba(0, 91, 75, 0.45);
+  background: rgba(37, 99, 235, 0.18);
+  color: var(--primary);
+  border: 1px solid rgba(37, 99, 235, 0.45);
   font-weight: 600;
-  box-shadow: 0 2px 8px rgba(0, 91, 75, 0.2);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2);
 }
 
 .flow-settings-box {
-  background: rgba(0, 91, 75, 0.04);
-  border: 1px dashed rgba(0, 91, 75, 0.35);
+  background: rgba(37, 99, 235, 0.04);
+  border: 1px dashed rgba(37, 99, 235, 0.35);
   border-radius: 14px;
   padding: 16px;
   margin-bottom: 16px;
@@ -951,9 +944,9 @@ video {
 }
 
 .flow-dir-btn.active {
-  background: rgba(0, 91, 75, 0.22);
-  border-color: #3da591;
-  color: #3da591;
+  background: rgba(37, 99, 235, 0.2);
+  border-color: var(--primary);
+  color: var(--primary);
   font-weight: 600;
 }
 
@@ -989,9 +982,9 @@ video {
 }
 
 .preview-screen.local {
-  background: rgba(0, 91, 75, 0.15);
-  border-color: rgba(0, 91, 75, 0.4);
-  color: #3da591;
+  background: rgba(37, 99, 235, 0.15);
+  border-color: rgba(37, 99, 235, 0.4);
+  color: var(--primary);
 }
 
 .preview-screen.remote {
@@ -1055,9 +1048,9 @@ video {
 }
 
 .flow-indicator-badge.local-standby {
-  background: rgba(0, 91, 75, 0.18);
-  color: #3da591;
-  border: 1px solid rgba(0, 91, 75, 0.4);
+  background: rgba(37, 99, 235, 0.18);
+  color: var(--primary);
+  border: 1px solid rgba(37, 99, 235, 0.4);
 }
 
 @keyframes pulse-border {
@@ -1180,7 +1173,7 @@ video {
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 16px;
   padding: 24px;
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 25px rgba(0, 91, 75, 0.2);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 25px rgba(107, 127, 66, 0.2);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -1257,7 +1250,7 @@ video {
 }
 
 /* ═══════════════════════════════════════════════════════
-   ✨ Yoonikon AI Smart Clipboard Assistant Modal
+   ✨ SyncLink AI Smart Clipboard Assistant Modal
    ═══════════════════════════════════════════════════════ */
 .ai-modal-overlay {
   position: fixed;
@@ -1276,9 +1269,9 @@ video {
 .ai-modal-card {
   width: 100%;
   max-width: 680px;
-  background: var(--sidebar-bg, #18181b);
-  border: 1px solid rgba(0, 91, 75, 0.45);
-  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.85), 0 0 35px rgba(0, 91, 75, 0.25);
+  background: #0B132B;
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.85), 0 0 35px rgba(168, 85, 247, 0.18);
   border-radius: 20px;
   padding: 24px 26px;
   display: flex;
@@ -1304,13 +1297,13 @@ video {
   width: 38px;
   height: 38px;
   border-radius: 12px;
-  background: linear-gradient(135deg, rgba(0, 91, 75, 0.4) 0%, rgba(255, 237, 203, 0.2) 100%);
-  border: 1px solid rgba(0, 91, 75, 0.5);
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(236, 72, 153, 0.3) 100%);
+  border: 1px solid rgba(168, 85, 247, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #e5b144;
-  box-shadow: 0 0 16px rgba(0, 91, 75, 0.35);
+  color: #c084fc;
+  box-shadow: 0 0 16px rgba(168, 85, 247, 0.35);
 }
 
 .ai-pill-tabs {
@@ -1344,9 +1337,9 @@ video {
 }
 
 .ai-pill-btn.active {
-  background: rgba(0, 91, 75, 0.22);
-  border-color: rgba(0, 91, 75, 0.5);
-  color: #ffedcb;
+  background: rgba(168, 85, 247, 0.22);
+  border-color: rgba(168, 85, 247, 0.5);
+  color: #d8b4fe;
 }
 
 .ai-input-preview {
@@ -1365,7 +1358,7 @@ video {
 
 .ai-result-panel {
   background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(0, 91, 75, 0.25);
+  border: 1px solid rgba(168, 85, 247, 0.25);
   border-radius: 12px;
   padding: 16px;
   max-height: 280px;
@@ -1386,7 +1379,7 @@ video {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   ─── Yoonikon SyncLink Multi-Session Tabs & Dual Split View ───
+   ─── SyncLink Multi-Session Tabs & Dual Split View ───
    ═══════════════════════════════════════════════════════════════════ */
 
 .synclink-app-root {
@@ -1436,9 +1429,9 @@ video {
   letter-spacing: 0.08em;
   padding: 2px 7px;
   border-radius: 6px;
-  background: rgba(0, 91, 75, 0.2);
-  color: var(--yds-olive-light);
-  border: 1px solid rgba(0, 91, 75, 0.4);
+  background: rgba(37, 99, 235, 0.15);
+  color: var(--primary);
+  border: 1px solid rgba(37, 99, 235, 0.35);
 }
 
 .session-tabs-scroll {
@@ -1476,10 +1469,21 @@ video {
 }
 
 .session-tab-item.active {
-  background: rgba(0, 91, 75, 0.18);
-  border-color: rgba(0, 91, 75, 0.45);
+  background: rgba(37, 99, 235, 0.18);
+  border-color: rgba(37, 99, 235, 0.45);
   color: var(--text-main);
   font-weight: 600;
+}
+
+.session-tab-item.new-tab {
+  border-style: dashed;
+  border-color: rgba(37, 99, 235, 0.3);
+}
+
+.session-tab-item.new-tab.active {
+  border-style: solid;
+  background: rgba(37, 99, 235, 0.18);
+  border-color: rgba(37, 99, 235, 0.45);
 }
 
 .tab-icon {
@@ -1539,9 +1543,9 @@ video {
 }
 
 .tab-add-btn:hover {
-  background: rgba(0, 91, 75, 0.12);
-  border-color: rgba(0, 91, 75, 0.4);
-  color: var(--yds-olive-light);
+  background: rgba(37, 99, 235, 0.12);
+  border-color: rgba(37, 99, 235, 0.4);
+  color: var(--primary);
 }
 
 .session-tabbar-right {
@@ -1572,20 +1576,20 @@ video {
 }
 
 .tabbar-action-btn.active {
-  background: rgba(0, 91, 75, 0.2);
-  border-color: var(--yds-olive-light);
-  color: #f4f4f5;
+  background: rgba(37, 99, 235, 0.2);
+  border-color: var(--primary);
+  color: #f8fafc;
 }
 
 .tabbar-action-btn.ai-btn {
-  background: rgba(0, 91, 75, 0.12);
-  border-color: rgba(0, 91, 75, 0.35);
-  color: #ffedcb;
+  background: rgba(168, 85, 247, 0.12);
+  border-color: rgba(168, 85, 247, 0.35);
+  color: #d8b4fe;
 }
 
 .tabbar-action-btn.ai-btn:hover {
-  background: rgba(0, 91, 75, 0.2);
-  border-color: rgba(0, 91, 75, 0.5);
+  background: rgba(168, 85, 247, 0.2);
+  border-color: rgba(168, 85, 247, 0.5);
 }
 
 .tabbar-recom-badge {
@@ -1656,7 +1660,7 @@ video {
 }
 
 .split-pane-wrapper.active-focus {
-  box-shadow: inset 0 0 0 1.5px var(--yds-olive-light);
+  box-shadow: inset 0 0 0 1.5px var(--primary);
 }
 
 /* ─── Split Pane Header ─── */
@@ -1690,9 +1694,9 @@ video {
 }
 
 .pane-badge.active {
-  background: rgba(0, 91, 75, 0.3);
-  color: var(--yds-olive-light);
-  border: 1px solid rgba(0, 91, 75, 0.5);
+  background: rgba(37, 99, 235, 0.25);
+  color: #93c5fd;
+  border: 1px solid rgba(37, 99, 235, 0.5);
 }
 
 .pane-device-name {
@@ -1761,7 +1765,25 @@ video {
 }
 
 .remote-viewport-container.split-mode {
+  width: 100%;
+  height: 100%;
+}
+
+.remote-viewport-container.split-mode .video-wrapper {
+  flex: 1;
   height: calc(100% - 36px);
+  min-height: 0;
+}
+
+.session-screen.split-mode {
+  width: 100%;
+  height: 100%;
+}
+
+.session-screen.split-mode .video-container {
+  flex: 1;
+  height: calc(100% - 36px);
+  min-height: 0;
 }
 
 .remote-viewport-container.focused {
@@ -1807,9 +1829,45 @@ video {
 }
 
 .shortcut-menu-item:hover {
-  background: rgba(0, 91, 75, 0.2);
-  border-color: rgba(0, 91, 75, 0.4);
+  background: rgba(107, 127, 66, 0.2);
+  border-color: rgba(107, 127, 66, 0.4);
   color: #fff;
 }
+
+/* ─── 🦄 Synci Unicorn Mascot Interactions & Animation ─── */
+.synci-welcome-banner {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.synci-welcome-banner:hover {
+  border-color: rgba(56, 189, 248, 0.5) !important;
+  box-shadow: 0 12px 32px rgba(56, 189, 248, 0.18) !important;
+  transform: translateY(-2px);
+}
+
+.synci-welcome-banner img {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.synci-welcome-banner:hover img {
+  transform: scale(1.08) rotate(-3deg);
+}
+
+.tabbar-brand img {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.tabbar-brand:hover img {
+  transform: scale(1.2) rotate(-8deg);
+}
+
+.ai-icon-badge img {
+  transition: transform 0.25s ease;
+}
+
+.ai-modal-brand:hover .ai-icon-badge img {
+  transform: scale(1.12);
+}
+
 
 

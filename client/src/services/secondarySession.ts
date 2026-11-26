@@ -42,6 +42,7 @@ function preferH264(sdp: string): string {
 }
 
 export function startSecondarySession({
+  sessionId: customSessionId,
   serverUrl,
   targetRoomId,
   targetPin,
@@ -51,6 +52,7 @@ export function startSecondarySession({
   onClose,
   onPing,
 }: {
+  sessionId?: string;
   serverUrl: string;
   targetRoomId: string;
   targetPin: string;
@@ -65,7 +67,7 @@ export function startSecondarySession({
   sendControl: (payload: any) => void;
   close: () => void;
 } {
-  const sessionId = `session_${targetRoomId.replace(/\s+/g, "")}_${Date.now()}`;
+  const sessionId = customSessionId || `session_${targetRoomId.replace(/\s+/g, "")}_${Date.now()}`;
   let socket: Socket | null = null;
   let peer: RTCPeerConnection | null = null;
   let controlChannel: RTCDataChannel | null = null;
@@ -92,10 +94,28 @@ export function startSecondarySession({
     createdAt: Date.now(),
   };
 
+  const candidateQueue: RTCIceCandidateInit[] = [];
+
+  const processCandidateQueue = async (pc: RTCPeerConnection) => {
+    while (candidateQueue.length > 0) {
+      const c = candidateQueue.shift();
+      if (c) {
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(c));
+        } catch (err) {
+          console.warn(`[SecondarySession ${sessionId}] Process candidate queue error:`, err);
+        }
+      }
+    }
+  };
+
   const createPeer = (hostTargetId: string) => {
     const pc = new RTCPeerConnection(ICE_SERVERS);
     peer = pc;
     sessionObj.peer = pc;
+
+    // Note: Answerer (guest) automatically gets matching receiver transceiver on setRemoteDescription(offer).
+    // Pre-adding a local transceiver before setRemoteDescription causes transceiver direction mismatch in Chromium.
 
     const ctrl = pc.createDataChannel("synclink-control", { ordered: true });
     controlChannel = ctrl;
@@ -116,10 +136,25 @@ export function startSecondarySession({
 
     pc.ontrack = (e) => {
       console.log(`[SecondarySession ${sessionId}] ontrack received:`, e.streams[0]);
-      sessionObj.remoteStream = e.streams[0];
+      const stream = e.streams[0] || (e.track ? new MediaStream([e.track]) : null);
+      if (!stream) return;
+      sessionObj.remoteStream = stream;
       sessionObj.status = "Connected";
+
+      if (e.track) {
+        e.track.enabled = true;
+        e.track.onmute = () => console.warn(`[SecondarySession ${sessionId}] track muted`);
+        e.track.onunmute = () => {
+          console.log(`[SecondarySession ${sessionId}] track unmuted`);
+          sessionObj.remoteStream = stream;
+          sessionObj.status = "Connected";
+          onStatusChange("Connected");
+          onStream(stream);
+        };
+      }
+
       onStatusChange("Connected");
-      onStream(e.streams[0]);
+      onStream(stream);
     };
 
     pc.onconnectionstatechange = () => {
@@ -174,7 +209,14 @@ export function startSecondarySession({
     const pc = createPeer(payload.caller);
 
     try {
-      await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+      const rawSdp = payload.sdp?.sdp || payload.sdp;
+      const sdpType = payload.sdp?.type || "offer";
+      const remoteOffer = {
+        type: sdpType,
+        sdp: preferH264(rawSdp || ""),
+      } as RTCSessionDescriptionInit;
+      await pc.setRemoteDescription(new RTCSessionDescription(remoteOffer));
+      await processCandidateQueue(pc);
       const answer = await pc.createAnswer();
       const prioritizedAnswer = {
         type: answer.type,
@@ -184,7 +226,6 @@ export function startSecondarySession({
 
       socket?.emit("answer", {
         target: payload.caller,
-        caller: socket.id,
         sdp: prioritizedAnswer,
       });
     } catch (e) {
@@ -193,11 +234,15 @@ export function startSecondarySession({
   });
 
   socket.on("ice-candidate", async (payload: any) => {
-    if (peer && payload.candidate) {
-      try {
-        await peer.addIceCandidate(new RTCIceCandidate(payload.candidate));
-      } catch (err) {
-        console.warn(`[SecondarySession ${sessionId}] Add ICE candidate error:`, err);
+    if (payload.candidate) {
+      if (peer && peer.remoteDescription) {
+        try {
+          await peer.addIceCandidate(new RTCIceCandidate(payload.candidate));
+        } catch (err) {
+          console.warn(`[SecondarySession ${sessionId}] Add ICE candidate error:`, err);
+        }
+      } else {
+        candidateQueue.push(payload.candidate);
       }
     }
   });

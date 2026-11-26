@@ -47,10 +47,14 @@ mod macos_power {
         let mut lock = CAFFEINATE_CHILD.lock().unwrap();
         if enable {
             if lock.is_none() {
-                // caffeinate -s: Prevents system from sleeping
-                if let Ok(child) = Command::new("caffeinate").arg("-s").spawn() {
+                // caffeinate -dims:
+                // -d: Prevent display from sleeping (화면 꺼짐 방지)
+                // -i: Prevent system from idle sleeping (유휴 잠자기 방지)
+                // -m: Prevent disk from idle sleeping (디스크 잠자기 방지)
+                // -s: Prevent system from sleeping on AC power (시스템 잠자기 완전 방지)
+                if let Ok(child) = Command::new("caffeinate").arg("-dims").spawn() {
                     *lock = Some(child);
-                    println!("🔋 [PowerManager] macOS caffeinate sleep prevention: ON");
+                    println!("🔋 [PowerManager] macOS caffeinate full sleep/lock prevention: ON");
                 }
             }
         } else {

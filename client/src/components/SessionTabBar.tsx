@@ -1,7 +1,8 @@
-﻿import React from "react";
+import React from "react";
 import {
   Laptop,
   Home,
+  Cast,
   Plus,
   X,
   Sparkles,
@@ -45,7 +46,19 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
     <header className="session-tabbar-container">
       {/* 왼쪽: 브랜드 미니 로고 및 세션 탭 목록 */}
       <div className="session-tabbar-left">
-        <div className="tabbar-brand" title="Yoonikon SyncLink">
+        <div className="tabbar-brand" title="SyncLink">
+          <img
+            src="/synclink_unicorn_thumb.png"
+            alt="SyncLink Mascot Synci"
+            style={{
+              width: "22px",
+              height: "22px",
+              borderRadius: "50%",
+              objectFit: "cover",
+              border: "1px solid rgba(56, 189, 248, 0.6)",
+              boxShadow: "0 0 8px rgba(56, 189, 248, 0.4)",
+            }}
+          />
           <span className="tabbar-brand-badge">SYNCLINK</span>
         </div>
 
@@ -53,17 +66,20 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
           {tabs.map((tab) => {
             const isActive = tab.id === activeTabId;
             const isDashboard = tab.type === "dashboard";
+            const isNewSession = tab.type === "new_session";
 
             return (
               <div
                 key={tab.id}
-                className={`session-tab-item ${isActive ? "active" : ""}`}
+                className={`session-tab-item ${isActive ? "active" : ""} ${isNewSession ? "new-tab" : ""}`}
                 onClick={() => onSelectTab(tab.id)}
                 title={tab.subtitle || tab.title}
               >
                 <div className="tab-icon">
                   {isDashboard ? (
                     <Home size={15} />
+                  ) : isNewSession ? (
+                    <Cast size={15} color="var(--primary)" />
                   ) : (
                     <Laptop size={15} className={tab.isConnected ? "text-success" : ""} />
                   )}
@@ -72,7 +88,7 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
                 <span className="tab-title">{tab.title}</span>
 
                 {/* 세션 상태 및 핑 표시 */}
-                {!isDashboard && tab.ping !== undefined && tab.ping !== null && (
+                {!isDashboard && !isNewSession && tab.ping !== undefined && tab.ping !== null && (
                   <span
                     className="tab-ping"
                     style={{ color: tab.ping < 50 ? "#34d399" : "#f59e0b" }}
@@ -90,7 +106,7 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
                       e.stopPropagation();
                       onCloseTab(tab.id);
                     }}
-                    title="세션 종료 및 탭 닫기"
+                    title={isNewSession ? "새 세션 탭 닫기" : "세션 종료 및 탭 닫기"}
                   >
                     <X size={13} />
                   </button>
@@ -141,7 +157,7 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
           onClick={onOpenAiAssistant}
           title="AI 스마트 클립보드 도우미 열기 (단축키: Ctrl+Space)"
         >
-          <Sparkles size={14} color="#e5b144" />
+          <Sparkles size={14} color="#c084fc" />
           <span>AI 클립보드</span>
         </button>
 

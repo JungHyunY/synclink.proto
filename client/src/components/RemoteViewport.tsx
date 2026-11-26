@@ -8,8 +8,11 @@ import {
   Power,
   ChevronDown,
   ChevronUp,
+  Sliders,
 } from "lucide-react";
 import { RemoteSession } from "../types/session";
+
+export type ViewportFitMode = "contain" | "fill" | "cover";
 
 interface RemoteViewportProps {
   session: RemoteSession;
@@ -52,16 +55,35 @@ export const RemoteViewport: React.FC<RemoteViewportProps> = ({
   const [sessionMonitor, setSessionMonitor] = useState(session.monitor || 0);
   const [showShortcutsMenu, setShowShortcutsMenu] = useState(false);
   const [isToolbarMinimized, setIsToolbarMinimized] = useState(isSplitView);
+  const [fitMode, setFitMode] = useState<ViewportFitMode>("contain");
+
+  // 2중 분할 화면 상태에 따라 호스트 스트림 해상도 및 화질 자동 적응
+  useEffect(() => {
+    if (isSplitView) {
+      // 2분할 시 화면 폭이 절반으로 축소되므로 대역폭 절약과 듀얼 스트림 지연 방지를 위해 720p/30fps(quality 65)로 자동 스케일 다운
+      setSessionQuality(65);
+      sendControlEvent({ type: "change-quality", quality: 65, fps: 30 });
+    } else {
+      // 단일 화면 복귀 시 원래의 고화질(1080p/60fps)로 자동 복원
+      setSessionQuality(95);
+      sendControlEvent({ type: "change-quality", quality: 95, fps: 60 });
+    }
+  }, [isSplitView]);
 
   // 미디어 스트림 자동 연결
   useEffect(() => {
-    if (videoRef.current && session.remoteStream) {
-      if (videoRef.current.srcObject !== session.remoteStream) {
-        videoRef.current.srcObject = session.remoteStream;
+    const video = videoRef.current;
+    if (video && session.remoteStream) {
+      if (video.srcObject !== session.remoteStream) {
+        video.srcObject = session.remoteStream;
       }
-      videoRef.current.play().catch((err) => {
+      video.muted = true;
+      video.play().catch((err) => {
         console.warn(`[Viewport ${session.id}] Play warning:`, err);
       });
+      video.onloadedmetadata = () => {
+        video.play().catch(() => {});
+      };
     }
   }, [session.remoteStream, session.id]);
 
@@ -97,30 +119,59 @@ export const RemoteViewport: React.FC<RemoteViewportProps> = ({
     const rect = video.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
 
-    // 비디오 원본 비율과 엘리먼트 크기 기반 오차 보정
+    // 비디오 원본 비율과 엘리먼트 크기 기반 오차 보정 (fitMode 대응)
     const vWidth = video.videoWidth > 0 ? video.videoWidth : 1920;
     const vHeight = video.videoHeight > 0 ? video.videoHeight : 1080;
     const videoRatio = vWidth / vHeight;
     const elemRatio = rect.width / rect.height;
 
-    let renderWidth = rect.width;
-    let renderHeight = rect.height;
-    let offsetX = 0;
-    let offsetY = 0;
+    let x = 0;
+    let y = 0;
 
-    if (elemRatio > videoRatio) {
-      renderWidth = rect.height * videoRatio;
-      offsetX = (rect.width - renderWidth) / 2;
+    if (fitMode === "fill") {
+      // 꽉 채우기 (Stretch): 직사각형 전체 영역에 1:1 선형 매핑
+      x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    } else if (fitMode === "cover") {
+      // 영역 채움 (Cover): 넘치는 축을 기준으로 잘려나간 오프셋 역보정
+      let renderWidth = rect.width;
+      let renderHeight = rect.height;
+      let offsetX = 0;
+      let offsetY = 0;
+
+      if (elemRatio > videoRatio) {
+        renderHeight = rect.width / videoRatio;
+        offsetY = (rect.height - renderHeight) / 2;
+      } else {
+        renderWidth = rect.height * videoRatio;
+        offsetX = (rect.width - renderWidth) / 2;
+      }
+
+      const clickX = e.clientX - rect.left - offsetX;
+      const clickY = e.clientY - rect.top - offsetY;
+      x = Math.max(0, Math.min(1, clickX / renderWidth));
+      y = Math.max(0, Math.min(1, clickY / renderHeight));
     } else {
-      renderHeight = rect.width / videoRatio;
-      offsetY = (rect.height - renderHeight) / 2;
+      // 비율 맞춤 (Contain): 레터박스 여백 제외 정밀 오프셋 보정
+      let renderWidth = rect.width;
+      let renderHeight = rect.height;
+      let offsetX = 0;
+      let offsetY = 0;
+
+      if (elemRatio > videoRatio) {
+        renderWidth = rect.height * videoRatio;
+        offsetX = (rect.width - renderWidth) / 2;
+      } else {
+        renderHeight = rect.width / videoRatio;
+        offsetY = (rect.height - renderHeight) / 2;
+      }
+
+      const clickX = e.clientX - rect.left - offsetX;
+      const clickY = e.clientY - rect.top - offsetY;
+      x = Math.max(0, Math.min(1, clickX / renderWidth));
+      y = Math.max(0, Math.min(1, clickY / renderHeight));
     }
 
-    const clickX = e.clientX - rect.left - offsetX;
-    const clickY = e.clientY - rect.top - offsetY;
-
-    const x = Math.max(0, Math.min(1, clickX / renderWidth));
-    const y = Math.max(0, Math.min(1, clickY / renderHeight));
     const buttonName = e.button === 2 ? "right" : e.button === 1 ? "middle" : "left";
 
     if (type === "mousemove") {
@@ -224,6 +275,68 @@ export const RemoteViewport: React.FC<RemoteViewportProps> = ({
           </div>
 
           <div className="pane-header-right">
+            {/* 🖥️ 화면 맞춤/해상도 스케일 모드 토글 (Fit / Stretch / Cover) */}
+            <button
+              type="button"
+              className="pane-header-btn"
+              onClick={() => {
+                setFitMode((prev) => {
+                  if (prev === "contain") return "fill";
+                  if (prev === "fill") return "cover";
+                  return "contain";
+                });
+              }}
+              title={`분할 화면 맞춤: ${
+                fitMode === "contain"
+                  ? "비율 맞춤 (전체 표시)"
+                  : fitMode === "fill"
+                  ? "화면 채우기 (여백 없이 꽉 채움)"
+                  : "영역 확대 (비율 유지 중앙 확대)"
+              } (클릭하여 전환)`}
+              style={{
+                fontSize: "0.72rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "3px",
+                color: fitMode !== "contain" ? "#38bdf8" : "inherit",
+                borderColor: fitMode !== "contain" ? "rgba(56, 189, 248, 0.4)" : undefined,
+                background: fitMode !== "contain" ? "rgba(56, 189, 248, 0.12)" : undefined,
+              }}
+            >
+              <Sliders size={12} />
+              <span>
+                {fitMode === "contain" ? "비율" : fitMode === "fill" ? "채움" : "확대"}
+              </span>
+            </button>
+
+            {/* ⚡ 분할 해상도/화질 토글 (720p 30fps 분할최적 vs 1080p 60fps 고화질) */}
+            <button
+              type="button"
+              className="pane-header-btn"
+              onClick={() => {
+                const isUltra = sessionQuality === 95;
+                const nextQ = isUltra ? 65 : 95;
+                const nextFps = isUltra ? 30 : 60;
+                setSessionQuality(nextQ);
+                sendControlEvent({ type: "change-quality", quality: nextQ, fps: nextFps });
+              }}
+              title={
+                sessionQuality === 95
+                  ? "현재: 1080p Ultra 60fps (클릭하여 720p 분할최적화로 전환)"
+                  : "현재: 720p 분할최적화 30fps (클릭하여 1080p Ultra로 전환)"
+              }
+              style={{
+                fontSize: "0.72rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "3px",
+                color: sessionQuality === 95 ? "#a855f7" : "#34d399",
+              }}
+            >
+              <Zap size={12} />
+              <span>{sessionQuality === 95 ? "1080p" : "720p"}</span>
+            </button>
+
             <button
               type="button"
               className="pane-header-btn"
@@ -429,19 +542,19 @@ export const RemoteViewport: React.FC<RemoteViewportProps> = ({
           e.preventDefault();
           handleRemoteInput(e, "contextmenu");
         }}
-        onMouseEnter={() => setGuestCursor((prev) => ({ ...prev, visible: true }))}
-        onMouseLeave={() => setGuestCursor((prev) => ({ ...prev, visible: false, clicking: false }))}
-        onMouseDown={(e) => {
-          if (e.target !== videoRef.current) {
-            handleRemoteInput(e, "mousedown");
-          }
+        onPointerDown={(e) => {
+          try {
+            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+          } catch {}
+          handleRemoteInput(e as any, "mousedown");
         }}
-        onMouseUp={(e) => {
-          if (e.target !== videoRef.current) {
-            handleRemoteInput(e, "mouseup");
-          }
+        onPointerUp={(e) => {
+          try {
+            (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+          } catch {}
+          handleRemoteInput(e as any, "mouseup");
         }}
-        onMouseMove={(e) => {
+        onPointerMove={(e) => {
           const rect = e.currentTarget.getBoundingClientRect();
           setGuestCursor({
             x: e.clientX - rect.left,
@@ -449,29 +562,31 @@ export const RemoteViewport: React.FC<RemoteViewportProps> = ({
             visible: true,
             clicking: e.buttons > 0,
           });
-          if (e.target !== videoRef.current) {
-            handleRemoteInput(e, "mousemove");
-          }
+          handleRemoteInput(e as any, "mousemove");
         }}
         onWheel={handleWheel}
         style={{ cursor: showVirtualCursor ? "none" : "default" }}
       >
         <video
-          ref={videoRef}
+          ref={(el) => {
+            videoRef.current = el;
+            if (el && session.remoteStream && el.srcObject !== session.remoteStream) {
+              el.srcObject = session.remoteStream;
+              el.play().catch(() => {});
+            }
+          }}
           autoPlay
           playsInline
           muted
+          draggable={false}
+          onDragStart={(e) => e.preventDefault()}
           onLoadedData={(e) => {
             (e.target as HTMLVideoElement).play().catch(() => {});
           }}
           onCanPlay={(e) => {
             (e.target as HTMLVideoElement).play().catch(() => {});
           }}
-          onMouseDown={(e) => handleRemoteInput(e, "mousedown")}
-          onMouseUp={(e) => handleRemoteInput(e, "mouseup")}
-          onMouseMove={(e) => handleRemoteInput(e, "mousemove")}
-          onContextMenu={(e) => handleRemoteInput(e, "contextmenu")}
-          style={{ cursor: showVirtualCursor ? "none" : "default" }}
+          style={{ cursor: showVirtualCursor ? "none" : "default", pointerEvents: "none", objectFit: fitMode }}
         />
 
         {/* 🎯 선명한 원격 가상 마우스 커서 오버레이 */}

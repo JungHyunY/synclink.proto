@@ -25,12 +25,35 @@ export type LayoutMode = "single" | "split";
 export type ActivePane = "left" | "right";
 
 export interface TabItem {
-  id: string; // 'dashboard' or session.id
-  type: "dashboard" | "session";
+  id: string; // 'dashboard' or session.id or 'new_session_...'
+  type: "dashboard" | "session" | "new_session";
   title: string;
   subtitle?: string;
   roomId?: string;
   status?: string;
   ping?: number | null;
   isConnected?: boolean;
+}
+
+export interface PendingNewSession {
+  id: string;
+  title: string;
+  targetId?: string;
+  targetPin?: string;
+  mode?: "screen" | "flow";
+}
+
+export interface SavedDevice {
+  id: string;
+  name: string;
+  pin?: string;
+  memo?: string;
+  createdAt: number;
+}
+
+export interface RecentDevice {
+  id: string;
+  name?: string;
+  pin?: string;
+  lastConnected: number;
 }

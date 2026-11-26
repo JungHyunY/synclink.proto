@@ -13,14 +13,13 @@
   "app": {
     "windows": [
       {
-        "label": "main",
-        "title": "Yoonikon SyncLink",
-        "width": 1000,
-        "height": 680,
-        "minWidth": 1000,
-        "minHeight": 680,
-        "resizable": false,
-        "maximizable": false
+        "title": "SyncLink",
+        "width": 1100,
+        "height": 720,
+        "minWidth": 800,
+        "minHeight": 550,
+        "resizable": true,
+        "fullscreen": false
       }
     ],
     "security": {
@@ -29,7 +28,7 @@
   },
   "bundle": {
     "active": true,
-    "createUpdaterArtifacts": "v1Compatible",
+    "createUpdaterArtifacts": false,
     "targets": "all",
     "icon": [
       "icons/32x32.png",

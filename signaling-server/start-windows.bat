@@ -1,10 +1,10 @@
 @echo off
 chcp 65001 >nul
-title Yoonikon SyncLink - Signaling Server (Windows)
+title SyncLink - Signaling Server (Windows)
 color 0b
 
 echo =======================================================
-echo   🚀 Yoonikon SyncLink Signaling Server (Windows)
+echo   🚀 SyncLink Signaling Server (Windows)
 echo =======================================================
 echo.
 

@@ -8,13 +8,15 @@ use base64::{engine::general_purpose, Engine as _};
 use std::thread;
 use std::time::Duration;
 use image::ColorType;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 static CAPTURE_SESSION_ID: AtomicUsize = AtomicUsize::new(0);
 static CAPTURE_FPS: AtomicUsize = AtomicUsize::new(30);
 static CAPTURE_QUALITY: AtomicUsize = AtomicUsize::new(50);
+static IS_MOUSE_DOWN: AtomicBool = AtomicBool::new(false);
+static MOUSE_BUTTON_STATE: AtomicU8 = AtomicU8::new(0); // 0: None, 1: Left, 2: Right, 3: Middle
 
 // --- 키보드 매핑 ---
 fn str_to_key(key_str: &str) -> Option<Key> {
@@ -62,33 +64,33 @@ fn str_to_key(key_str: &str) -> Option<Key> {
         "f11" => Some(Key::F11),
         "f12" => Some(Key::F12),
 
-        // Letters
-        "a" | "keya" => Some(Key::KeyA),
-        "b" | "keyb" => Some(Key::KeyB),
-        "c" | "keyc" => Some(Key::KeyC),
-        "d" | "keyd" => Some(Key::KeyD),
-        "e" | "keye" => Some(Key::KeyE),
-        "f" | "keyf" => Some(Key::KeyF),
-        "g" | "keyg" => Some(Key::KeyG),
-        "h" | "keyh" => Some(Key::KeyH),
-        "i" | "keyi" => Some(Key::KeyI),
-        "j" | "keyj" => Some(Key::KeyJ),
-        "k" | "keyk" => Some(Key::KeyK),
-        "l" | "keyl" => Some(Key::KeyL),
-        "m" | "keym" => Some(Key::KeyM),
-        "n" | "keyn" => Some(Key::KeyN),
-        "o" | "keyo" => Some(Key::KeyO),
-        "p" | "keyp" => Some(Key::KeyP),
-        "q" | "keyq" => Some(Key::KeyQ),
-        "r" | "keyr" => Some(Key::KeyR),
-        "s" | "keys" => Some(Key::KeyS),
-        "t" | "keyt" => Some(Key::KeyT),
-        "u" | "keyu" => Some(Key::KeyU),
-        "v" | "keyv" => Some(Key::KeyV),
-        "w" | "keyw" => Some(Key::KeyW),
-        "x" | "keyx" => Some(Key::KeyX),
-        "y" | "keyy" => Some(Key::KeyY),
-        "z" | "keyz" => Some(Key::KeyZ),
+        // Letters & Korean 2-Set Hangul Jamo (한글 두벌식 키보드 직결 매핑)
+        "a" | "keya" | "ㅁ" => Some(Key::KeyA),
+        "b" | "keyb" | "ㅠ" => Some(Key::KeyB),
+        "c" | "keyc" | "ㅊ" => Some(Key::KeyC),
+        "d" | "keyd" | "ㅇ" => Some(Key::KeyD),
+        "e" | "keye" | "ㄷ" | "ㄸ" => Some(Key::KeyE),
+        "f" | "keyf" | "ㄹ" => Some(Key::KeyF),
+        "g" | "keyg" | "ㅎ" => Some(Key::KeyG),
+        "h" | "keyh" | "ㅗ" => Some(Key::KeyH),
+        "i" | "keyi" | "ㅑ" => Some(Key::KeyI),
+        "j" | "keyj" | "ㅓ" => Some(Key::KeyJ),
+        "k" | "keyk" | "ㅏ" => Some(Key::KeyK),
+        "l" | "keyl" | "ㅣ" => Some(Key::KeyL),
+        "m" | "keym" | "ㅡ" => Some(Key::KeyM),
+        "n" | "keyn" | "ㅜ" => Some(Key::KeyN),
+        "o" | "keyo" | "ㅐ" | "ㅒ" => Some(Key::KeyO),
+        "p" | "keyp" | "ㅔ" | "ㅖ" => Some(Key::KeyP),
+        "q" | "keyq" | "ㅂ" | "ㅃ" => Some(Key::KeyQ),
+        "r" | "keyr" | "ㄱ" | "ㄲ" => Some(Key::KeyR),
+        "s" | "keys" | "ㄴ" => Some(Key::KeyS),
+        "t" | "keyt" | "ㅅ" | "ㅆ" => Some(Key::KeyT),
+        "u" | "keyu" | "ㅕ" => Some(Key::KeyU),
+        "v" | "keyv" | "ㅍ" => Some(Key::KeyV),
+        "w" | "keyw" | "ㅈ" | "ㅉ" => Some(Key::KeyW),
+        "x" | "keyx" | "ㅌ" => Some(Key::KeyX),
+        "y" | "keyy" | "ㅛ" => Some(Key::KeyY),
+        "z" | "keyz" | "ㅋ" => Some(Key::KeyZ),
 
         // Digits
         "1" | "digit1" | "numpad1" => Some(Key::Num1),
@@ -265,9 +267,65 @@ fn remote_mouse_move(x: f64, y: f64, monitor_index: usize) {
         let target_x = offset_x + (x * width);
         let target_y = offset_y + (y * height);
 
-        let res = simulate(&EventType::MouseMove { x: target_x, y: target_y });
-        if let Err(e) = res {
-            eprintln!("⚠️ rdev MouseMove error ({:.1}, {:.1}): {:?}", target_x, target_y, e);
+        #[cfg(target_os = "macos")]
+        {
+            #[repr(C)]
+            struct CGPoint {
+                x: f64,
+                y: f64,
+            }
+
+            extern "C" {
+                fn CGEventCreateMouseEvent(
+                    source: *const std::ffi::c_void,
+                    mouse_type: u32,
+                    mouse_cursor_position: CGPoint,
+                    mouse_button: u32,
+                ) -> *mut std::ffi::c_void;
+                fn CGEventPost(tap: u32, event: *mut std::ffi::c_void);
+                fn CFRelease(cf: *mut std::ffi::c_void);
+            }
+
+            let is_down = IS_MOUSE_DOWN.load(Ordering::SeqCst);
+            let btn_state = MOUSE_BUTTON_STATE.load(Ordering::SeqCst);
+
+            // macOS CoreGraphics Mouse Event Types:
+            // kCGEventMouseMoved = 5
+            // kCGEventLeftMouseDragged = 6
+            // kCGEventRightMouseDragged = 7
+            // kCGEventOtherMouseDragged = 27
+            // Mouse Buttons: Left = 0, Right = 1, Center = 2
+            let (event_type, mouse_btn) = if is_down {
+                match btn_state {
+                    1 => (6u32, 0u32),  // Left dragged
+                    2 => (7u32, 1u32),  // Right dragged
+                    3 => (27u32, 2u32), // Middle dragged
+                    _ => (6u32, 0u32),
+                }
+            } else {
+                (5u32, 0u32) // Mouse moved
+            };
+
+            unsafe {
+                let event = CGEventCreateMouseEvent(
+                    std::ptr::null(),
+                    event_type,
+                    CGPoint { x: target_x, y: target_y },
+                    mouse_btn,
+                );
+                if !event.is_null() {
+                    CGEventPost(0 /* kCGHIDEventTap */, event);
+                    CFRelease(event);
+                }
+            }
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            let res = simulate(&EventType::MouseMove { x: target_x, y: target_y });
+            if let Err(e) = res {
+                eprintln!("⚠️ rdev MouseMove error ({:.1}, {:.1}): {:?}", target_x, target_y, e);
+            }
         }
     }
 }
@@ -286,6 +344,7 @@ fn remote_mouse_click(button: String, x: Option<f64>, y: Option<f64>, monitor_in
     };
     
     // 1. 누른다
+    IS_MOUSE_DOWN.store(true, Ordering::SeqCst);
     if let Err(e) = simulate(&EventType::ButtonPress(btn)) {
         eprintln!("⚠️ rdev ButtonPress error: {:?}", e);
     }
@@ -294,6 +353,8 @@ fn remote_mouse_click(button: String, x: Option<f64>, y: Option<f64>, monitor_in
     thread::sleep(Duration::from_millis(50));
     
     // 3. 뗀다
+    IS_MOUSE_DOWN.store(false, Ordering::SeqCst);
+    MOUSE_BUTTON_STATE.store(0, Ordering::SeqCst);
     if let Err(e) = simulate(&EventType::ButtonRelease(btn)) {
         eprintln!("⚠️ rdev ButtonRelease error: {:?}", e);
     }
@@ -304,11 +365,13 @@ fn remote_mouse_down(button: String, x: Option<f64>, y: Option<f64>, monitor_ind
     if let (Some(px), Some(py)) = (x, y) {
         remote_mouse_move(px, py, monitor_index.unwrap_or(0));
     }
-    let btn = match button.as_str() {
-        "right" => Button::Right,
-        "middle" => Button::Middle,
-        _ => Button::Left,
+    let (btn, btn_code) = match button.as_str() {
+        "right" => (Button::Right, 2u8),
+        "middle" => (Button::Middle, 3u8),
+        _ => (Button::Left, 1u8),
     };
+    IS_MOUSE_DOWN.store(true, Ordering::SeqCst);
+    MOUSE_BUTTON_STATE.store(btn_code, Ordering::SeqCst);
     if let Err(e) = simulate(&EventType::ButtonPress(btn)) {
         eprintln!("⚠️ rdev ButtonPress error: {:?}", e);
     }
@@ -324,13 +387,15 @@ fn remote_mouse_up(button: String, x: Option<f64>, y: Option<f64>, monitor_index
         "middle" => Button::Middle,
         _ => Button::Left,
     };
+    IS_MOUSE_DOWN.store(false, Ordering::SeqCst);
+    MOUSE_BUTTON_STATE.store(0, Ordering::SeqCst);
     if let Err(e) = simulate(&EventType::ButtonRelease(btn)) {
         eprintln!("⚠️ rdev ButtonRelease error: {:?}", e);
     }
 }
 
 #[command]
-fn remote_keyboard_event(state: String, key: String, code: Option<String>) {
+fn remote_keyboard_event(state: String, key: String, code: Option<String>, #[allow(unused_variables)] client_os: Option<String>) {
     let key_lower = key.to_lowercase();
     let code_lower = code.as_deref().unwrap_or("").to_lowercase();
 
@@ -354,6 +419,44 @@ fn remote_keyboard_event(state: String, key: String, code: Option<String>) {
             }
             return;
         }
+
+        // 🍎 macOS 호스트 키 매핑:
+        // Windows 게스트에서 연결할 때, Windows의 Ctrl(Ctrl+C, Ctrl+V, Ctrl+A, Ctrl+Z, Ctrl+S 등)은
+        // macOS의 Command(⌘, MetaLeft) 키로 매핑되어야 시스템 및 앱의 단축키가 원활히 작동합니다.
+        let is_mac_guest = client_os.as_deref().map(|os| os.to_lowercase() == "macos").unwrap_or(false);
+        if !is_mac_guest {
+            let is_ctrl = key_lower == "control"
+                || key_lower == "ctrl"
+                || code_lower == "controlleft"
+                || code_lower == "controlright";
+
+            let is_win_meta = key_lower == "meta"
+                || key_lower == "win"
+                || key_lower == "windows"
+                || code_lower == "metaleft"
+                || code_lower == "metaright";
+
+            if is_ctrl {
+                let event = match state.as_str() {
+                    "down" => EventType::KeyPress(Key::MetaLeft),
+                    "up" => EventType::KeyRelease(Key::MetaLeft),
+                    _ => return,
+                };
+                let _ = simulate(&event);
+                return;
+            }
+
+            if is_win_meta {
+                // Windows 키는 macOS의 Control 키로 매핑하여 터미널 인터럽트(^C)나 Control 단축키로 사용
+                let event = match state.as_str() {
+                    "down" => EventType::KeyPress(Key::ControlLeft),
+                    "up" => EventType::KeyRelease(Key::ControlLeft),
+                    _ => return,
+                };
+                let _ = simulate(&event);
+                return;
+            }
+        }
     }
 
     #[cfg(target_os = "windows")]
@@ -367,8 +470,9 @@ fn remote_keyboard_event(state: String, key: String, code: Option<String>) {
         }
     }
 
-    let rdev_key = str_to_key(&key).or_else(|| {
-        code.as_deref().and_then(str_to_key)
+    // 물리적 키 코드(code: "KeyD", "KeyA" 등)를 우선 검색하고, 없으면 문자 키(key)를 검색하여 한글 IME/문자 변환 시 키 유실 방지
+    let rdev_key = code.as_deref().and_then(str_to_key).or_else(|| {
+        str_to_key(&key)
     });
 
     if let Some(k) = rdev_key {
@@ -385,7 +489,25 @@ fn remote_keyboard_event(state: String, key: String, code: Option<String>) {
 fn remote_shortcut(keys: Vec<String>) {
     let mut pressed = Vec::new();
     for k_str in &keys {
-        if let Some(k) = str_to_key(k_str) {
+        let k_opt = {
+            #[cfg(target_os = "macos")]
+            {
+                let lower = k_str.to_lowercase();
+                if lower == "control" || lower == "ctrl" || lower == "controlleft" {
+                    Some(Key::MetaLeft)
+                } else if lower == "meta" || lower == "win" || lower == "windows" {
+                    Some(Key::ControlLeft)
+                } else {
+                    str_to_key(k_str)
+                }
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                str_to_key(k_str)
+            }
+        };
+
+        if let Some(k) = k_opt {
             let _ = simulate(&EventType::KeyPress(k));
             pressed.push(k);
             thread::sleep(Duration::from_millis(20));
@@ -527,6 +649,35 @@ extern "C" {
     fn CGRequestScreenCaptureAccess() -> bool;
 }
 
+#[derive(serde::Serialize)]
+struct PermissionDetails {
+    accessibility: bool,
+    screen_capture: bool,
+    all_granted: bool,
+}
+
+#[command]
+fn check_permissions_detailed() -> PermissionDetails {
+    #[cfg(target_os = "macos")]
+    {
+        let a11y = macos_accessibility_client::accessibility::application_is_trusted();
+        let screen = unsafe { CGPreflightScreenCaptureAccess() };
+        return PermissionDetails {
+            accessibility: a11y,
+            screen_capture: screen,
+            all_granted: a11y && screen,
+        };
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        return PermissionDetails {
+            accessibility: true,
+            screen_capture: true,
+            all_granted: true,
+        };
+    }
+}
+
 #[command]
 fn check_permissions() -> bool {
     #[cfg(target_os = "macos")]
@@ -658,13 +809,13 @@ async fn restore_host_window(window: Window) {
 }
 
 #[command]
-fn hide_to_tray(window: Window) {
-    let _ = window.hide();
+fn close_window(window: Window) {
+    let _ = window.destroy();
 }
 
 #[command]
-fn close_window(window: Window) {
-    let _ = window.destroy();
+fn hide_to_tray(window: Window) {
+    let _ = window.hide();
 }
 
 #[command]
@@ -690,7 +841,7 @@ async fn open_new_window(app_handle: AppHandle, window: Window) -> Result<String
         &label,
         WebviewUrl::App("index.html".into()),
     )
-    .title("Yoonikon SyncLink")
+    .title("SyncLink")
     .inner_size(1000.0, 680.0)
     .min_inner_size(1000.0, 680.0)
     .resizable(false)
@@ -890,7 +1041,7 @@ fn get_autostart_status() -> bool {
     #[cfg(target_os = "macos")]
     {
         if let Some(home) = std::env::var_os("HOME") {
-            let plist_path = std::path::Path::new(&home).join("Library/LaunchAgents/com.yoonikon.synclink.plist");
+            let plist_path = std::path::Path::new(&home).join("Library/LaunchAgents/com.synclink.desktop.plist");
             return plist_path.exists();
         }
         false
@@ -946,7 +1097,7 @@ fn set_autostart_status(enabled: bool) -> Result<bool, String> {
     {
         if let Some(home) = std::env::var_os("HOME") {
             let agent_dir = std::path::Path::new(&home).join("Library/LaunchAgents");
-            let plist_path = agent_dir.join("com.yoonikon.synclink.plist");
+            let plist_path = agent_dir.join("com.synclink.desktop.plist");
             if enabled {
                 let _ = std::fs::create_dir_all(&agent_dir);
                 let exe_path = std::env::current_exe().map_err(|e| e.to_string())?;
@@ -956,7 +1107,7 @@ fn set_autostart_status(enabled: bool) -> Result<bool, String> {
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.yoonikon.synclink</string>
+    <string>com.synclink.desktop</string>
     <key>ProgramArguments</key>
     <array>
         <string>{}</string>
@@ -1061,7 +1212,25 @@ fn remote_mouse_move_relative(dx: f64, dy: f64) {
 
 #[command]
 fn remote_mouse_wheel(delta_y: i64) {
-    let _ = simulate(&EventType::Wheel { delta_x: 0, delta_y });
+    // 브라우저 e.deltaY는 아래로 굴릴 때 양수(+100~+120), 위로 굴릴 때 음수(-100~-120)입니다.
+    // OS 레벨 휠 시뮬레이션:
+    // macOS (rdev CoreGraphics CGEventCreateScrollWheelEvent): 양수가 위(Scroll Up), 음수가 아래(Scroll Down)
+    // 따라서 브라우저 양수(아래) -> OS 음수(아래), 브라우저 음수(위) -> OS 양수(위)로 반전시킵니다.
+    // 또한 브라우저 deltaY(100단위)를 OS 스크롤 틱 단위(1~5틱)로 정규화합니다.
+    let magnitude = delta_y.abs();
+    let ticks = if magnitude >= 100 {
+        (magnitude / 40).clamp(1, 8)
+    } else if magnitude > 0 {
+        1
+    } else {
+        0
+    };
+
+    if ticks > 0 {
+        // macOS 및 일반적인 OS 기준: delta_y가 양수(아래)일 때 OS는 음수(-) 틱, delta_y가 음수(위)일 때 OS는 양수(+) 틱
+        let scroll_step = if delta_y > 0 { -ticks } else { ticks };
+        let _ = simulate(&EventType::Wheel { delta_x: 0, delta_y: scroll_step });
+    }
 }
 
 fn main() {
@@ -1084,6 +1253,7 @@ fn main() {
             get_clipboard_text,
             set_clipboard_text,
             check_permissions,
+            check_permissions_detailed,
             open_permission_settings,
             set_window_session_mode,
             set_privacy_mode,

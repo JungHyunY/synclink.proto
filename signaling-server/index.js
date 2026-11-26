@@ -46,22 +46,41 @@ setInterval(() => {
 }, 60 * 1000);
 
 // ─── 2. STUN / TURN ICE 서버 기본 목록 및 커스텀 환경변수 제공 ───
+// STUN 홀펀칭 실패(대칭형 NAT, 모바일 핫스팟, 공용망) 시에도 WebRTC P2P 미디어가 안전하게 릴레이되도록 공용 안정화 STUN/TURN 기본 풀 구성
 const DEFAULT_ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
+  { urls: "stun:stun2.l.google.com:19302" },
   { urls: "stun:stun.cloudflare.com:3478" },
+  // OpenRelay Project Free TURN Relay (대칭형 NAT / 교차 플랫폼 P2P 폴백용)
+  {
+    urls: [
+      "turn:openrelay.metered.ca:80",
+      "turn:openrelay.metered.ca:443",
+      "turn:openrelay.metered.ca:443?transport=tcp"
+    ],
+    username: "openrelayproject",
+    credential: "openrelayproject"
+  }
 ];
 
 function getIceServers() {
-  // 사용자가 TURN 환경변수를 지정한 경우 자동 통합
-  // 예: TURN_URL="turn:turn.yoonikon.com:3478", TURN_USER="user", TURN_PASS="pass"
+  // 사용자가 TURN 환경변수를 지정한 경우 커스텀 우선 통합
+  // 예: TURN_URL="turn:turn.example.com:3478", TURN_USER="user", TURN_PASS="pass"
   if (process.env.TURN_URL) {
     const turnEntry = {
-      urls: process.env.TURN_URL,
+      urls: process.env.TURN_URL.includes(",") 
+        ? process.env.TURN_URL.split(",").map(u => u.trim()) 
+        : process.env.TURN_URL.trim(),
     };
     if (process.env.TURN_USER) turnEntry.username = process.env.TURN_USER;
     if (process.env.TURN_PASS) turnEntry.credential = process.env.TURN_PASS;
-    return [...DEFAULT_ICE_SERVERS, turnEntry];
+    return [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun.cloudflare.com:3478" },
+      turnEntry,
+      ...DEFAULT_ICE_SERVERS.filter(s => s.username === "openrelayproject")
+    ];
   }
   return DEFAULT_ICE_SERVERS;
 }
@@ -109,7 +128,7 @@ const requestHandler = (req, res) => {
       JSON.stringify({
         status: "ok",
         service: "synclink-signaling",
-        version: "1.0.19",
+        version: "1.0.1",
         roomsOnline: rooms.size,
         protocol: isHttps ? "https" : "http",
         timestamp: Date.now(),
@@ -173,7 +192,7 @@ server.listen(PORT, "0.0.0.0", () => {
   }
 
   console.log("\n=======================================================");
-  console.log(`  🚀 Yoonikon SyncLink Signaling Server v1.0.19 [${isHttps ? "WSS/HTTPS" : "WS/HTTP"}]`);
+  console.log(`  🚀 Yoonikon SyncLink Signaling Server v1.0.1 [${isHttps ? "WSS/HTTPS" : "WS/HTTP"}]`);
   console.log("=======================================================");
   console.log(`  📡 [Local Host]  ${protocol}://localhost:${PORT}`);
   if (ips.length > 0) {

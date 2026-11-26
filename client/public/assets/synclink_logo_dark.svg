@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6" />
+      <stop offset="50%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+    <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#2563eb" />
+    </linearGradient>
+    <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.4" />
+    </filter>
+  </defs>
+
+  <!-- Deep Slate Background -->
+  <rect width="500" height="500" rx="80" fill="#0f172a" />
+  <rect width="494" height="494" x="3" y="3" rx="77" fill="none" stroke="#1e293b" stroke-width="2" />
+
+  <!-- Subtle Enterprise Corner Accent Lines -->
+  <line x1="45" y1="45" x2="105" y2="45" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" opacity="0.7" />
+  <line x1="45" y1="45" x2="45" y2="105" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" opacity="0.7" />
+  <line x1="455" y1="455" x2="395" y2="455" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" opacity="0.7" />
+  <line x1="455" y1="455" x2="455" y2="395" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" opacity="0.7" />
+
+  <!-- Enterprise SyncLink Glyph: Dual Linked Screens / P2P Mesh -->
+  <g transform="translate(0, -10)" filter="url(#cardShadow)">
+    <!-- Primary Display Screen (Left / Host) -->
+    <rect x="130" y="145" width="160" height="110" rx="14" fill="#1e293b" stroke="#334155" stroke-width="3" />
+    <rect x="142" y="157" width="136" height="86" rx="8" fill="#090d16" />
+    <path d="M 210 255 L 210 280 M 185 280 L 235 280" stroke="#334155" stroke-width="4" stroke-linecap="round" />
+
+    <!-- Secondary Display Screen (Right / Client - Front) -->
+    <rect x="210" y="200" width="160" height="110" rx="14" fill="#1e293b" stroke="url(#cyanGrad)" stroke-width="3.5" />
+    <rect x="222" y="212" width="136" height="86" rx="8" fill="#0f172a" />
+    <path d="M 290 310 L 290 335 M 265 335 L 315 335" stroke="url(#cyanGrad)" stroke-width="4" stroke-linecap="round" />
+
+    <!-- Connection / Sync Pulse Stream (Dynamic Wave / Link) -->
+    <path d="M 180 200 C 210 160, 240 260, 270 230" fill="none" stroke="url(#cyanGrad)" stroke-width="4" stroke-linecap="round" />
+    <circle cx="180" cy="200" r="5" fill="#38bdf8" />
+    <circle cx="270" cy="230" r="5" fill="#60a5fa" />
+
+    <!-- Central Signal Badge -->
+    <circle cx="225" cy="210" r="18" fill="#2563eb" />
+    <path d="M 218 210 L 232 210 M 225 203 L 225 217" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
+  </g>
+
+  <!-- Typography: Dark Mode Professional Suite -->
+  <text x="250" y="415" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif" font-weight="800" font-size="44" letter-spacing="6" fill="#f8fafc">
+    SYNCLINK
+  </text>
+  <text x="250" y="446" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', monospace" font-weight="700" font-size="12" letter-spacing="5" fill="#38bdf8">
+    ENTERPRISE WORKSPACE
+  </text>
+</svg>

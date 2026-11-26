@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Yoonikon SyncLink - Linux Signaling Server One-Click Installer & Daemon Setup
+# SyncLink - Linux Signaling Server One-Click Installer & Daemon Setup
 # ==============================================================================
 set -e
 
@@ -11,7 +11,7 @@ RED="\033[0;31m"
 NC="\033[0m"
 
 echo -e "${BLUE}======================================================${NC}"
-echo -e "${GREEN}  🚀 Yoonikon SyncLink 시그널링 서버 원클릭 자동 설치기  ${NC}"
+echo -e "${GREEN}  🚀 SyncLink 시그널링 서버 원클릭 자동 설치기  ${NC}"
 echo -e "${BLUE}======================================================${NC}"
 
 # 1. Root 권한 확인
@@ -95,7 +95,7 @@ NODE_PATH=$(command -v node)
 
 cat <<EOF > /etc/systemd/system/${SERVICE_NAME}.service
 [Unit]
-Description=Yoonikon SyncLink WebRTC Signaling Server
+Description=SyncLink WebRTC Signaling Server
 After=network.target
 
 [Service]

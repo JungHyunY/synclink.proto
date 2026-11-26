@@ -35,7 +35,6 @@ import {
   MousePointer,
   Keyboard,
   AlertCircle,
-  ExternalLink,
   Sun,
   Moon,
   ChevronUp,
@@ -47,17 +46,17 @@ import {
   Sparkles,
   Globe,
   Code,
-  Heart,
   HelpCircle,
+  Sliders,
 } from "lucide-react";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import "./App.css";
 import { SessionTabBar } from "./components/SessionTabBar";
 import { RemoteViewport } from "./components/RemoteViewport";
-import { SupportModal, SupportLinksConfig } from "./components/SupportModal";
+import { NewSessionTab } from "./components/NewSessionTab";
 import { GuideModal } from "./components/GuideModal";
-import { TabItem, LayoutMode, ActivePane, RemoteSession } from "./types/session";
+import { TabItem, LayoutMode, ActivePane, RemoteSession, PendingNewSession } from "./types/session";
 import { startSecondarySession } from "./services/secondarySession";
 
 const DEFAULT_SERVER_URL = "http://183.111.166.141:5963";
@@ -66,44 +65,6 @@ const ICE_SERVERS = {
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
     { urls: "stun:stun.cloudflare.com:3478" },
-  ],
-};
-
-// ─── 서포트 & 파트너십 다채널 링크 (OmniRoute 스타일 다면화) ───
-const SUPPORT_LINKS: SupportLinksConfig = {
-  githubRepo: "https://github.com/JungHyunY/synclink.proto",
-  githubSponsors: "https://github.com/sponsors/JungHyunY",
-  buyMeACoffee: "https://buymeacoffee.com/tpp6347",
-  kofi: "https://ko-fi.com/tpp6347",
-  crypto: [
-    {
-      coin: "BTC",
-      name: "Bitcoin",
-      network: "Bitcoin",
-      address: "1GLmERxFPSVZ6f7Sb71i2gcnfsBVE1hgHH",
-      badgeColor: "#f7931a",
-    },
-    {
-      coin: "ETH",
-      name: "Ethereum",
-      network: "Ethereum (ERC-20)",
-      address: "0x587131ab08876de4abecf0af54d4ee4a9b2a45cb",
-      badgeColor: "#627eea",
-    },
-    {
-      coin: "USDT",
-      name: "Tether USD",
-      network: "Tron (TRC-20)",
-      address: "TWKthRWqNkaBeh8ota4Fv7ZSFRDDU2uM1Z",
-      badgeColor: "#26a17b",
-    },
-    {
-      coin: "SOL",
-      name: "Solana / USDC",
-      network: "Solana",
-      address: "9P9FucxWbRu7yjLzUf6o2b8WcpaR4QLEzYQv7ypHci7K",
-      badgeColor: "#14f195",
-    },
   ],
 };
 
@@ -245,12 +206,13 @@ function App() {
   const [focusedPane, setFocusedPane] = useState<ActivePane>("left");
   const [secondarySessions, setSecondarySessions] = useState<RemoteSession[]>([]);
   const secondaryControllersRef = useRef<Map<string, { sendControl: (p: any) => void; close: () => void }>>(new Map());
+  const [pendingTabs, setPendingTabs] = useState<PendingNewSession[]>([]);
+  const connectingFromTabRef = useRef<string | null>(null);
+  const [primaryFitMode, setPrimaryFitMode] = useState<"contain" | "fill" | "cover">("contain");
 
   // Custom Modal Dialog State (replaces native browser alerts/confirms)
   const [dialogConfig, setDialogConfig] = useState<CustomDialogConfig | null>(null);
-  const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   const [isGuideModalOpen, setIsGuideModalOpen] = useState(() => {
-    // 최초 실행 여부 판별 (로컬스토리지에 본 기록이 없으면 자동으로 띄움)
     return localStorage.getItem("synclink_tutorial_seen") !== "true";
   });
 
@@ -311,7 +273,7 @@ function App() {
   const [isServerConnected, setIsServerConnected] = useState(false);
   const [ping, setPing] = useState<number | null>(null);
 
-  // 🤖 Yoonikon AI Smart Clipboard Assistant State
+  // 🤖 SyncLink AI Smart Clipboard Assistant State
   const [geminiApiKey, setGeminiApiKey] = useState(() => localStorage.getItem("synclink_gemini_api_key") || "");
   const [isAiPanelOpen, setIsAiPanelOpen] = useState(false);
   const [aiInputText, setAiInputText] = useState("");
@@ -374,6 +336,17 @@ function App() {
   const [isPrivacyCover, setIsPrivacyCover] = useState(false);
   const [showShortcutsMenu, setShowShortcutsMenu] = useState(false);
   const [isAutoStartEnabled, setIsAutoStartEnabled] = useState(false);
+  const [remoteHostOS, setRemoteHostOS] = useState<string>("");
+  const [isManualMacMode, setIsManualMacMode] = useState<boolean>(() => {
+    return localStorage.getItem("synclink_mac_mode") === "true";
+  });
+  const isMacSession = isManualMacMode || remoteHostOS === "macos" || Boolean(
+    sessionDeviceName && /mac|apple|darwin/i.test(sessionDeviceName)
+  );
+
+  useEffect(() => {
+    localStorage.setItem("synclink_mac_mode", String(isManualMacMode));
+  }, [isManualMacMode]);
 
   // ─── 지능형 지수 백오프 자동 재연결 (Exponential Backoff Auto-Reconnect) State & Refs ───
   const reconnectAttemptsRef = useRef(0);
@@ -461,7 +434,7 @@ function App() {
       if (win && win.label) {
         setWindowLabel(win.label);
         if (win.label !== "main") {
-          win.setTitle("Yoonikon SyncLink (새 세션 창)").catch(() => {});
+          win.setTitle("SyncLink (새 세션 창)").catch(() => {});
           // 서브 창은 항상 원격 접속(Connect) 탭으로 고정
           setActiveTab("connect");
         }
@@ -471,15 +444,21 @@ function App() {
     }
   }, []);
 
-  // 새 세션 연결 요청 (새 탭 모드 / 대시보드로 이동하여 추가 연결 준비)
+  // 새 세션 연결 요청 (독립된 새 세션 탭 생성 및 활성화)
   const handleNewConnectionRequest = () => {
-    setActiveSessionTabId("dashboard");
-    setActiveTab("connect");
+    const newTabId = `new_session_${Date.now()}`;
+    const newPendingTab: PendingNewSession = {
+      id: newTabId,
+      title: "새 세션",
+      mode: "screen",
+    };
+    setPendingTabs((prev) => [...prev, newPendingTab]);
+    setActiveSessionTabId(newTabId);
     if (layoutMode === "split") {
       if (focusedPane === "right") {
-        setSplitRightTabId("dashboard");
+        setSplitRightTabId(newTabId);
       } else {
-        setSplitLeftTabId("dashboard");
+        setSplitLeftTabId(newTabId);
       }
     }
   };
@@ -837,7 +816,7 @@ function App() {
       // 2. Fallback to GitHub Releases API (ensures it works even if latest.json is not present)
       if (!foundUpdateInfo) {
         try {
-          const res = await fetch("https://api.github.com/repos/JungHyunY/synclink.proto/releases/latest");
+          const res = await fetch("https://api.github.com/repos/JungHyunY/synclink/releases/latest");
           if (res.ok) {
             const data = await res.json();
             const latestTag = (data.tag_name || "").trim();
@@ -964,7 +943,6 @@ function App() {
   const activeKeysRef = useRef<Set<string>>(new Set());
   const isConnectedRef = useRef(false);
   const isHostingActiveRef = useRef(false);
-  const dynamicIceServersRef = useRef<RTCConfiguration>(ICE_SERVERS);
 
   useEffect(() => {
     isConnectedRef.current = isConnected;
@@ -1236,9 +1214,24 @@ function App() {
           });
         } else if (payload.type === "keydown" || payload.type === "keyup") {
           const state = payload.type === "keydown" ? "down" : "up";
-          await invoke("remote_keyboard_event", { state, key: payload.key, code: payload.code || null });
+          await invoke("remote_keyboard_event", {
+            state,
+            key: payload.key,
+            code: payload.code || null,
+            clientOs: payload.clientOS || null,
+          });
         } else if (payload.type === "shortcut") {
           await invoke("remote_shortcut", { keys: payload.keys });
+        } else if (payload.type === "clipboard-sync") {
+          if (payload.text && payload.text !== lastClipboardTextRef.current) {
+            lastClipboardTextRef.current = payload.text;
+            try {
+              await invoke("set_clipboard_text", { text: payload.text });
+              console.log("📋 Clipboard synced successfully from remote");
+            } catch (err) {
+              console.error("Failed to set clipboard:", err);
+            }
+          }
         } else if (payload.type === "switch-monitor") {
           activeMonitorRef.current = payload.monitorIndex;
           setHostMonitorIndex(payload.monitorIndex);
@@ -1247,6 +1240,9 @@ function App() {
             fps: hostFps,
             quality: hostQuality,
           });
+        } else if (payload.type === "wheel") {
+          const deltaY = Math.round(payload.deltaY || 0);
+          await invoke("remote_mouse_wheel", { deltaY });
         } else if (payload.type === "toggle-blackscreen") {
           setIsPrivacyCover(payload.enabled);
           invoke("set_privacy_mode", { enabled: payload.enabled }).catch(() => {});
@@ -1272,9 +1268,21 @@ function App() {
     channel.onerror = (err) => {
       console.error("Control DataChannel error:", err);
     };
-    channel.onmessage = (event) => {
+    channel.onmessage = async (event) => {
       try {
         const payload = JSON.parse(event.data);
+        if (payload.type === "clipboard-sync") {
+          if (payload.text && payload.text !== lastClipboardTextRef.current) {
+            lastClipboardTextRef.current = payload.text;
+            try {
+              await invoke("set_clipboard_text", { text: payload.text });
+              console.log("📋 Clipboard synced via DataChannel successfully");
+            } catch (err) {
+              console.error("Failed to set clipboard via DataChannel:", err);
+            }
+          }
+          return;
+        }
         executeControlEvent(payload);
       } catch (err) {
         console.error("Control channel message parse error:", err);
@@ -1343,7 +1351,7 @@ function App() {
 
   // WebRTC Peer Connection Factory
   const createPeerConnection = (targetId: string) => {
-    const peer = new RTCPeerConnection(dynamicIceServersRef.current || ICE_SERVERS);
+    const peer = new RTCPeerConnection(ICE_SERVERS);
 
     // Setup DataChannels (Flow mode & Remote Control mode)
     const flowChannel = peer.createDataChannel("synclink-flow", { ordered: false, maxRetransmits: 0 });
@@ -1603,6 +1611,7 @@ function App() {
             roomId: myDeviceId,
             password: myPin,
             deviceName: myDeviceName,
+            platform: /macintosh|mac os x/i.test(navigator.userAgent) ? "macos" : "windows",
           });
           isHostRef.current = true;
           setStatus(autoHostStandbyRef.current ? "Standby" : "Ready");
@@ -1626,21 +1635,34 @@ function App() {
     });
 
     // 🔑 Guest Auth Response
-    socket.on("auth-response", async (res: { success: boolean; error?: string; roomId?: string; deviceName?: string; hostSocketId?: string; iceServers?: any[] }) => {
+    socket.on("auth-response", async (res: { success: boolean; error?: string; roomId?: string; deviceName?: string; hostSocketId?: string; platform?: string }) => {
       setIsConnecting(false);
       if (res.success && res.roomId) {
-        if (res.iceServers && res.iceServers.length > 0) {
-          dynamicIceServersRef.current = { iceServers: res.iceServers };
-        }
         setAuthError(null);
         setSessionRoomId(res.roomId);
         setSessionDeviceName(res.deviceName || "Remote PC");
+        if (res.platform) {
+          setRemoteHostOS(res.platform);
+        } else if (res.deviceName && /mac|apple|darwin/i.test(res.deviceName)) {
+          setRemoteHostOS("macos");
+        } else {
+          setRemoteHostOS("windows");
+        }
         setIsConnected(true);
         setIsHostMode(false);
         isHostRef.current = false;
         setStatus("Connecting WebRTC...");
         setActiveSessionTabId("session_primary");
         setSplitLeftTabId("session_primary");
+
+        if (connectingFromTabRef.current) {
+          const fromTab = connectingFromTabRef.current;
+          setPendingTabs((prev) => prev.filter((t) => t.id !== fromTab));
+          if (splitRightTabId === fromTab) {
+            setSplitRightTabId("session_primary");
+          }
+          connectingFromTabRef.current = null;
+        }
 
         // Expand window to resizable remote desktop view (only in screen mode)
         if (flowModeRef.current !== "flow") {
@@ -1660,6 +1682,7 @@ function App() {
       } else {
         setAuthError(res.error || "인증에 실패했어요.");
         setIsConnected(false);
+        connectingFromTabRef.current = null;
       }
     });
 
@@ -1844,6 +1867,7 @@ function App() {
         roomId: myDeviceId,
         password: myPin,
         deviceName: myDeviceName,
+        platform: /macintosh|mac os x/i.test(navigator.userAgent) ? "macos" : "windows",
       });
       isHostRef.current = true;
       setStatus("Standby");
@@ -1883,7 +1907,7 @@ function App() {
     };
   }, []);
 
-  // Periodic Clipboard Sync (Both Host and Guest)
+  // Periodic Clipboard Sync (Both Host and Guest via WebRTC DataChannel & Socket)
   useEffect(() => {
     if (!isConnected || !autoClipboardSync) return;
 
@@ -1896,11 +1920,17 @@ function App() {
             targetRoom: sessionRoomId || myDeviceId,
             text: currentText,
           });
+          if (controlChannelRef.current && controlChannelRef.current.readyState === "open") {
+            controlChannelRef.current.send(JSON.stringify({
+              type: "clipboard-sync",
+              text: currentText,
+            }));
+          }
         }
       } catch {
         // clipboard read errors ignored
       }
-    }, 1500);
+    }, 750);
 
     return () => clearInterval(interval);
   }, [isConnected, autoClipboardSync, sessionRoomId, myDeviceId]);
@@ -1946,6 +1976,7 @@ function App() {
       roomId: myDeviceId,
       password: myPin,
       deviceName: myDeviceName,
+      platform: /macintosh|mac os x/i.test(navigator.userAgent) ? "macos" : "windows",
     });
 
     if (captureCanvasRef.current) {
@@ -2027,6 +2058,12 @@ function App() {
       type: "dashboard",
       title: "메인 대시보드",
     },
+    ...pendingTabs.map((p) => ({
+      id: p.id,
+      type: "new_session" as const,
+      title: p.title,
+      subtitle: "원격 기기 연결 대기 중",
+    })),
     ...allActiveSessions.map((s) => ({
       id: s.id,
       type: "session" as const,
@@ -2087,40 +2124,47 @@ function App() {
     });
   };
 
-  const startSecondaryConnection = (targetRoomId: string, pin: string) => {
+  const startSecondaryConnection = (targetRoomId: string, pin: string, sourceTabId?: string) => {
     setIsConnecting(true);
     const cleanUrl = normalizeServerUrl(serverUrl);
+    const cleanTargetRoomId = targetRoomId.replace(/\s+/g, "");
+    const newSessionId = `session_${cleanTargetRoomId}_${Date.now()}`;
 
     const controller = startSecondarySession({
+      sessionId: newSessionId,
       serverUrl: cleanUrl,
-      targetRoomId,
+      targetRoomId: cleanTargetRoomId,
       targetPin: pin,
       mode: "screen",
       onStream: (stream) => {
         setSecondarySessions((prev) =>
-          prev.map((s) => (s.roomId === targetRoomId ? { ...s, remoteStream: stream, status: "Connected" } : s))
+          prev.map((s) => (s.id === newSessionId || s.roomId === cleanTargetRoomId ? { ...s, remoteStream: stream, status: "Connected" } : s))
         );
       },
       onStatusChange: (newStatus) => {
         setSecondarySessions((prev) =>
-          prev.map((s) => (s.roomId === targetRoomId ? { ...s, status: newStatus } : s))
+          prev.map((s) => (s.id === newSessionId || s.roomId === cleanTargetRoomId ? { ...s, status: newStatus } : s))
         );
       },
       onClose: () => {
-        handleCloseSessionTab(`session_${targetRoomId}`);
+        handleCloseSessionTab(newSessionId);
       },
       onPing: (latency) => {
         setSecondarySessions((prev) =>
-          prev.map((s) => (s.roomId === targetRoomId ? { ...s, ping: latency } : s))
+          prev.map((s) => (s.id === newSessionId || s.roomId === cleanTargetRoomId ? { ...s, ping: latency } : s))
         );
       },
     });
 
     const newSession = controller.getSession();
-    secondaryControllersRef.current.set(newSession.id, controller);
+    secondaryControllersRef.current.set(newSessionId, controller);
 
     setSecondarySessions((prev) => [...prev, newSession]);
     setIsConnecting(false);
+
+    if (sourceTabId) {
+      setPendingTabs((prev) => prev.filter((t) => t.id !== sourceTabId));
+    }
 
     addRecentDevice(targetRoomId, `PC ${targetRoomId}`, pin);
     if (saveToBookAfterConnect && !savedDevices.some((d) => d.id === targetRoomId)) {
@@ -2129,10 +2173,47 @@ function App() {
 
     // 💡 두 화면을 동시에 옆에 둘 수 있도록 자동으로 나란히 2분할(Split View) 활성화!
     setLayoutMode("split");
-    setSplitLeftTabId(primarySession ? primarySession.id : "dashboard");
-    setSplitRightTabId(newSession.id);
+    if (sourceTabId && splitLeftTabId === sourceTabId) {
+      setSplitLeftTabId(newSession.id);
+      setSplitRightTabId(primarySession ? primarySession.id : "dashboard");
+      setFocusedPane("left");
+    } else {
+      setSplitLeftTabId(primarySession ? primarySession.id : "dashboard");
+      setSplitRightTabId(newSession.id);
+      setFocusedPane("right");
+    }
     setActiveSessionTabId(newSession.id);
-    setFocusedPane("right");
+  };
+
+  // 새 세션 탭에서 원격 연결 시도
+  const handleConnectFromNewSessionTab = (
+    targetId: string,
+    pin: string,
+    mode: "screen" | "flow",
+    sourceTabId: string
+  ) => {
+    flowModeRef.current = mode;
+    const cleanId = targetId.replace(/\s+/g, "");
+
+    // 이미 접속된 동일 기기가 있는지 확인
+    const alreadyConnected = allActiveSessions.find((s) => s.roomId === cleanId);
+    if (alreadyConnected) {
+      setPendingTabs((prev) => prev.filter((t) => t.id !== sourceTabId));
+      setActiveSessionTabId(alreadyConnected.id);
+      showDialog({
+        type: "info",
+        title: "이미 연결된 기기",
+        message: `이미 연결되어 있는 세션(${alreadyConnected.deviceName}) 탭으로 이동합니다.`,
+      });
+      return;
+    }
+
+    if (isConnected) {
+      startSecondaryConnection(cleanId, pin, sourceTabId);
+    } else {
+      connectingFromTabRef.current = sourceTabId;
+      connectToDevice(cleanId, pin);
+    }
   };
 
   // 탭 선택
@@ -2147,9 +2228,26 @@ function App() {
     }
   };
 
-  // 탭 닫기 (세션 종료)
+  // 탭 닫기 (세션 종료 또는 새 세션 탭 닫기)
   const handleCloseSessionTab = (tabId: string) => {
     if (tabId === "dashboard") return;
+
+    if (tabId.startsWith("new_session_")) {
+      setPendingTabs((prev) => prev.filter((p) => p.id !== tabId));
+      if (activeSessionTabId === tabId) {
+        const fallbackId = primarySession?.id || (secondarySessions.length > 0 ? secondarySessions[0].id : "dashboard");
+        setActiveSessionTabId(fallbackId);
+      }
+      if (layoutMode === "split") {
+        if (splitRightTabId === tabId) {
+          setSplitRightTabId("");
+          setLayoutMode("single");
+        } else if (splitLeftTabId === tabId) {
+          setSplitLeftTabId("dashboard");
+        }
+      }
+      return;
+    }
 
     if (tabId === "session_primary") {
       endSession();
@@ -2424,32 +2522,58 @@ function App() {
     const rect = video.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
 
-    // 비디오 원본 비율과 엘리먼트 크기를 기반으로 실제 영상 표시 영역(Content Box) 오차 정밀 보정
+    // 비디오 원본 비율과 엘리먼트 크기 기반 오차 보정 (primaryFitMode 대응)
     const vWidth = video.videoWidth > 0 ? video.videoWidth : 1920;
     const vHeight = video.videoHeight > 0 ? video.videoHeight : 1080;
     const videoRatio = vWidth / vHeight;
     const elemRatio = rect.width / rect.height;
 
-    let renderWidth = rect.width;
-    let renderHeight = rect.height;
-    let offsetX = 0;
-    let offsetY = 0;
+    let x = 0;
+    let y = 0;
 
-    if (elemRatio > videoRatio) {
-      // 좌우에 검은 여백(Pillarbox)이 생긴 경우
-      renderWidth = rect.height * videoRatio;
-      offsetX = (rect.width - renderWidth) / 2;
+    if (primaryFitMode === "fill") {
+      // 꽉 채우기 (Stretch): 직사각형 전체 영역에 1:1 선형 매핑
+      x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    } else if (primaryFitMode === "cover") {
+      // 영역 채움 (Cover): 넘치는 축을 기준으로 잘려나간 오프셋 역보정
+      let renderWidth = rect.width;
+      let renderHeight = rect.height;
+      let offsetX = 0;
+      let offsetY = 0;
+
+      if (elemRatio > videoRatio) {
+        renderHeight = rect.width / videoRatio;
+        offsetY = (rect.height - renderHeight) / 2;
+      } else {
+        renderWidth = rect.height * videoRatio;
+        offsetX = (rect.width - renderWidth) / 2;
+      }
+
+      const clickX = e.clientX - rect.left - offsetX;
+      const clickY = e.clientY - rect.top - offsetY;
+      x = Math.max(0, Math.min(1, clickX / renderWidth));
+      y = Math.max(0, Math.min(1, clickY / renderHeight));
     } else {
-      // 상하에 검은 여백(Letterbox)이 생긴 경우
-      renderHeight = rect.width / videoRatio;
-      offsetY = (rect.height - renderHeight) / 2;
+      // 비율 맞춤 (Contain): 레터박스 여백 제외 정밀 오프셋 보정
+      let renderWidth = rect.width;
+      let renderHeight = rect.height;
+      let offsetX = 0;
+      let offsetY = 0;
+
+      if (elemRatio > videoRatio) {
+        renderWidth = rect.height * videoRatio;
+        offsetX = (rect.width - renderWidth) / 2;
+      } else {
+        renderHeight = rect.width / videoRatio;
+        offsetY = (rect.height - renderHeight) / 2;
+      }
+
+      const clickX = e.clientX - rect.left - offsetX;
+      const clickY = e.clientY - rect.top - offsetY;
+      x = Math.max(0, Math.min(1, clickX / renderWidth));
+      y = Math.max(0, Math.min(1, clickY / renderHeight));
     }
-
-    const clickX = e.clientX - rect.left - offsetX;
-    const clickY = e.clientY - rect.top - offsetY;
-
-    const x = Math.max(0, Math.min(1, clickX / renderWidth));
-    const y = Math.max(0, Math.min(1, clickY / renderHeight));
 
     const buttonName = e.button === 2 ? "right" : e.button === 1 ? "middle" : "left";
 
@@ -2492,6 +2616,18 @@ function App() {
     }
   };
 
+  // 마우스 휠 이벤트 핸들러 (Primary Session 게스트 -> 원격 호스트)
+  const handleWheel = (e: React.WheelEvent) => {
+    if (isHostRef.current) return;
+    e.preventDefault();
+    sendControlEvent({
+      type: "wheel",
+      deltaX: e.deltaX,
+      deltaY: e.deltaY,
+      monitorIndex: sessionMonitor,
+    });
+  };
+
   // Remote Key Event Dispatcher (Routes to currently focused session in split view or active tab)
   const sendRemoteKeyEvent = (type: "keydown" | "keyup", key: string, code?: string) => {
     if (isHostRef.current) return;
@@ -2500,6 +2636,7 @@ function App() {
       type,
       key: keyToSend,
       code: code || undefined,
+      clientOS: /macintosh|mac os x/i.test(navigator.userAgent) ? "macos" : "windows",
     };
 
     const targetSessionId = layoutMode === "split"
@@ -2518,7 +2655,7 @@ function App() {
     }
   };
 
-  // Remote Preset Shortcut Dispatcher (e.g., Ctrl+Alt+Del, Win, Alt+Tab)
+  // Remote Preset Shortcut Dispatcher (e.g., Ctrl+Alt+Del, Win, Alt+Tab, Cmd+C, Cmd+V)
   const sendRemoteShortcut = (keys: string[]) => {
     if (isHostRef.current) return;
     const payload = { type: "shortcut", keys };
@@ -2543,26 +2680,55 @@ function App() {
     const hasAnyActiveSession = isConnected || secondarySessions.length > 0;
     if (!hasAnyActiveSession || isHostMode) return;
 
-    const onGlobalKeyDown = (e: KeyboardEvent) => {
+    const onGlobalKeyDown = async (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
         return;
       }
 
-      const isModifierCombo = e.ctrlKey || e.altKey || e.metaKey;
-      const isBrowserSpecial = [
-        "Tab", "Escape", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
-        "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Backspace", "Delete", " ", "Home", "End", "PageUp", "PageDown"
-      ].includes(e.key);
-
-      const isHangulKey = e.key === "HangulMode" || e.code === "Lang2" || (e.key === "Alt" && e.code === "AltRight");
-      if (isModifierCombo || isBrowserSpecial || isHangulKey) {
-        e.preventDefault();
-      }
+      // 원격 제어 세션 중에는 단축키 충돌 및 브라우저 자체 키 가로채기(예: D, 단축키 등)를 완전 차단
+      e.preventDefault();
       e.stopPropagation();
 
-      activeKeysRef.current.add(e.code || e.key);
-      sendRemoteKeyEvent("keydown", isHangulKey ? "HangulMode" : e.key, isHangulKey ? "Lang2" : e.code);
+      const isHangulKey = e.key === "HangulMode" || e.code === "Lang2" || (e.key === "Alt" && e.code === "AltRight");
+
+      // 📋 즉시 클립보드 선제 동기화 (Ctrl+V 시점에 로컬 Windows 클립보드를 원격 기기로 즉각 전송)
+      if ((e.ctrlKey || e.metaKey) && (e.key === "v" || e.key === "V" || e.code === "KeyV")) {
+        invoke<string>("get_clipboard_text")
+          .then((currentText) => {
+            if (currentText) {
+              lastClipboardTextRef.current = currentText;
+              sendControlEvent({ type: "clipboard-sync", text: currentText });
+              socketRef.current?.emit("clipboard-sync", {
+                targetRoom: sessionRoomId || myDeviceId,
+                text: currentText,
+              });
+            }
+          })
+          .catch(() => {});
+      }
+
+      let keyToSend = e.key;
+      let codeToSend = e.code;
+
+      // 🍎 Mac 호스트 대상 키 변환 (Windows Ctrl -> Mac Command ⌘)
+      if (isMacSession && !/macintosh|mac os x/i.test(navigator.userAgent)) {
+        if (e.key === "Control" || e.code === "ControlLeft" || e.code === "ControlRight") {
+          keyToSend = "Command";
+          codeToSend = "MetaLeft";
+        } else if (e.key === "Meta" || e.code === "MetaLeft" || e.code === "MetaRight") {
+          keyToSend = "Control";
+          codeToSend = "ControlLeft";
+        }
+      }
+
+      if (isHangulKey) {
+        keyToSend = "HangulMode";
+        codeToSend = "Lang2";
+      }
+
+      activeKeysRef.current.add(codeToSend || keyToSend);
+      sendRemoteKeyEvent("keydown", keyToSend, codeToSend);
     };
 
     const onGlobalKeyUp = (e: KeyboardEvent) => {
@@ -2571,20 +2737,32 @@ function App() {
         return;
       }
 
-      const isModifierCombo = e.ctrlKey || e.altKey || e.metaKey;
-      const isBrowserSpecial = [
-        "Tab", "Escape", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
-        "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Backspace", "Delete", " ", "Home", "End", "PageUp", "PageDown"
-      ].includes(e.key);
-
-      const isHangulKey = e.key === "HangulMode" || e.code === "Lang2" || (e.key === "Alt" && e.code === "AltRight");
-      if (isModifierCombo || isBrowserSpecial || isHangulKey) {
-        e.preventDefault();
-      }
+      e.preventDefault();
       e.stopPropagation();
 
-      activeKeysRef.current.delete(e.code || e.key);
-      sendRemoteKeyEvent("keyup", isHangulKey ? "HangulMode" : e.key, isHangulKey ? "Lang2" : e.code);
+      const isHangulKey = e.key === "HangulMode" || e.code === "Lang2" || (e.key === "Alt" && e.code === "AltRight");
+
+      let keyToSend = e.key;
+      let codeToSend = e.code;
+
+      // 🍎 Mac 호스트 대상 키 변환 (Windows Ctrl -> Mac Command ⌘)
+      if (isMacSession && !/macintosh|mac os x/i.test(navigator.userAgent)) {
+        if (e.key === "Control" || e.code === "ControlLeft" || e.code === "ControlRight") {
+          keyToSend = "Command";
+          codeToSend = "MetaLeft";
+        } else if (e.key === "Meta" || e.code === "MetaLeft" || e.code === "MetaRight") {
+          keyToSend = "Control";
+          codeToSend = "ControlLeft";
+        }
+      }
+
+      if (isHangulKey) {
+        keyToSend = "HangulMode";
+        codeToSend = "Lang2";
+      }
+
+      activeKeysRef.current.delete(codeToSend || keyToSend);
+      sendRemoteKeyEvent("keyup", keyToSend, codeToSend);
     };
 
     const onWindowBlur = () => {
@@ -2618,7 +2796,7 @@ function App() {
       window.removeEventListener("mouseup", onGlobalMouseUp);
       window.removeEventListener("blur", onWindowBlur);
     };
-  }, [isConnected, isHostMode, sessionRoomId, sessionMonitor]);
+  }, [isConnected, isHostMode, sessionRoomId, sessionMonitor, isMacSession]);
 
   // Change Remote Quality Preset
   const applyQualityPreset = (quality: number, fps: number) => {
@@ -2630,6 +2808,27 @@ function App() {
       quality,
     });
   };
+
+  // ⚡ 2중 분할 화면 전환 시 호스트 스트림 해상도 및 FPS 자동 적응 (Adaptive Split Resolution)
+  useEffect(() => {
+    if (layoutMode === "split") {
+      // 2분할 모드 진입 시: 화면 폭 축소에 맞춰 대역폭 및 듀얼 디코딩 부하를 줄이기 위해 720p/30fps(quality 65)로 자동 적응
+      if (isConnected && !isHostMode) {
+        applyQualityPreset(65, 30);
+      }
+      secondaryControllersRef.current.forEach((ctrl) => {
+        ctrl.sendControl({ type: "change-quality", quality: 65, fps: 30 });
+      });
+    } else {
+      // 단일 화면 모드 복귀 시: 원본 1080p Ultra 60fps(quality 95)로 자동 복원
+      if (isConnected && !isHostMode) {
+        applyQualityPreset(95, 60);
+      }
+      secondaryControllersRef.current.forEach((ctrl) => {
+        ctrl.sendControl({ type: "change-quality", quality: 95, fps: 60 });
+      });
+    }
+  }, [layoutMode, isConnected, isHostMode]);
 
   // Switch Remote Monitor
   const switchRemoteMonitor = (newIndex: number) => {
@@ -2732,21 +2931,21 @@ function App() {
           <div className="sidebar">
             <div className="brand-section">
               <img
-                src={theme === "light" ? "/assets/yoonikon_tactical_logo_light.svg" : "/assets/yoonikon_tactical_logo_dark.svg"}
-                alt="Yoonikon SyncLink Logo"
+                src={theme === "light" ? "/assets/synclink_logo_light.svg" : "/assets/synclink_logo_dark.svg"}
+                alt="SyncLink Logo"
                 style={{
                   width: "40px",
                   height: "40px",
                   borderRadius: "10px",
-                  boxShadow: "0 0 15px rgba(0, 91, 75, 0.35)",
-                  border: "1px solid rgba(0, 91, 75, 0.4)",
+                  boxShadow: "0 0 15px rgba(37, 99, 235, 0.35)",
+                  border: "1px solid rgba(37, 99, 235, 0.4)",
                   objectFit: "cover",
                 }}
               />
               <div>
-                <h2 className="brand-title">Yoonikon SyncLink</h2>
-                <span className="brand-badge" style={{ background: "rgba(0, 91, 75, 0.15)", color: "#3da591", border: "1px solid rgba(0, 91, 75, 0.4)" }}>
-                  TACTICAL SUITE
+                <h2 className="brand-title">SyncLink</h2>
+                <span className="brand-badge" style={{ background: "rgba(37, 99, 235, 0.15)", color: "var(--primary)", border: "1px solid rgba(37, 99, 235, 0.4)" }}>
+                  ENTERPRISE
                 </span>
               </div>
             </div>
@@ -2775,9 +2974,9 @@ function App() {
                   type="button"
                   className="nav-item"
                   style={{
-                    background: "rgba(0, 91, 75, 0.15)",
-                    border: "1px dashed rgba(0, 91, 75, 0.4)",
-                    color: "var(--accent-glow)",
+                    background: "rgba(37, 99, 235, 0.12)",
+                    border: "1px dashed rgba(37, 99, 235, 0.4)",
+                    color: "var(--primary)",
                     justifyContent: "flex-start",
                   }}
                   onClick={handleNewConnectionRequest}
@@ -2791,16 +2990,16 @@ function App() {
                   type="button"
                   className="nav-item"
                   style={{
-                    background: "rgba(0, 91, 75, 0.12)",
-                    border: "1px solid rgba(0, 91, 75, 0.35)",
-                    color: "#ffedcb",
+                    background: "rgba(168, 85, 247, 0.12)",
+                    border: "1px solid rgba(168, 85, 247, 0.35)",
+                    color: "#d8b4fe",
                     justifyContent: "flex-start",
                     marginTop: "6px",
                   }}
                   onClick={() => openAiAssistant()}
                   title="AI 스마트 클립보드 도우미 열기 (단축키: Ctrl+Space)"
                 >
-                  <Sparkles size={18} color="#e5b144" />
+                  <Sparkles size={18} color="#c084fc" />
                   <span style={{ fontWeight: 600 }}>AI 클립보드 (Ctrl+Space)</span>
                 </button>
 
@@ -2824,63 +3023,9 @@ function App() {
             </div>
 
             <div className="sidebar-footer">
-              {/* 다채널 오픈소스 후원 & 기여 배너 (OmniRoute 스타일) */}
-              <div
-                onClick={() => setIsSupportModalOpen(true)}
-                title="SyncLink 후원 및 개발 지원 (GitHub Star, 커피, Crypto 등)"
-                style={{
-                  background: "rgba(0, 91, 75, 0.12)",
-                  border: "1px solid rgba(0, 91, 75, 0.35)",
-                  borderRadius: "10px",
-                  padding: "9px 12px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  cursor: "pointer",
-                  marginBottom: "8px",
-                  transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "rgba(0, 91, 75, 0.22)";
-                  e.currentTarget.style.borderColor = "var(--accent-glow, #a3e635)";
-                  e.currentTarget.style.transform = "translateY(-1px)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "rgba(0, 91, 75, 0.12)";
-                  e.currentTarget.style.borderColor = "rgba(0, 91, 75, 0.35)";
-                  e.currentTarget.style.transform = "translateY(0)";
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <div
-                    style={{
-                      width: "26px",
-                      height: "26px",
-                      borderRadius: "6px",
-                      background: "var(--accent-glow, #a3e635)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "#000",
-                      fontSize: "13px",
-                      flexShrink: 0,
-                    }}
-                  >
-                    💚
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column" }}>
-                    <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "#fff" }}>개발자 후원 & 기여</span>
-                    <span style={{ fontSize: "0.68rem", color: "var(--text-muted)", marginTop: "1px" }}>
-                      Star · 커피 · Crypto 💛
-                    </span>
-                  </div>
-                </div>
-                <ExternalLink size={13} color="var(--accent-glow, #a3e635)" />
-              </div>
-
               <div className="server-status">
                 <div className={`status-dot-sm ${isServerConnected ? "online" : "offline"}`} />
-                <span>{isServerConnected ? "시그널링 서버에 연결되었어요" : "서버가 오프라인이에요"}</span>
+                <span>{isServerConnected ? "시그널링 서버 연결됨" : "시그널링 서버 오프라인"}</span>
               </div>
 
               <button
@@ -2956,14 +3101,14 @@ function App() {
                         padding: "8px 14px",
                         fontSize: "0.85rem",
                         gap: "6px",
-                        background: "rgba(0, 91, 75, 0.15)",
-                        borderColor: "rgba(0, 91, 75, 0.4)",
-                        color: "#ffedcb",
+                        background: "rgba(168, 85, 247, 0.15)",
+                        borderColor: "rgba(168, 85, 247, 0.4)",
+                        color: "#d8b4fe",
                       }}
                       onClick={() => openAiAssistant()}
                       title="클립보드 텍스트 에러 분석, 코드 변환, 번역 도우미 (단축키: Ctrl+Space)"
                     >
-                      <Sparkles size={15} color="#e5b144" />
+                      <Sparkles size={15} color="#c084fc" />
                       <span style={{ fontWeight: 600 }}>AI 클립보드</span>
                     </button>
                     <button
@@ -2979,12 +3124,68 @@ function App() {
                   </div>
                 </div>
 
+                {/* 🦄 공식 마스코트 싱키(Synci) 웰컴 배너 */}
+                <div
+                  className="synci-welcome-banner"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "16px",
+                    background: "linear-gradient(135deg, rgba(37, 99, 235, 0.16) 0%, rgba(168, 85, 247, 0.14) 100%)",
+                    border: "1px solid rgba(56, 189, 248, 0.28)",
+                    borderRadius: "14px",
+                    padding: "12px 18px",
+                    marginBottom: "20px",
+                    position: "relative",
+                    overflow: "hidden",
+                    backdropFilter: "blur(12px)",
+                    boxShadow: "0 8px 24px rgba(0, 0, 0, 0.25)",
+                  }}
+                >
+                  <img
+                    src="/synclink_unicorn.png"
+                    alt="Synci the Unicorn Mascot"
+                    style={{
+                      width: "60px",
+                      height: "60px",
+                      borderRadius: "14px",
+                      objectFit: "cover",
+                      boxShadow: "0 0 16px rgba(56, 189, 248, 0.45)",
+                      border: "1.5px solid rgba(56, 189, 248, 0.6)",
+                      flexShrink: 0,
+                    }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px", flexWrap: "wrap" }}>
+                      <span style={{ fontSize: "0.95rem", fontWeight: 700, color: "#f8fafc" }}>
+                        반가워요! 공식 마스코트 싱키(Synci)예요 ✨
+                      </span>
+                      <span
+                        style={{
+                          fontSize: "0.68rem",
+                          fontWeight: 700,
+                          padding: "2px 7px",
+                          borderRadius: "4px",
+                          background: "rgba(56, 189, 248, 0.2)",
+                          color: "#38bdf8",
+                          border: "1px solid rgba(56, 189, 248, 0.45)",
+                        }}
+                      >
+                        ⚡ Ultra-Fast 60FPS &amp; AI
+                      </span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: "0.82rem", color: "#cbd5e1", lineHeight: 1.45 }}>
+                      단일 원격 제어뿐만 아니라 <strong>2중 분할 화면(Ctrl+\)</strong>, <strong>KVM Flow</strong>, <strong>AI 클립보드 도우미(Ctrl+Space)</strong>까지 싱키와 함께 스마트하게 활용해보세요!
+                    </p>
+                  </div>
+                </div>
+
                 <div className="card-grid">
                   {/* 접속 입력 카드 */}
                   <div className="glass-card">
                     <div className="card-title-row">
                       <h3 className="card-title">
-                        <Monitor size={20} color="#3da591" />
+                        <Monitor size={20} color="var(--primary)" />
                         새 세션 연결하기
                       </h3>
                     </div>
@@ -3343,7 +3544,7 @@ function App() {
                           type="button"
                           style={{
                             fontSize: "0.72rem",
-                            color: "#3da591",
+                            color: "var(--primary)",
                             background: "none",
                             border: "none",
                             cursor: "pointer",
@@ -3361,7 +3562,7 @@ function App() {
                               }
                             } catch {}
                           }}
-                          title="OS의 실제 기기 이름으로 다시 가져와요"
+                          title="OS의 실제 기기 이름으로 다시 가져옵니다"
                         >
                           <RefreshCw size={11} />
                           <span>OS 기기 이름 불러오기</span>
@@ -3392,8 +3593,8 @@ function App() {
                     </div>
 
                     <div style={{ padding: "12px 14px", background: "rgba(255, 255, 255, 0.03)", borderRadius: "10px", border: "1px solid var(--card-border)", fontSize: "0.85rem", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "10px" }}>
-                      <Monitor size={18} color="#3da591" />
-                      <span>원격 접속 시 주 모니터가 자동으로 공유되고, 게스트가 세션 중에 모니터를 자유롭게 바꿀 수 있어요.</span>
+                      <Monitor size={18} color="var(--primary)" />
+                      <span>원격 접속 시 주 모니터가 자동으로 공유되며, 세션 중 모니터를 자유롭게 전환할 수 있습니다.</span>
                     </div>
 
                     {!isHostingActive ? (
@@ -3544,7 +3745,7 @@ function App() {
                                   }}
                                   title="기기 이름 변경하기"
                                 >
-                                  <Edit2 size={13} color="#3da591" />
+                                  <Edit2 size={13} color="var(--primary)" />
                                 </button>
                               </div>
                             )}
@@ -3766,8 +3967,8 @@ function App() {
                   {/* ✨ AI 스마트 클립보드 설정 (Google Gemini) */}
                   <div className="input-field-group" style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid var(--card-border)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                      <label className="input-label" style={{ display: "flex", alignItems: "center", gap: "6px", color: "#ffedcb", fontWeight: 700, margin: 0 }}>
-                        <Sparkles size={16} color="#e5b144" />
+                      <label className="input-label" style={{ display: "flex", alignItems: "center", gap: "6px", color: "#d8b4fe", fontWeight: 700, margin: 0 }}>
+                        <Sparkles size={16} color="#c084fc" />
                         AI 스마트 클립보드 (Google Gemini)
                       </label>
                       <span
@@ -3803,9 +4004,9 @@ function App() {
                         style={{
                           padding: "8px 16px",
                           fontSize: "0.85rem",
-                          background: "linear-gradient(135deg, rgba(0, 91, 75, 0.4) 0%, rgba(61, 165, 145, 0.25) 100%)",
-                          borderColor: "rgba(0, 91, 75, 0.6)",
-                          color: "#ffedcb",
+                          background: "linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(192, 132, 252, 0.3) 100%)",
+                          borderColor: "rgba(168, 85, 247, 0.6)",
+                          color: "#d8b4fe",
                         }}
                         onClick={() => {
                           const input = document.getElementById("geminiApiKeyInput") as HTMLInputElement;
@@ -3939,7 +4140,7 @@ function App() {
                         버전 및 업데이트
                       </h3>
                       <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
-                        Yoonikon SyncLink <b>v{CURRENT_VERSION}</b> (Native Desktop)
+                        SyncLink <b>v{CURRENT_VERSION}</b> (Enterprise Desktop)
                       </div>
                     </div>
                     <button
@@ -3962,7 +4163,7 @@ function App() {
                       </div>
                       <button
                         className="btn-main"
-                        style={{ padding: "6px 14px", fontSize: "0.8rem", background: "linear-gradient(135deg, #005b4b 0%, #3da591 100%)", color: "white", border: "none" }}
+                        style={{ padding: "6px 14px", fontSize: "0.8rem", background: "var(--primary-gradient)", color: "white", border: "none" }}
                         onClick={handleInstallUpdate}
                         disabled={isInstallingUpdate}
                       >
@@ -3979,99 +4180,19 @@ function App() {
                     나만의 시그널링 서버 셀프 호스팅 (Self-Hosted)
                   </h3>
                   <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: 1.5, margin: "0 0 12px 0" }}>
-                    개인 VPS 또는 홈 서버에 직접 시그널링 서버를 띄워 독립적인 사설 원격망을 운영할 수 있어요.
+                    개인 VPS 또는 사내 서버에 직접 시그널링 서버를 띄워 독립적인 사설 원격망을 운영할 수 있습니다.
                     리눅스 터미널에서 아래 명령어를 실행하면 <b>자동 설치 및 백그라운드 구동</b>이 완료됩니다.
                   </p>
-                  <div style={{ background: "rgba(0,0,0,0.4)", padding: "10px 14px", borderRadius: "8px", fontFamily: "monospace", fontSize: "0.75rem", color: "#3da591", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
-                    <span style={{ wordBreak: "break-all" }}>curl -fsSL https://raw.githubusercontent.com/JungHyunY/synclink.proto/main/signaling-server/install.sh | sudo bash</span>
+                  <div style={{ background: "rgba(0,0,0,0.4)", padding: "10px 14px", borderRadius: "8px", fontFamily: "monospace", fontSize: "0.75rem", color: "#38bdf8", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
+                    <span style={{ wordBreak: "break-all" }}>curl -fsSL https://raw.githubusercontent.com/JungHyunY/synclink/master/signaling-server/install.sh | sudo bash</span>
                     <button
                       className="btn-icon-only"
-                      onClick={() => copyToClipboard("curl -fsSL https://raw.githubusercontent.com/JungHyunY/synclink.proto/main/signaling-server/install.sh | sudo bash")}
+                      onClick={() => copyToClipboard("curl -fsSL https://raw.githubusercontent.com/JungHyunY/synclink/master/signaling-server/install.sh | sudo bash")}
                       title="리눅스 원클릭 자동 설치 명령어 복사"
                     >
                       {copiedNotification ? <Check size={14} color="#34d399" /> : <Copy size={14} />}
                     </button>
                   </div>
-                </div>
-
-                {/* 다채널 오픈소스 후원 & 기여 배너 (OmniRoute 스타일) */}
-                <div
-                  className="glass-card"
-                  style={{
-                    maxWidth: "600px",
-                    marginTop: "16px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "16px",
-                    background: "rgba(0, 91, 75, 0.08)",
-                    border: "1px solid rgba(0, 91, 75, 0.3)",
-                    cursor: "pointer",
-                    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                  }}
-                  onClick={() => setIsSupportModalOpen(true)}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "rgba(0, 91, 75, 0.16)";
-                    e.currentTarget.style.borderColor = "var(--accent-glow, #a3e635)";
-                    e.currentTarget.style.transform = "translateY(-1px)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "rgba(0, 91, 75, 0.08)";
-                    e.currentTarget.style.borderColor = "rgba(0, 91, 75, 0.3)";
-                    e.currentTarget.style.transform = "translateY(0)";
-                  }}
-                  title="SyncLink 다채널 후원 옵션 열기 (Star, 커피, Ko-fi, Sponsors, Crypto)"
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                    <div
-                      style={{
-                        width: "36px",
-                        height: "36px",
-                        borderRadius: "10px",
-                        background: "var(--accent-glow, #a3e635)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: "#000",
-                        flexShrink: 0,
-                        boxShadow: "0 2px 8px rgba(163, 230, 53, 0.35)",
-                      }}
-                    >
-                      <Heart size={20} fill="#000" />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#fff" }}>
-                        오픈소스 개발 후원 및 지원 (다채널 옵션)
-                      </div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "2px" }}>
-                        GitHub Star · Buy Me a Coffee · Ko-fi · Sponsors · Crypto 다중 체인
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    className="btn-main"
-                    style={{
-                      padding: "7px 14px",
-                      fontSize: "0.8rem",
-                      background: "var(--accent-glow, #a3e635)",
-                      color: "#000",
-                      fontWeight: 700,
-                      border: "none",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      flexShrink: 0,
-                      borderRadius: "8px",
-                      cursor: "pointer",
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsSupportModalOpen(true);
-                    }}
-                  >
-                    <span>후원 옵션 보기</span>
-                    <ExternalLink size={13} color="#000" />
-                  </button>
                 </div>
               </div>
             )}
@@ -4079,9 +4200,146 @@ function App() {
         </div>
       );
 
-      const primarySessionView = (
+      const renderPrimarySessionView = (paneLabel?: ActivePane) => {
+        const isSplitPane = layoutMode === "split";
+        return (
           /* ─────────────────── IN-SESSION SCREEN (ACTIVE) ─────────────────── */
-          <div className="session-screen" ref={videoContainerRef}>
+          <div
+            className={`session-screen ${isSplitPane ? "split-mode" : ""}`}
+            ref={videoContainerRef}
+            style={isSplitPane ? { display: "flex", flexDirection: "column", height: "100%", width: "100%", overflow: "hidden" } : undefined}
+          >
+          {/* 2분할 뷰 상단 상태 & 제어 바 */}
+          {isSplitPane && (
+            <div className="split-pane-header">
+              <div className="pane-header-left">
+                <span className={`pane-badge ${focusedPane === paneLabel ? "active" : ""}`}>
+                  {paneLabel === "left" ? "L 좌측" : "R 우측"}
+                </span>
+                <span className="pane-device-name" title={sessionRoomId}>
+                  {sessionDeviceName || `PC ${formatDeviceId(sessionRoomId)}`}
+                </span>
+                {ping !== null && (
+                  <span
+                    className="pane-ping-badge"
+                    style={{ color: ping < 50 ? "#34d399" : "#f59e0b" }}
+                  >
+                    {ping}ms
+                  </span>
+                )}
+                <span className="pane-focus-indicator">
+                  {focusedPane === paneLabel ? "🟢 제어 활성" : "클릭하여 제어"}
+                </span>
+              </div>
+
+              <div className="pane-header-right">
+                {/* 🖥️ 화면 맞춤/해상도 스케일 모드 토글 (Fit / Stretch / Cover) */}
+                <button
+                  type="button"
+                  className="pane-header-btn"
+                  onClick={() => {
+                    setPrimaryFitMode((prev) => {
+                      if (prev === "contain") return "fill";
+                      if (prev === "fill") return "cover";
+                      return "contain";
+                    });
+                  }}
+                  title={`분할 화면 맞춤: ${
+                    primaryFitMode === "contain"
+                      ? "비율 맞춤 (전체 표시)"
+                      : primaryFitMode === "fill"
+                      ? "화면 채우기 (여백 없이 꽉 채움)"
+                      : "영역 확대 (비율 유지 중앙 확대)"
+                  } (클릭하여 전환)`}
+                  style={{
+                    fontSize: "0.72rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "3px",
+                    color: primaryFitMode !== "contain" ? "#38bdf8" : "inherit",
+                    borderColor: primaryFitMode !== "contain" ? "rgba(56, 189, 248, 0.4)" : undefined,
+                    background: primaryFitMode !== "contain" ? "rgba(56, 189, 248, 0.12)" : undefined,
+                  }}
+                >
+                  <Sliders size={12} />
+                  <span>
+                    {primaryFitMode === "contain" ? "비율" : primaryFitMode === "fill" ? "채움" : "확대"}
+                  </span>
+                </button>
+
+                {/* ⚡ 분할 해상도/화질 토글 (720p 30fps 분할최적 vs 1080p 60fps 고화질) */}
+                <button
+                  type="button"
+                  className="pane-header-btn"
+                  onClick={() => {
+                    const isUltra = sessionQuality === 95;
+                    applyQualityPreset(isUltra ? 65 : 95, isUltra ? 30 : 60);
+                  }}
+                  title={
+                    sessionQuality === 95
+                      ? "현재: 1080p Ultra 60fps (클릭하여 720p 분할최적화로 전환)"
+                      : "현재: 720p 분할최적화 30fps (클릭하여 1080p Ultra로 전환)"
+                  }
+                  style={{
+                    fontSize: "0.72rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "3px",
+                    color: sessionQuality === 95 ? "#a855f7" : "#34d399",
+                  }}
+                >
+                  <Zap size={12} />
+                  <span>{sessionQuality === 95 ? "1080p" : "720p"}</span>
+                </button>
+
+                {/* 한/영 전환 */}
+                <button
+                  type="button"
+                  className="pane-header-btn"
+                  onClick={() => {
+                    sendRemoteKeyEvent("keydown", "HangulMode", "Lang2");
+                    setTimeout(() => {
+                      sendRemoteKeyEvent("keyup", "HangulMode", "Lang2");
+                    }, 50);
+                  }}
+                  title="한/영 전환"
+                >
+                  <span style={{ fontWeight: 700, fontSize: "0.75rem", color: "#38bdf8" }}>한/A</span>
+                </button>
+
+                {/* 모니터 전환 */}
+                <button
+                  type="button"
+                  className="pane-header-btn"
+                  onClick={() => switchRemoteMonitor(sessionMonitor === 0 ? 1 : 0)}
+                  title="모니터 전환"
+                >
+                  <Monitor size={13} />
+                </button>
+
+                {/* 전체화면 */}
+                <button
+                  type="button"
+                  className="pane-header-btn"
+                  onClick={toggleFullscreen}
+                  title="전체화면"
+                >
+                  <Maximize2 size={13} />
+                </button>
+
+                {/* 세션 종료 */}
+                <button
+                  type="button"
+                  className="pane-header-btn danger"
+                  onClick={endSession}
+                  title="세션 종료"
+                >
+                  <Power size={13} />
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* 지능형 재연결 안내 배너 */}
           {reconnectNotice && (
             <div
@@ -4124,8 +4382,9 @@ function App() {
             </div>
           )}
 
-          {/* 상단 플로팅 글래스모피즘 툴바 (최소화 및 위치 변경 지원) */}
-          {isToolbarMinimized ? (
+          {/* 상단 플로팅 글래스모피즘 툴바 (단일 화면 모드일 때만 표시) */}
+          {!isSplitPane && (
+            isToolbarMinimized ? (
             <div
               className={`in-session-toolbar minimized pos-${toolbarPosition}`}
               onClick={() => setIsToolbarMinimized(false)}
@@ -4159,7 +4418,7 @@ function App() {
               )}
 
               {flowMode === "flow" && (
-                <div className="toolbar-badge" style={{ background: "rgba(0, 91, 75, 0.2)", color: "#3da591", border: "1px solid rgba(0, 91, 75, 0.4)" }}>
+                <div className="toolbar-badge" style={{ background: "rgba(37, 99, 235, 0.15)", color: "var(--primary)", border: "1px solid rgba(37, 99, 235, 0.4)" }}>
                   <Activity size={14} />
                   <span>SyncLink Flow (KVM)</span>
                 </div>
@@ -4241,6 +4500,22 @@ function App() {
                     <span>한/영</span>
                   </button>
 
+                  {/* Mac / Windows 키 매핑 토글 버튼 */}
+                  <button
+                    className={`toolbar-btn ${isMacSession ? "active" : ""}`}
+                    onClick={() => setIsManualMacMode(!isMacSession)}
+                    title={
+                      isMacSession
+                        ? "🍎 Mac 단축키 모드 켜짐 (Windows Ctrl 키를 Mac Cmd ⌘ 키로 자동 매핑). 클릭하여 Win 모드로 전환"
+                        : "⊞ Windows 단축키 모드. 클릭하여 Mac 단축키 모드(Ctrl ➔ Cmd ⌘)로 전환"
+                    }
+                  >
+                    <span style={{ fontWeight: 800, fontSize: "0.8rem", color: isMacSession ? "#38bdf8" : "#94a3b8" }}>
+                      {isMacSession ? "🍎 Mac" : "⊞ Win"}
+                    </span>
+                    <span>{isMacSession ? "Cmd 매핑" : "Ctrl 모드"}</span>
+                  </button>
+
                   {/* 원격 단축키 퀵 전송 메뉴 */}
                   <div style={{ position: "relative" }}>
                     <button
@@ -4275,6 +4550,55 @@ function App() {
                           boxShadow: "0 10px 25px rgba(0,0,0,0.6)",
                         }}
                       >
+                        {/* 복사 (Ctrl+C / Cmd+C) */}
+                        <button
+                          className="shortcut-item-btn"
+                          onClick={() => {
+                            sendRemoteShortcut(isMacSession ? ["command", "c"] : ["control", "c"]);
+                            setShowShortcutsMenu(false);
+                          }}
+                        >
+                          <span className="shortcut-key">{isMacSession ? "Cmd + C" : "Ctrl + C"}</span>
+                          <span className="shortcut-desc">텍스트 복사</span>
+                        </button>
+
+                        {/* 붙여넣기 (Ctrl+V / Cmd+V) */}
+                        <button
+                          className="shortcut-item-btn"
+                          onClick={async () => {
+                            try {
+                              const text = await invoke<string>("get_clipboard_text");
+                              if (text) {
+                                lastClipboardTextRef.current = text;
+                                sendControlEvent({ type: "clipboard-sync", text });
+                                socketRef.current?.emit("clipboard-sync", {
+                                  targetRoom: sessionRoomId || myDeviceId,
+                                  text,
+                                });
+                              }
+                            } catch {}
+                            setTimeout(() => {
+                              sendRemoteShortcut(isMacSession ? ["command", "v"] : ["control", "v"]);
+                            }, 50);
+                            setShowShortcutsMenu(false);
+                          }}
+                        >
+                          <span className="shortcut-key">{isMacSession ? "Cmd + V" : "Ctrl + V"}</span>
+                          <span className="shortcut-desc">붙여넣기</span>
+                        </button>
+
+                        {/* 전체 선택 (Ctrl+A / Cmd+A) */}
+                        <button
+                          className="shortcut-item-btn"
+                          onClick={() => {
+                            sendRemoteShortcut(isMacSession ? ["command", "a"] : ["control", "a"]);
+                            setShowShortcutsMenu(false);
+                          }}
+                        >
+                          <span className="shortcut-key">{isMacSession ? "Cmd + A" : "Ctrl + A"}</span>
+                          <span className="shortcut-desc">전체 선택</span>
+                        </button>
+
                         <button
                           className="shortcut-item-btn"
                           onClick={() => {
@@ -4377,14 +4701,14 @@ function App() {
               <button
                 className="toolbar-btn"
                 style={{
-                  color: "#ffedcb",
-                  borderColor: "rgba(0, 91, 75, 0.4)",
-                  background: "rgba(0, 91, 75, 0.15)",
+                  color: "#d8b4fe",
+                  borderColor: "rgba(168, 85, 247, 0.4)",
+                  background: "rgba(168, 85, 247, 0.15)",
                 }}
                 onClick={() => openAiAssistant()}
                 title="AI 스마트 클립보드 도우미 (Ctrl+Space)"
               >
-                <Sparkles size={14} color="#e5b144" />
+                <Sparkles size={14} color="#c084fc" />
                 <span style={{ fontWeight: 600 }}>AI 클립보드</span>
               </button>
 
@@ -4497,7 +4821,8 @@ function App() {
                 <span>종료</span>
               </button>
             </div>
-          )}
+          )
+        )}
 
           {/* 영상 스트리밍 뷰 혹은 SyncLink Flow 대시보드 */}
           {flowMode === "flow" ? (
@@ -4505,7 +4830,7 @@ function App() {
               <div className="flow-status-card">
                 <div className="radar-wrapper">
                   <div className="radar-pulse" />
-                  <div className="radar-core" style={{ background: "rgba(0, 91, 75, 0.2)", color: "#3da591" }}>
+                  <div className="radar-core" style={{ background: "rgba(37, 99, 235, 0.18)", color: "var(--primary)" }}>
                     <Activity size={36} />
                   </div>
                 </div>
@@ -4620,19 +4945,19 @@ function App() {
                   e.preventDefault();
                   handleRemoteInput(e, "contextmenu");
                 }}
-                onMouseEnter={() => setGuestCursor((prev) => ({ ...prev, visible: true }))}
-                onMouseLeave={() => setGuestCursor((prev) => ({ ...prev, visible: false, clicking: false }))}
-                onMouseDown={(e) => {
-                  if (e.target !== remoteVideoRef.current) {
-                    handleRemoteInput(e, "mousedown");
-                  }
+                onPointerDown={(e) => {
+                  try {
+                    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                  } catch {}
+                  handleRemoteInput(e as any, "mousedown");
                 }}
-                onMouseUp={(e) => {
-                  if (e.target !== remoteVideoRef.current) {
-                    handleRemoteInput(e, "mouseup");
-                  }
+                onPointerUp={(e) => {
+                  try {
+                    (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+                  } catch {}
+                  handleRemoteInput(e as any, "mouseup");
                 }}
-                onMouseMove={(e) => {
+                onPointerMove={(e) => {
                   const rect = e.currentTarget.getBoundingClientRect();
                   setGuestCursor({
                     x: e.clientX - rect.left,
@@ -4640,10 +4965,9 @@ function App() {
                     visible: true,
                     clicking: e.buttons > 0,
                   });
-                  if (e.target !== remoteVideoRef.current) {
-                    handleRemoteInput(e, "mousemove");
-                  }
+                  handleRemoteInput(e as any, "mousemove");
                 }}
+                onWheel={handleWheel}
                 style={{ cursor: showVirtualCursor ? "none" : "default" }}
               >
                 <video
@@ -4658,17 +4982,15 @@ function App() {
                   autoPlay
                   playsInline
                   muted
+                  draggable={false}
+                  onDragStart={(e) => e.preventDefault()}
                   onLoadedData={(e) => {
                     (e.target as HTMLVideoElement).play().catch(() => {});
                   }}
                   onCanPlay={(e) => {
                     (e.target as HTMLVideoElement).play().catch(() => {});
                   }}
-                  onMouseDown={(e) => handleRemoteInput(e, "mousedown")}
-                  onMouseUp={(e) => handleRemoteInput(e, "mouseup")}
-                  onMouseMove={(e) => handleRemoteInput(e, "mousemove")}
-                  onContextMenu={(e) => handleRemoteInput(e, "contextmenu")}
-                  style={{ cursor: showVirtualCursor ? "none" : "default" }}
+                  style={{ cursor: showVirtualCursor ? "none" : "default", pointerEvents: "none", objectFit: primaryFitMode }}
                 />
 
                 {/* 🎯 선명한 원격 마우스 커서 오버레이 (Virtual Remote Cursor) */}
@@ -4719,10 +5041,27 @@ function App() {
         )}
         </div>
       );
+    };
 
       const renderTabContent = (tabId: string, paneLabel?: ActivePane) => {
         if (tabId === "dashboard" || !tabId) return dashboardView;
-        if (tabId === "session_primary") return isConnected ? primarySessionView : dashboardView;
+        if (tabId.startsWith("new_session_")) {
+          return (
+            <NewSessionTab
+              tabId={tabId}
+              onConnect={(targetId, pin, mode, sourceTabId) =>
+                handleConnectFromNewSessionTab(targetId, pin, mode, sourceTabId)
+              }
+              onClose={() => handleCloseSessionTab(tabId)}
+              recentDevices={recentDevices}
+              savedDevices={savedDevices}
+              isConnecting={isConnecting}
+              authError={authError}
+              isSplitView={layoutMode === "split"}
+            />
+          );
+        }
+        if (tabId === "session_primary") return isConnected ? renderPrimarySessionView(paneLabel) : dashboardView;
         const sec = secondarySessions.find((s) => s.id === tabId);
         if (sec) {
           return (
@@ -4924,7 +5263,7 @@ function App() {
         </div>
       )}
 
-      {/* ─────────────────── ✨ Yoonikon AI Smart Clipboard Assistant Modal ─────────────────── */}
+      {/* ─────────────────── ✨ SyncLink AI Smart Clipboard Assistant Modal ─────────────────── */}
       {isAiPanelOpen && (
         <div
           className="ai-modal-overlay"
@@ -4937,13 +5276,26 @@ function App() {
             {/* Header */}
             <div className="ai-modal-header">
               <div className="ai-modal-brand">
-                <div className="ai-icon-badge">
-                  <Sparkles size={20} />
+                <div
+                  className="ai-icon-badge"
+                  style={{
+                    padding: 0,
+                    overflow: "hidden",
+                    border: "1.5px solid rgba(168, 85, 247, 0.6)",
+                    boxShadow: "0 0 12px rgba(168, 85, 247, 0.45)",
+                    borderRadius: "10px",
+                  }}
+                >
+                  <img
+                    src="/synclink_unicorn_thumb.png"
+                    alt="AI Synci"
+                    style={{ width: "38px", height: "38px", objectFit: "cover", display: "block" }}
+                  />
                 </div>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                     <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "var(--text-main)" }}>
-                      AI 스마트 클립보드 도우미
+                      AI 싱키(Synci) 클립보드 도우미
                     </h3>
                     <span
                       style={{
@@ -4955,19 +5307,19 @@ function App() {
                             ? "rgba(239, 68, 68, 0.2)"
                             : aiDetectedType === "code"
                             ? "rgba(56, 189, 248, 0.2)"
-                            : "rgba(0, 91, 75, 0.2)",
+                            : "rgba(168, 85, 247, 0.2)",
                         color:
                           aiDetectedType === "error"
                             ? "#f87171"
                             : aiDetectedType === "code"
                             ? "#38bdf8"
-                            : "#e5b144",
+                            : "#c084fc",
                         border:
                           aiDetectedType === "error"
                             ? "1px solid rgba(239, 68, 68, 0.4)"
                             : aiDetectedType === "code"
                             ? "1px solid rgba(56, 189, 248, 0.4)"
-                            : "1px solid rgba(0, 91, 75, 0.4)",
+                            : "1px solid rgba(168, 85, 247, 0.4)",
                       }}
                     >
                       {aiDetectedType === "error"
@@ -5069,7 +5421,7 @@ function App() {
                   className={`ai-pill-btn ${aiAction === "custom" ? "active" : ""}`}
                   onClick={() => setAiAction("custom")}
                 >
-                  <Sparkles size={14} color="#ffedcb" />
+                  <Sparkles size={14} color="#d8b4fe" />
                   <span>✍️ 맞춤 질문</span>
                 </button>
               </div>
@@ -5105,7 +5457,7 @@ function App() {
             {(aiOutputText || aiLoading || aiError) && (
               <div className="ai-result-panel">
                 {aiLoading && (
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "#e5b144", padding: "16px 0" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "#c084fc", padding: "16px 0" }}>
                     <RefreshCw size={18} className="spin" />
                     <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>Gemini AI가 초고속 분석 중입니다...</span>
                   </div>
@@ -5122,7 +5474,7 @@ function App() {
                       <button
                         type="button"
                         className="btn-main"
-                        style={{ marginTop: "10px", padding: "6px 12px", fontSize: "0.8rem", background: "rgba(0, 91, 75, 0.2)", borderColor: "rgba(0, 91, 75, 0.5)" }}
+                        style={{ marginTop: "10px", padding: "6px 12px", fontSize: "0.8rem", background: "rgba(168, 85, 247, 0.2)", borderColor: "rgba(168, 85, 247, 0.5)" }}
                         onClick={() => {
                           setIsAiPanelOpen(false);
                           setActiveTab("settings");
@@ -5213,25 +5565,25 @@ function App() {
                   width: "46px",
                   height: "46px",
                   borderRadius: "14px",
-                  background: "linear-gradient(135deg, #005b4b 0%, #3da591 100%)",
+                  background: "var(--primary-gradient)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   color: "white",
-                  boxShadow: "0 0 20px rgba(0, 194, 255, 0.4)",
+                  boxShadow: "0 0 20px rgba(37, 99, 235, 0.4)",
                   flexShrink: 0,
                 }}
               >
                 <Server size={24} />
               </div>
               <div>
-                <h2 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 800, color: "var(--text-main)" }}>Yoonikon SyncLink 서버 설정</h2>
-                <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--text-muted)" }}>사설 통신망을 위한 시그널링 서버 주소를 지정해 주세요</p>
+                <h2 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 800, color: "var(--text-main)" }}>SyncLink 서버 설정</h2>
+                <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--text-muted)" }}>보안 사설 통신망을 위한 시그널링 서버 주소를 지정해 주세요</p>
               </div>
             </div>
 
             <p style={{ fontSize: "0.85rem", color: "#94a3b8", lineHeight: 1.5, margin: "0 0 18px 0" }}>
-              Yoonikon SyncLink는 보안과 독립성을 위해 공용 중앙 서버에 의존하지 않는 <b>100% 사설 P2P 원격 제어</b> 프로그램이에요. 통신 신호를 중계할 시그널링 서버 주소를 입력해 주세요.
+              SyncLink는 기업 보안 및 사설 네트워크 환경에 최적화된 <b>엔터프라이즈 P2P 원격 제어 솔루션</b>입니다. 통신 신호를 중계할 사내 또는 지정 시그널링 서버 주소를 입력해 주십시오.
             </p>
 
             <form
@@ -5286,19 +5638,6 @@ function App() {
                 <button
                   type="button"
                   className="btn-main btn-secondary-dark"
-                  style={{ flex: 1, padding: "8px 10px", fontSize: "0.8rem", color: "#a3e635", borderColor: "rgba(163, 230, 53, 0.4)" }}
-                  onClick={() => {
-                    const input = document.getElementById("initialServerInput") as HTMLInputElement;
-                    if (input) input.value = "http://183.111.166.141:5963";
-                    setServerUrl("http://183.111.166.141:5963");
-                    localStorage.setItem("synclink_server_url", "http://183.111.166.141:5963");
-                  }}
-                >
-                  사내 서버
-                </button>
-                <button
-                  type="button"
-                  className="btn-main btn-secondary-dark"
                   style={{ flex: 1, padding: "8px 10px", fontSize: "0.8rem" }}
                   onClick={() => {
                     const input = document.getElementById("initialServerInput") as HTMLInputElement;
@@ -5307,7 +5646,7 @@ function App() {
                     localStorage.setItem("synclink_server_url", "http://localhost:5963");
                   }}
                 >
-                  로컬 (5963)
+                  로컬호스트 (5963)
                 </button>
               </div>
 
@@ -5371,7 +5710,7 @@ function App() {
               )}
 
               <div style={{ background: "rgba(0, 0, 0, 0.35)", borderRadius: "10px", padding: "12px", marginBottom: "22px", border: "1px solid rgba(255, 255, 255, 0.08)" }}>
-                <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#3da591", marginBottom: "4px" }}>💡 아직 시그널링 서버가 없으신가요?</div>
+                <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--primary)", marginBottom: "4px" }}>💡 아직 시그널링 서버가 없으신가요?</div>
                 <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", lineHeight: 1.4 }}>
                   윈도우는 <span style={{ color: "#38bdf8", fontWeight: 600 }}>signaling-server/start-windows.bat</span> 더블 클릭, 또는 터미널에서:
                 </div>
@@ -5449,14 +5788,6 @@ function App() {
           </div>
         </div>
       )}
-
-      {/* 다채널 후원 & 기여 모달 (OmniRoute 스타일) */}
-      <SupportModal
-        isOpen={isSupportModalOpen}
-        onClose={() => setIsSupportModalOpen(false)}
-        links={SUPPORT_LINKS}
-        onOpenLink={openExternalLink}
-      />
 
       {/* SyncLink 초기 시작 사용 가이드 / 튜토리얼 모달 */}
       <GuideModal
