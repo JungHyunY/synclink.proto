@@ -18,7 +18,7 @@ mod windows_power {
             if enable {
                 // System required + Away mode: Screen can turn off to save power, but CPU/Network never sleeps
                 SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED);
-                println!("🔋 [PowerManager] Windows System Sleep Prevention: ON");
+                println!("🔋 [PowerManager] Windows System Sleep Prevention: ON (Screen sleep allowed)");
             } else {
                 SetThreadExecutionState(ES_CONTINUOUS);
                 println!("🔋 [PowerManager] Windows System Sleep Prevention: OFF");
@@ -28,9 +28,9 @@ mod windows_power {
 
     pub fn wake_display() {
         unsafe {
-            // Force display to turn on and reset idle timers
-            SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED);
-            println!("💡 [PowerManager] Windows Display Wake Signal Sent");
+            // One-shot display wake up: Do NOT pass ES_CONTINUOUS so display can sleep normally after idle timeout
+            SetThreadExecutionState(ES_DISPLAY_REQUIRED);
+            println!("💡 [PowerManager] Windows Display Wake Signal Sent (One-shot)");
         }
     }
 }
@@ -47,14 +47,14 @@ mod macos_power {
         let mut lock = CAFFEINATE_CHILD.lock().unwrap();
         if enable {
             if lock.is_none() {
-                // caffeinate -dims:
-                // -d: Prevent display from sleeping (화면 꺼짐 방지)
+                // caffeinate -ims:
                 // -i: Prevent system from idle sleeping (유휴 잠자기 방지)
                 // -m: Prevent disk from idle sleeping (디스크 잠자기 방지)
                 // -s: Prevent system from sleeping on AC power (시스템 잠자기 완전 방지)
-                if let Ok(child) = Command::new("caffeinate").arg("-dims").spawn() {
+                // Note: -d (display sleep prevention) is intentionally omitted so screen can sleep
+                if let Ok(child) = Command::new("caffeinate").arg("-ims").spawn() {
                     *lock = Some(child);
-                    println!("🔋 [PowerManager] macOS caffeinate full sleep/lock prevention: ON");
+                    println!("🔋 [PowerManager] macOS caffeinate sleep prevention: ON (Screen sleep allowed)");
                 }
             }
         } else {
