@@ -190,8 +190,10 @@ interface CustomDialogConfig {
   message: string;
   confirmText?: string;
   cancelText?: string;
+  neutralText?: string;
   onConfirm?: () => void;
   onCancel?: () => void;
+  onNeutral?: () => void;
 }
 
 function App() {
@@ -222,8 +224,10 @@ function App() {
     type?: "info" | "success" | "warning" | "error" | "update";
     confirmText?: string;
     cancelText?: string;
+    neutralText?: string;
     onConfirm?: () => void;
     onCancel?: () => void;
+    onNeutral?: () => void;
   }) => {
     setDialogConfig({
       isOpen: true,
@@ -232,8 +236,10 @@ function App() {
       type: options.type || "info",
       confirmText: options.confirmText || "확인",
       cancelText: options.cancelText,
+      neutralText: options.neutralText,
       onConfirm: options.onConfirm,
       onCancel: options.onCancel,
+      onNeutral: options.onNeutral,
     });
   };
 
@@ -957,25 +963,26 @@ function App() {
     localStorage.setItem("synclink_auto_standby", autoHostStandby ? "true" : "false");
   }, [autoHostStandby]);
 
-  // 원격 연결 중 실수로 앱 닫기 방지 (Prevent Accidental Window Close During Session)
+  // 원격 연결 중 및 평상시 앱 닫기 확인 (Confirm Tray vs Exit on Window Close)
   useEffect(() => {
     let unlistenClose: (() => void) | undefined;
     const setupCloseProtection = async () => {
       try {
         const appWindow = getCurrentWebviewWindow();
         unlistenClose = await appWindow.onCloseRequested(async (event) => {
-          // 항상 기본 창 닫기를 방지하고 트레이로 최소화
+          // 항상 기본 창 닫기를 가로채서 사용자 선택 모달 표시
           event.preventDefault();
 
-          // 원격 제어 세션이 진행 중인 경우 (게스트 또는 호스트 접속 중)에만 실수 방지 모달 표시
+          // 1. 원격 제어 세션이 진행 중인 경우 (게스트 또는 호스트 접속 중)
           if (isConnectedRef.current || isScreenCapturingRef.current) {
             showDialog({
               type: "warning",
               title: "원격 제어 세션 진행 중",
               message:
-                "현재 원격 접속이 활성화되어 있습니다.\n\n창을 닫으면 원격 제어가 즉시 끊어지고 시스템 트레이로 최소화됩니다.\n계속 진행하시겠습니까?",
-              confirmText: "연결 끊고 트레이로 최소화",
+                "현재 원격 접속이 활성화되어 있습니다.\n\n창을 닫으면 원격 제어가 즉시 끊어집니다. 어떻게 진행하시겠습니까?",
               cancelText: "취소 (연결 유지)",
+              neutralText: "연결 끊고 완전 종료",
+              confirmText: "연결 끊고 트레이로 최소화",
               onConfirm: async () => {
                 endSession();
                 setTimeout(async () => {
@@ -990,16 +997,44 @@ function App() {
                   }
                 }, 100);
               },
+              onNeutral: async () => {
+                endSession();
+                setTimeout(async () => {
+                  try {
+                    await invoke("exit_app");
+                  } catch {
+                    await appWindow.destroy().catch(() => {});
+                  }
+                }, 100);
+              },
             });
             return;
           }
 
-          // 일반 대기 상태: 닫기 버튼 클릭 시 즉시 시스템 트레이로 최소화
-          try {
-            await invoke("hide_to_tray");
-          } catch {
-            await appWindow.hide().catch(() => {});
-          }
+          // 2. 일반 대기 상태: 트레이로 최소화할지, 완전 종료할지 확인
+          showDialog({
+            type: "info",
+            title: "SyncLink 닫기",
+            message:
+              "창을 닫으려고 합니다. 백그라운드(시스템 트레이)로 최소화하여 무인 원격 접속 대기 상태를 유지하시겠습니까, 아니면 프로그램을 완전히 종료하시겠습니까?",
+            cancelText: "취소",
+            neutralText: "완전 종료",
+            confirmText: "트레이로 최소화",
+            onConfirm: async () => {
+              try {
+                await invoke("hide_to_tray");
+              } catch {
+                await appWindow.hide().catch(() => {});
+              }
+            },
+            onNeutral: async () => {
+              try {
+                await invoke("exit_app");
+              } catch {
+                await appWindow.destroy().catch(() => {});
+              }
+            },
+          });
         });
       } catch (err) {
         console.warn("Failed to register onCloseRequested handler:", err);
@@ -5751,7 +5786,7 @@ function App() {
 
             <div className="custom-dialog-message">{dialogConfig.message}</div>
 
-            <div className="custom-dialog-footer">
+            <div className="custom-dialog-footer" style={{ display: "flex", justifyContent: "flex-end", gap: "8px", alignItems: "center" }}>
               {dialogConfig.cancelText && (
                 <button
                   type="button"
@@ -5763,6 +5798,26 @@ function App() {
                   }}
                 >
                   {dialogConfig.cancelText}
+                </button>
+              )}
+              {dialogConfig.neutralText && (
+                <button
+                  type="button"
+                  className="btn-main"
+                  style={{
+                    padding: "8px 16px",
+                    fontSize: "0.88rem",
+                    background: "rgba(239, 68, 68, 0.15)",
+                    color: "#f87171",
+                    border: "1px solid rgba(239, 68, 68, 0.35)",
+                    borderRadius: "8px",
+                  }}
+                  onClick={() => {
+                    if (dialogConfig.onNeutral) dialogConfig.onNeutral();
+                    closeDialog();
+                  }}
+                >
+                  {dialogConfig.neutralText}
                 </button>
               )}
               <button
