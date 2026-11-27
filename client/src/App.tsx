@@ -279,7 +279,20 @@ function App() {
   const [isServerConnected, setIsServerConnected] = useState(false);
   const [ping, setPing] = useState<number | null>(null);
 
-  // 🤖 SyncLink AI Smart Clipboard Assistant State
+  // 🤖 SyncLink Multi-Model AI Smart Assistant State (Open-Source Multi-Provider)
+  type AiProvider = "gemini" | "openai" | "ollama" | "claude";
+  const [aiProvider, setAiProvider] = useState<AiProvider>(() => {
+    return (localStorage.getItem("synclink_ai_provider") as AiProvider) || "gemini";
+  });
+  const [aiApiKey, setAiApiKey] = useState(() => {
+    return localStorage.getItem("synclink_ai_api_key") || localStorage.getItem("synclink_gemini_api_key") || "";
+  });
+  const [aiModel, setAiModel] = useState(() => {
+    return localStorage.getItem("synclink_ai_model") || "";
+  });
+  const [aiEndpoint, setAiEndpoint] = useState(() => {
+    return localStorage.getItem("synclink_ai_endpoint") || "";
+  });
   const [geminiApiKey, setGeminiApiKey] = useState(() => localStorage.getItem("synclink_gemini_api_key") || "");
   const [isAiPanelOpen, setIsAiPanelOpen] = useState(false);
   const [aiInputText, setAiInputText] = useState("");
@@ -542,9 +555,9 @@ function App() {
       return;
     }
 
-    const currentKey = geminiApiKey.trim();
-    if (!currentKey) {
-      setAiError("Google Gemini API 키가 설정되지 않았습니다. [설정] 탭에서 무료 API 키를 등록해주세요.");
+    const currentKey = (aiApiKey || geminiApiKey).trim();
+    if (aiProvider !== "ollama" && !currentKey) {
+      setAiError(`${aiProvider === "gemini" ? "Google Gemini" : aiProvider === "openai" ? "OpenAI" : "Claude"} API 키가 설정되지 않았습니다. [설정] 탭에서 API 키를 등록해주세요.`);
       return;
     }
 
@@ -564,36 +577,109 @@ function App() {
     }
 
     try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(currentKey)}`;
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: "user",
-              parts: [{ text: `${systemPrompt}\n\n[대상 텍스트]:\n\`\`\`\n${promptText}\n\`\`\`` }]
-            }
-          ],
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: 1024,
-          }
-        })
-      });
+      let outputText = "";
 
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({}));
-        throw new Error(errJson?.error?.message || `API 요청 실패 (HTTP ${response.status})`);
+      if (aiProvider === "gemini") {
+        const modelName = aiModel.trim() || "gemini-1.5-flash";
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent?key=${encodeURIComponent(currentKey)}`;
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: "user",
+                parts: [{ text: `${systemPrompt}\n\n[대상 텍스트]:\n\`\`\`\n${promptText}\n\`\`\`` }],
+              },
+            ],
+            generationConfig: {
+              temperature: 0.2,
+              maxOutputTokens: 1024,
+            },
+          }),
+        });
+        if (!response.ok) {
+          const errJson = await response.json().catch(() => ({}));
+          throw new Error(errJson?.error?.message || `Gemini 요청 실패 (HTTP ${response.status})`);
+        }
+        const resData = await response.json();
+        outputText = resData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      } else if (aiProvider === "openai") {
+        const base = (aiEndpoint.trim() || "https://api.openai.com/v1").replace(/\/+$/, "");
+        const modelName = aiModel.trim() || "gpt-4o-mini";
+        const response = await fetch(`${base}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${currentKey}`,
+          },
+          body: JSON.stringify({
+            model: modelName,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: `[대상 텍스트]:\n\`\`\`\n${promptText}\n\`\`\`` },
+            ],
+            temperature: 0.2,
+            max_tokens: 1024,
+          }),
+        });
+        if (!response.ok) {
+          const errJson = await response.json().catch(() => ({}));
+          throw new Error(errJson?.error?.message || `OpenAI 호환 API 요청 실패 (HTTP ${response.status})`);
+        }
+        const resData = await response.json();
+        outputText = resData?.choices?.[0]?.message?.content || "";
+      } else if (aiProvider === "ollama") {
+        const base = (aiEndpoint.trim() || "http://localhost:11434").replace(/\/+$/, "");
+        const modelName = aiModel.trim() || "llama3.2";
+        const response = await fetch(`${base}/api/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: modelName,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: `[대상 텍스트]:\n\`\`\`\n${promptText}\n\`\`\`` },
+            ],
+            stream: false,
+          }),
+        });
+        if (!response.ok) {
+          throw new Error(`Ollama 연결 실패 (HTTP ${response.status}). Ollama가 로컬에서 실행 중인지 확인하세요.`);
+        }
+        const resData = await response.json();
+        outputText = resData?.message?.content || "";
+      } else if (aiProvider === "claude") {
+        const modelName = aiModel.trim() || "claude-3-5-haiku-20241022";
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": currentKey,
+            "anthropic-version": "2023-06-01",
+            "dangerously-allow-browser": "true",
+          },
+          body: JSON.stringify({
+            model: modelName,
+            max_tokens: 1024,
+            system: systemPrompt,
+            messages: [
+              { role: "user", content: `[대상 텍스트]:\n\`\`\`\n${promptText}\n\`\`\`` },
+            ],
+          }),
+        });
+        if (!response.ok) {
+          const errJson = await response.json().catch(() => ({}));
+          throw new Error(errJson?.error?.message || `Claude 요청 실패 (HTTP ${response.status})`);
+        }
+        const resData = await response.json();
+        outputText = resData?.content?.[0]?.text || "";
       }
 
-      const resData = await response.json();
-      const output = resData?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!output) throw new Error("AI가 유효한 답변을 생성하지 못했습니다.");
-
-      setAiOutputText(output);
+      if (!outputText) throw new Error("AI가 유효한 답변을 생성하지 못했습니다.");
+      setAiOutputText(outputText);
     } catch (err: any) {
-      console.error("Gemini API Error:", err);
+      console.error("AI API Error:", err);
       setAiError(err?.message || "AI 분석 중 오류가 발생했습니다.");
     } finally {
       setAiLoading(false);
@@ -973,68 +1059,71 @@ function App() {
           // 항상 기본 창 닫기를 가로채서 사용자 선택 모달 표시
           event.preventDefault();
 
-          // 1. 원격 제어 세션이 진행 중인 경우 (게스트 또는 호스트 접속 중)
-          if (isConnectedRef.current || isScreenCapturingRef.current) {
-            showDialog({
-              type: "warning",
-              title: "원격 제어 세션 진행 중",
-              message:
-                "현재 원격 접속이 활성화되어 있습니다.\n\n창을 닫으면 원격 제어가 즉시 끊어집니다. 어떻게 진행하시겠습니까?",
-              cancelText: "취소 (연결 유지)",
-              neutralText: "연결 끊고 완전 종료",
-              confirmText: "연결 끊고 트레이로 최소화",
-              onConfirm: async () => {
-                endSession();
-                setTimeout(async () => {
-                  try {
-                    await invoke("hide_to_tray");
-                  } catch {
+          // UI 스레드 블로킹 방지: 즉시 네이티브 윈도우 이벤트에 응답하고 모달을 비동기 렌더링
+          setTimeout(() => {
+            // 1. 원격 제어 세션이 진행 중인 경우 (게스트 또는 호스트 접속 중)
+            if (isConnectedRef.current || isScreenCapturingRef.current) {
+              showDialog({
+                type: "warning",
+                title: "원격 제어 세션 진행 중",
+                message:
+                  "현재 원격 접속이 활성화되어 있습니다.\n\n창을 닫으면 원격 제어가 즉시 끊어집니다. 어떻게 진행하시겠습니까?",
+                cancelText: "취소 (연결 유지)",
+                neutralText: "연결 끊고 완전 종료",
+                confirmText: "연결 끊고 트레이로 최소화",
+                onConfirm: async () => {
+                  endSession();
+                  setTimeout(async () => {
                     try {
-                      await appWindow.hide();
+                      await invoke("hide_to_tray");
                     } catch {
-                      await appWindow.destroy();
+                      try {
+                        await appWindow.hide();
+                      } catch {
+                        await appWindow.destroy();
+                      }
                     }
-                  }
-                }, 100);
+                  }, 100);
+                },
+                onNeutral: async () => {
+                  endSession();
+                  setTimeout(async () => {
+                    try {
+                      await invoke("exit_app");
+                    } catch {
+                      await appWindow.destroy().catch(() => {});
+                    }
+                  }, 100);
+                },
+              });
+              return;
+            }
+
+            // 2. 일반 대기 상태: 트레이로 최소화할지, 완전 종료할지 확인
+            showDialog({
+              type: "info",
+              title: "SyncLink 닫기",
+              message:
+                "창을 닫으려고 합니다. 백그라운드(시스템 트레이)로 최소화하여 무인 원격 접속 대기 상태를 유지하시겠습니까, 아니면 프로그램을 완전히 종료하시겠습니까?",
+              cancelText: "취소",
+              neutralText: "완전 종료",
+              confirmText: "트레이로 최소화",
+              onConfirm: async () => {
+                try {
+                  await invoke("hide_to_tray");
+                } catch {
+                  await appWindow.hide().catch(() => {});
+                }
               },
               onNeutral: async () => {
-                endSession();
-                setTimeout(async () => {
-                  try {
-                    await invoke("exit_app");
-                  } catch {
-                    await appWindow.destroy().catch(() => {});
-                  }
-                }, 100);
+                try {
+                  await invoke("exit_app");
+                } catch {
+                  await appWindow.destroy().catch(() => {});
+                }
               },
             });
-            return;
-          }
-
-          // 2. 일반 대기 상태: 트레이로 최소화할지, 완전 종료할지 확인
-          showDialog({
-            type: "info",
-            title: "SyncLink 닫기",
-            message:
-              "창을 닫으려고 합니다. 백그라운드(시스템 트레이)로 최소화하여 무인 원격 접속 대기 상태를 유지하시겠습니까, 아니면 프로그램을 완전히 종료하시겠습니까?",
-            cancelText: "취소",
-            neutralText: "완전 종료",
-            confirmText: "트레이로 최소화",
-            onConfirm: async () => {
-              try {
-                await invoke("hide_to_tray");
-              } catch {
-                await appWindow.hide().catch(() => {});
-              }
-            },
-            onNeutral: async () => {
-              try {
-                await invoke("exit_app");
-              } catch {
-                await appWindow.destroy().catch(() => {});
-              }
-            },
-          });
+          }, 0);
         });
       } catch (err) {
         console.warn("Failed to register onCloseRequested handler:", err);
@@ -1149,13 +1238,23 @@ function App() {
       }
     };
     init();
-    const interval = setInterval(async () => {
-      try {
-        const granted = await invoke<boolean>("check_permissions");
-        setPermissionGranted(granted);
-      } catch {}
-    }, 3000);
-    return () => clearInterval(interval);
+    // macOS 환경에서 권한이 아직 승인되지 않았을 때만 선별 폴링 (Windows IPC 불필요 호출 및 UI 프리징 원천 방지)
+    let interval: any = null;
+    if (navigator.userAgent.includes("Mac") || /mac|darwin/i.test(navigator.platform || "")) {
+      interval = setInterval(async () => {
+        try {
+          const granted = await invoke<boolean>("check_permissions");
+          setPermissionGranted(granted);
+          if (granted && interval) {
+            clearInterval(interval);
+            interval = null;
+          }
+        } catch {}
+      }, 4000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, []);
 
   const handleToggleAutoStart = async (enabled: boolean) => {
@@ -2979,8 +3078,8 @@ function App() {
               />
               <div>
                 <h2 className="brand-title">SyncLink</h2>
-                <span className="brand-badge" style={{ background: "rgba(37, 99, 235, 0.15)", color: "var(--primary)", border: "1px solid rgba(37, 99, 235, 0.4)" }}>
-                  ENTERPRISE
+                <span className="brand-badge" style={{ background: "rgba(16, 185, 129, 0.15)", color: "#10b981", border: "1px solid rgba(16, 185, 129, 0.4)" }}>
+                  COMMUNITY
                 </span>
               </div>
             </div>
@@ -3995,77 +4094,175 @@ function App() {
                     </div>
                   </div>
 
-                  {/* AI 스마트 클립보드 설정 (Google Gemini) */}
+                  {/* 🤖 멀티 모델 AI 스마트 클립보드 설정 (오픈소스 커뮤니티 에디션 전용) */}
                   <div className="input-field-group" style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid var(--card-border)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                       <label className="input-label" style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--text-main)", fontWeight: 700, margin: 0 }}>
                         <Sparkles size={16} color="var(--primary)" />
-                        AI 스마트 클립보드 (Google Gemini)
+                        AI 스마트 클립보드 (Multi-Model Provider)
                       </label>
                       <span
                         style={{
                           fontSize: "0.75rem",
                           padding: "2px 8px",
                           borderRadius: "4px",
-                          background: geminiApiKey ? "rgba(34, 197, 94, 0.15)" : "rgba(148, 163, 184, 0.15)",
-                          color: geminiApiKey ? "#4ade80" : "var(--text-muted)",
-                          border: geminiApiKey ? "1px solid rgba(74, 222, 128, 0.4)" : "1px solid rgba(148, 163, 184, 0.3)",
+                          background: (aiProvider === "ollama" || aiApiKey || geminiApiKey) ? "rgba(34, 197, 94, 0.15)" : "rgba(148, 163, 184, 0.15)",
+                          color: (aiProvider === "ollama" || aiApiKey || geminiApiKey) ? "#4ade80" : "var(--text-muted)",
+                          border: (aiProvider === "ollama" || aiApiKey || geminiApiKey) ? "1px solid rgba(74, 222, 128, 0.4)" : "1px solid rgba(148, 163, 184, 0.3)",
                         }}
                       >
-                        {geminiApiKey ? "API 키 등록 완료" : "미등록 (기능 비활성)"}
+                        {aiProvider === "ollama" ? "Ollama 로컬 연결" : (aiApiKey || geminiApiKey) ? `${aiProvider.toUpperCase()} 연결됨` : "미등록"}
                       </span>
                     </div>
 
-                    <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "0 0 10px 0", lineHeight: 1.4 }}>
-                      원격 작업 중 복사(Ctrl+C)한 <b>터미널 에러 해결책 제시, 외국어 번역, 코드 분석</b>에 사용되는 Google Gemini API 키입니다.
+                    <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "0 0 12px 0", lineHeight: 1.4 }}>
+                      원격 작업 중 복사(Ctrl+C)한 <b>터미널 에러 해결, 번역, 코드 분석</b>에 사용할 AI 모델 공급자를 선택하세요.
                     </p>
 
-                    <div style={{ display: "flex", gap: "8px" }}>
-                      <input
-                        type="password"
-                        className="custom-input mono"
-                        placeholder="Google Gemini API Key 입력 (AIza...)"
-                        defaultValue={geminiApiKey}
-                        id="geminiApiKeyInput"
-                        style={{ flex: 1, fontSize: "0.85rem" }}
-                      />
-                      <button
-                        type="button"
-                        className="btn-main"
-                        style={{
-                          padding: "8px 16px",
-                          fontSize: "0.85rem",
-                          background: "var(--input-bg)",
-                          border: "1px solid var(--card-border)",
-                          color: "var(--text-main)",
-                        }}
-                        onClick={() => {
-                          const input = document.getElementById("geminiApiKeyInput") as HTMLInputElement;
-                          const val = input ? input.value.trim() : "";
-                          setGeminiApiKey(val);
-                          localStorage.setItem("synclink_gemini_api_key", val);
-                          showDialog({
-                            type: "success",
-                            title: "API 키 저장 완료",
-                            message: val
-                              ? "Google Gemini API 키가 안전하게 저장되었습니다! 이제 단축키(Ctrl+Space)나 상단 툴바에서 AI 클립보드를 사용할 수 있습니다."
-                              : "API 키가 삭제되었습니다.",
-                          });
-                        }}
-                      >
-                        저장
-                      </button>
+                    {/* AI Provider Selector Buttons */}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "6px", marginBottom: "12px" }}>
+                      {[
+                        { id: "gemini", label: "Google Gemini", sub: "Gemini 1.5/2.0" },
+                        { id: "openai", label: "OpenAI / DeepSeek", sub: "GPT-4o, DeepSeek" },
+                        { id: "ollama", label: "Ollama (로컬)", sub: "Llama3, Qwen 무료" },
+                        { id: "claude", label: "Anthropic Claude", sub: "Claude 3.5" },
+                      ].map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => {
+                            setAiProvider(p.id as any);
+                            localStorage.setItem("synclink_ai_provider", p.id);
+                          }}
+                          style={{
+                            padding: "8px 6px",
+                            borderRadius: "8px",
+                            border: aiProvider === p.id ? "1.5px solid var(--primary)" : "1px solid var(--card-border)",
+                            background: aiProvider === p.id ? "rgba(37, 99, 235, 0.15)" : "var(--input-bg)",
+                            color: aiProvider === p.id ? "var(--primary)" : "var(--text-main)",
+                            cursor: "pointer",
+                            textAlign: "center",
+                          }}
+                        >
+                          <div style={{ fontSize: "0.78rem", fontWeight: 700 }}>{p.label}</div>
+                          <div style={{ fontSize: "0.68rem", color: "var(--text-muted)", marginTop: "2px" }}>{p.sub}</div>
+                        </button>
+                      ))}
                     </div>
 
+                    {/* Model Name & Endpoint Inputs */}
+                    <div style={{ display: "grid", gridTemplateColumns: aiProvider === "ollama" || aiProvider === "openai" ? "1fr 1fr" : "1fr", gap: "8px", marginBottom: "8px" }}>
+                      <div>
+                        <label style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "3px", display: "block" }}>
+                          사용할 모델명 (선택 사항)
+                        </label>
+                        <input
+                          type="text"
+                          className="custom-input mono"
+                          placeholder={
+                            aiProvider === "gemini" ? "gemini-1.5-flash (기본값)" :
+                            aiProvider === "openai" ? "gpt-4o-mini 또는 deepseek-chat" :
+                            aiProvider === "ollama" ? "llama3.2 또는 qwen2.5" : "claude-3-5-haiku-20241022"
+                          }
+                          value={aiModel}
+                          onChange={(e) => {
+                            setAiModel(e.target.value);
+                            localStorage.setItem("synclink_ai_model", e.target.value);
+                          }}
+                          style={{ fontSize: "0.82rem", padding: "6px 10px" }}
+                        />
+                      </div>
+
+                      {(aiProvider === "ollama" || aiProvider === "openai") && (
+                        <div>
+                          <label style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "3px", display: "block" }}>
+                            {aiProvider === "ollama" ? "Ollama 엔드포인트 URL" : "Custom Base URL (DeepSeek 등)"}
+                          </label>
+                          <input
+                            type="text"
+                            className="custom-input mono"
+                            placeholder={aiProvider === "ollama" ? "http://localhost:11434" : "https://api.openai.com/v1"}
+                            value={aiEndpoint}
+                            onChange={(e) => {
+                              setAiEndpoint(e.target.value);
+                              localStorage.setItem("synclink_ai_endpoint", e.target.value);
+                            }}
+                            style={{ fontSize: "0.82rem", padding: "6px 10px" }}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* API Key Input */}
+                    {aiProvider !== "ollama" ? (
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <input
+                          type="password"
+                          className="custom-input mono"
+                          placeholder={`${aiProvider.toUpperCase()} API Key 입력`}
+                          value={aiApiKey || (aiProvider === "gemini" ? geminiApiKey : "")}
+                          onChange={(e) => {
+                            setAiApiKey(e.target.value);
+                            if (aiProvider === "gemini") setGeminiApiKey(e.target.value);
+                          }}
+                          id="multiAiApiKeyInput"
+                          style={{ flex: 1, fontSize: "0.85rem" }}
+                        />
+                        <button
+                          type="button"
+                          className="btn-main"
+                          style={{
+                            padding: "8px 16px",
+                            fontSize: "0.85rem",
+                            background: "var(--input-bg)",
+                            border: "1px solid var(--card-border)",
+                            color: "var(--text-main)",
+                          }}
+                          onClick={() => {
+                            const val = (aiApiKey || geminiApiKey).trim();
+                            localStorage.setItem("synclink_ai_api_key", val);
+                            if (aiProvider === "gemini") localStorage.setItem("synclink_gemini_api_key", val);
+                            showDialog({
+                              type: "success",
+                              title: "AI 설정 저장 완료",
+                              message: val
+                                ? `${aiProvider.toUpperCase()} 설정이 안전하게 저장되었습니다! 이제 AI 클립보드를 자유롭게 사용할 수 있습니다.`
+                                : "API 키가 삭제되었습니다.",
+                            });
+                          }}
+                        >
+                          저장
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ background: "rgba(34, 197, 94, 0.08)", border: "1px solid rgba(34, 197, 94, 0.25)", borderRadius: "8px", padding: "8px 12px", fontSize: "0.8rem", color: "#4ade80" }}>
+                        ✨ <b>Ollama 로컬 모드</b>: 로컬에 Ollama가 켜져 있으면 별도의 API 키 없이 100% 무료 및 완벽한 오프라인 프라이버시로 동작합니다.
+                      </div>
+                    )}
+
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px", flexWrap: "wrap", gap: "8px" }}>
-                      <button
-                        type="button"
-                        className="btn-text"
-                        style={{ fontSize: "0.78rem", color: "#38bdf8", textDecoration: "underline", padding: 0, background: "none", border: "none", cursor: "pointer" }}
-                        onClick={() => openExternalLink("https://aistudio.google.com/app/apikey")}
-                      >
-                        👉 Google AI Studio에서 무료 API 키 발급받기 (1분 소요, 완전 무료)
-                      </button>
+                      {aiProvider === "gemini" ? (
+                        <button
+                          type="button"
+                          className="btn-text"
+                          style={{ fontSize: "0.78rem", color: "#38bdf8", textDecoration: "underline", padding: 0, background: "none", border: "none", cursor: "pointer" }}
+                          onClick={() => openExternalLink("https://aistudio.google.com/app/apikey")}
+                        >
+                          👉 Google AI Studio에서 무료 API 키 발급 (완전 무료)
+                        </button>
+                      ) : aiProvider === "openai" ? (
+                        <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                          💡 DeepSeek 사용 시 Base URL에 <code>https://api.deepseek.com/v1</code> 입력
+                        </span>
+                      ) : aiProvider === "ollama" ? (
+                        <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                          💡 <code>ollama run llama3.2</code> 실행 후 즉시 사용 가능
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                          💡 Anthropic Console 발급 키 입력
+                        </span>
+                      )}
                       <button
                         type="button"
                         className="btn-main btn-secondary-dark"
@@ -4169,7 +4366,7 @@ function App() {
                         버전 및 업데이트
                       </h3>
                       <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
-                        SyncLink <b>v{CURRENT_VERSION}</b> (Enterprise Desktop)
+                        SyncLink <b>v{CURRENT_VERSION}</b> (Community Edition)
                       </div>
                     </div>
                     <button
@@ -5358,7 +5555,7 @@ function App() {
                     </span>
                   </div>
                   <p style={{ margin: 0, fontSize: "0.78rem", color: "var(--text-muted)" }}>
-                    원격 및 로컬 클립보드 텍스트를 Google Gemini AI로 즉시 분석합니다
+                    선택된 모델 ({aiProvider === "gemini" ? "Google Gemini" : aiProvider === "openai" ? "OpenAI / DeepSeek" : aiProvider === "ollama" ? "Ollama 로컬 AI" : "Anthropic Claude"})로 클립보드 텍스트를 즉시 분석합니다
                   </p>
                 </div>
               </div>
