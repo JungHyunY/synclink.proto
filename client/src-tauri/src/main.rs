@@ -815,7 +815,11 @@ fn close_window(window: Window) {
 
 #[command]
 fn hide_to_tray(window: Window) {
-    let _ = window.hide();
+    if window.label() == "main" {
+        let _ = window.hide();
+    } else {
+        let _ = window.destroy();
+    }
 }
 
 #[command]
@@ -1169,6 +1173,7 @@ fn open_external_url(url: String) -> Result<(), String> {
 
 mod kvm_manager;
 mod power_manager;
+mod tray_manager;
 
 #[command]
 fn prevent_system_sleep(enabled: bool) {
@@ -1239,6 +1244,9 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             kvm_manager::init_kvm(app.handle().clone());
+            if let Err(e) = tray_manager::init_tray(app) {
+                eprintln!("⚠️ Failed to initialize system tray: {}", e);
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
